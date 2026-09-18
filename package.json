@@ -1,6 +1,6 @@
 {
   "name": "unreal-box",
-  "version": "0.2.3",
+  "version": "1.0.0",
   "description": "虚幻盒子",
   "main": "./out/main/index.js",
   "author": "虚幻盒子科技有限公司",
@@ -37,6 +37,7 @@
     "release:app": "node scripts/release-app.mjs",
     "audit:prod": "pnpm audit --prod --audit-level=high --registry=https://registry.npmjs.org",
     "security:secrets": "node scripts/check-secrets.mjs",
+    "verify:overrides": "node scripts/check-overrides-sync.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck:cli": "tsc --noEmit -p tsconfig.cli.json",
@@ -208,7 +209,7 @@
     "vue-tsc": "^3.0.3"
   },
   "overrides": {
-    "@xmldom/xmldom": "0.8.13",
+    "@xmldom/xmldom": "0.8.15",
     "brace-expansion@2": "2.1.4",
     "defu": "6.1.7",
     "fast-uri@3": "3.1.6",
@@ -243,7 +244,7 @@
         "tar-fs": "2.1.4"
       }
     },
-    "@electron/rebuild@4.2.0": {
+    "@electron/rebuild@^4.2.0": {
       "node-abi": "4.35.0"
     }
   },
