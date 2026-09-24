@@ -28,6 +28,10 @@ import type { AppIconTheme } from './ipc/appSettings'
 // Windows 使用 ico 格式，其他平台使用 png
 const icon = process.platform === 'win32' ? iconIco : iconPng
 import { initDatabase, closeDatabase } from './sqliteDataBase'
+import {
+  getProjectCoverService,
+  stopProjectCoverSync
+} from './services/project/projectCoverRuntime'
 import { findMainWindow } from './appWindows'
 import {
   keepMainWindowInTray,
@@ -630,6 +634,7 @@ appReady?.then(async () => {
   try {
     // 初始化数据库
     await initDatabase()
+    void getProjectCoverService().start()
     logger.info('数据库初始化完成')
 
     // 执行应用初始化逻辑
@@ -778,6 +783,7 @@ app.on('will-quit', async () => {
     logger.info('服务管理器已停止')
 
     // 关闭数据库连接
+    await stopProjectCoverSync()
     closeDatabase()
     logger.info('数据库连接已关闭')
 

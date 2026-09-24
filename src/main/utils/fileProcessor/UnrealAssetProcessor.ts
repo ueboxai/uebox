@@ -771,7 +771,10 @@ export class UnrealAssetProcessor extends BaseFileProcessor {
   /**
    * 处理.uproject文件
    */
-  private async processUproject(filePath: string): Promise<Record<string, any>> {
+  async processUproject(
+    filePath: string,
+    options?: { includeThumbnail?: boolean }
+  ): Promise<Partial<FileMetadata> & Record<string, unknown>> {
     try {
       const projectInfo = await this.parseUproject(filePath)
       const basicInfo = await this.getBasicFileInfo(filePath)
@@ -785,7 +788,7 @@ export class UnrealAssetProcessor extends BaseFileProcessor {
         engineAssociation: projectInfo.EngineAssociation,
         category: projectInfo.Category,
         description: projectInfo.Description,
-        imgLocalPath: this.getProjectThumbnail(filePath),
+        imgLocalPath: options?.includeThumbnail === false ? '' : this.getProjectThumbnail(filePath),
         assetKey: uuidv4(),
         originPath: filePath,
         classKey: 'uproject',
