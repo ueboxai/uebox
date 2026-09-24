@@ -782,8 +782,10 @@ app.on('will-quit', async () => {
     await serviceManager.stop()
     logger.info('服务管理器已停止')
 
-    // 关闭数据库连接
+    // 停掉封面同步：最多等 2 秒，免得离线网络盘上的 stat 拖住退出
     await stopProjectCoverSync()
+
+    // 关闭数据库连接
     closeDatabase()
     logger.info('数据库连接已关闭')
 

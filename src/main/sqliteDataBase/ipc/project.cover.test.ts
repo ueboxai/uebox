@@ -1,9 +1,10 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { registerProjectIPC } from './project'
 
-const { handlers, save } = vi.hoisted(() => ({
+const { handlers, save, update } = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => Promise<unknown>>(),
-  save: vi.fn()
+  save: vi.fn(),
+  update: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -13,6 +14,10 @@ vi.mock('electron', () => ({
   }
 }))
 vi.mock('../index', () => ({ getPublicDatabase: vi.fn() }))
+vi.mock('../models/project', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../models/project')>()),
+  updateProject: update
+}))
 vi.mock('../../appSettingsManager', () => ({ appSettingsManager: {} }))
 vi.mock('../../utils/fileProcessor/UnrealAssetProcessor', () => ({ UnrealAssetProcessor: vi.fn() }))
 vi.mock('../../utils/UnrealPathManager', () => ({ default: {} }))
@@ -24,6 +29,7 @@ vi.mock('../../services/project/projectCoverRuntime', () => ({
 beforeEach(() => {
   handlers.clear()
   save.mockReset().mockResolvedValue('cover.jpg')
+  update.mockReset().mockReturnValue(true)
   registerProjectIPC()
 })
 
@@ -65,4 +71,12 @@ it('returns a storage failure without reporting a saved cover', async () => {
     data: '',
     error: 'Storage unavailable'
   })
+})
+
+it('generic project updates cannot change the cover behind the cover service', async () => {
+  const handler = handlers.get('db:project:update')
+  if (!handler) throw new Error('Update handler not registered')
+  const updates = { projectName: 'Renamed', image: 'elsewhere.png', coverMode: 'custom' }
+  expect(await handler(undefined, 'project-one', updates)).toEqual({ success: true, data: true })
+  expect(update).toHaveBeenCalledWith(undefined, 'project-one', { projectName: 'Renamed' })
 })

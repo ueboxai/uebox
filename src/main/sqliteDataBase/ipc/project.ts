@@ -593,7 +593,8 @@ export async function registerProjectByUproject(filePath: string): Promise<Regis
     }
 
     const id = createProject(db, record)
-    await getProjectCoverService().syncProject(record.projectKey)
+    // 不等封面：后台扫描可能正排着别的工程的截图解码，登记不能跟着卡住；封面好了会再发库变更通知
+    void getProjectCoverService().syncProject(record.projectKey)
     const saved = getProjectById(db, id)
     notifyProjectLibraryChanged()
 
@@ -714,7 +715,11 @@ export const registerProjectIPC = (): void => {
       void _
       try {
         const db = getPublicDatabase()
-        const ok = updateProject(db, projectKey, updates)
+        // 封面只能走 saveCover / restoreAutomaticCover：直接改索引会被封面服务的磁盘记录悄悄改回去
+        const safeUpdates = { ...updates }
+        delete safeUpdates.image
+        delete safeUpdates.coverMode
+        const ok = updateProject(db, projectKey, safeUpdates)
         return { success: true, data: ok }
       } catch (error) {
         return { success: false, error: (error as Error).message }

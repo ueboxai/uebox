@@ -10,6 +10,24 @@ import { getSharp } from '../sharpLoader'
 import { projectThumbnailCandidates } from '../projectPath'
 
 /**
+ * `processUproject` 的返回形状。登记工程要读 name / assetKey / engineAssociation /
+ * metadata.projectInfo，这里写清楚：哪天字段改名，是这里编译报错，而不是用户
+ * 拿到一张 `projectName` 是 "undefined" 的卡片。
+ */
+export interface UprojectMeta extends Partial<FileMetadata> {
+  name: string
+  assetKey: string
+  engineAssociation?: string
+  category?: string
+  description?: string
+  imgLocalPath: string
+  originPath: string
+  classKey: string
+  status: string
+  metadata: Record<string, unknown> & { projectInfo: unknown }
+}
+
+/**
  * 红蓝对调的重组矩阵。
  *
  * 以前这一步是「metadata() 解一次 → raw() 再解一次 → JS 里逐像素换通道 → 重编码一次
@@ -775,7 +793,7 @@ export class UnrealAssetProcessor extends BaseFileProcessor {
   async processUproject(
     filePath: string,
     options?: { includeThumbnail?: boolean }
-  ): Promise<Partial<FileMetadata> & Record<string, unknown>> {
+  ): Promise<UprojectMeta> {
     try {
       const projectInfo = await this.parseUproject(filePath)
       const basicInfo = await this.getBasicFileInfo(filePath)

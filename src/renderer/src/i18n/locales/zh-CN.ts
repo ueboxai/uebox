@@ -1683,6 +1683,7 @@ export default {
           projectMissingRemove: '从列表移除',
           coverUpdated: '封面已更换，将不再自动更新',
           autoCoverRestored: '已恢复自动封面',
+          autoCoverRestoreFailed: '恢复自动封面失败',
           coverSaveFailed: '保存封面失败',
           selectCoverTitle: '选择封面图片',
           imageFile: '图片文件',

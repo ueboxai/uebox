@@ -239,7 +239,7 @@ it.each(['save', 'remove', 'restoreAutomatic'] as const)(
   }
 )
 
-it.each(['save', 'remove', 'restoreAutomatic'] as const)(
+it.each(['save', 'restoreAutomatic'] as const)(
   '%s still protects an unsupported cover record version',
   async (action) => {
     createProject(db, { projectKey: 'one' })
@@ -260,6 +260,41 @@ it.each(['save', 'remove', 'restoreAutomatic'] as const)(
     }
   }
 )
+
+it('remove deletes the project but keeps an unsupported cover record and its image', async () => {
+  createProject(db, { projectKey: 'one' })
+  const image = await covers.save('one', Buffer.from('original'))
+  const [record] = await readdir(join(directory, 'project-covers'))
+  const recordPath = join(directory, 'project-covers', record)
+  const future = JSON.stringify({ version: 2, mode: 'custom', image })
+  await writeFile(recordPath, future)
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    await expect(covers.remove('one')).resolves.toBe(true)
+    expect(getProjectByKey(db, 'one')).toBeUndefined()
+    expect(await readFile(recordPath, 'utf8')).toBe(future)
+    expect(await readFile(join(directory, image), 'utf8')).toBe('original')
+  } finally {
+    warning.mockRestore()
+  }
+})
+
+it('logs a persistent sync failure once instead of on every scan', async () => {
+  createProject(db, { projectKey: 'one' })
+  await covers.save('one', Buffer.from('original'))
+  const [record] = await readdir(join(directory, 'project-covers'))
+  await writeFile(join(directory, 'project-covers', record), '{')
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    const restarted = new ProjectCoverService(db, directory)
+    await restarted.sync()
+    await restarted.sync()
+    await restarted.sync()
+    expect(warning).toHaveBeenCalledTimes(1)
+  } finally {
+    warning.mockRestore()
+  }
+})
 
 it('background sync preserves a malformed record instead of repairing it from the index', async () => {
   createProject(db, { projectKey: 'one' })
@@ -293,6 +328,14 @@ it.each(['save', 'remove', 'restoreAutomatic'] as const)(
     try {
       const operation =
         action === 'save' ? covers.save('one', Buffer.from('replacement')) : covers[action]('one')
+      if (action === 'remove') {
+        // Removing a project never depends on cover metadata; the unreadable record is left alone.
+        await expect(operation).resolves.toBe(true)
+        expect(getProjectByKey(db, 'one')).toBeUndefined()
+        expect(await readFile(backupPath)).toEqual(before)
+        expect(await readFile(join(directory, image), 'utf8')).toBe('original')
+        return
+      }
       await expect(operation).rejects.toMatchObject({ code: 'EISDIR' })
       expect(await readFile(backupPath)).toEqual(before)
       expect(getProjectByKey(db, 'one')).toMatchObject({ image, coverMode: 'custom' })
@@ -626,6 +669,32 @@ it('keeps a legacy <Name>.png cover when an AutoScreenshot.png also exists', asy
   await covers.sync()
   expect(getProjectByKey(db, 'one')).toMatchObject({ image: legacy, coverMode: 'auto' })
   expect(await readFile(join(directory, legacy))).toEqual(thumbnail)
+})
+
+it.each([
+  ['empty', async () => Buffer.alloc(0)],
+  ['undecodable', async () => Buffer.from('not a png')]
+] as const)('falls back to AutoScreenshot.png when <Name>.png is %s', async (_, thumbnail) => {
+  const projectDir = join(directory, 'game')
+  await mkdir(join(projectDir, 'Saved'), { recursive: true })
+  const screenshot = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: 'red' }
+  })
+    .png()
+    .toBuffer()
+  await writeFile(join(projectDir, 'MyGame.png'), await thumbnail())
+  await writeFile(join(projectDir, 'Saved', 'AutoScreenshot.png'), screenshot)
+  createProject(db, {
+    projectKey: 'one',
+    projectPath: projectDir,
+    originPath: join(projectDir, 'MyGame.uproject')
+  })
+
+  await covers.sync()
+  await covers.sync()
+  expect(await readFile(join(directory, getProjectByKey(db, 'one')?.image || ''))).toEqual(
+    screenshot
+  )
 })
 
 it('does not reread an undecodable screenshot until the file changes', async () => {

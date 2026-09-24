@@ -2,14 +2,13 @@ import { createHash, randomUUID } from 'node:crypto'
 import {
   mkdirSync,
   promises as fs,
-  readdirSync,
   readFileSync,
   renameSync,
   unlinkSync,
   writeFileSync,
   type Stats
 } from 'node:fs'
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type Database from 'better-sqlite3'
 import { getSharp } from '../../utils/sharpLoader'
@@ -35,8 +34,11 @@ const MAX_CONCURRENT_SCREENSHOTS = 4
 export class ProjectCoverService {
   private pending = new Map<string, Promise<unknown>>()
   private signatures = new Map<string, string>()
-  /** Source files that failed to decode; retried only once the file changes. */
-  private rejected = new Map<string, string>()
+  /** Per project, candidate files that failed to decode; retried only once the file changes. */
+  private rejected = new Map<string, Map<string, string>>()
+  /** Last known record per record path, so the 5 s scan does not re-read every record from disk. */
+  private states = new Map<string, CoverState>()
+  private syncWarnings = new Map<string, string>()
   private timer?: ReturnType<typeof setTimeout>
   private running?: Promise<void>
   private stopped = true
@@ -83,11 +85,19 @@ export class ProjectCoverService {
       const project = getProjectByKey(this.db, projectKey)
       if (!project) return false
       const destination = this.statePath(project)
-      const previous = this.readStateFile(destination)
-      if (previous !== null) {
-        this.decodeState(previous, true)
-        unlinkSync(destination)
+      let previous: Buffer | null = null
+      try {
+        const data = this.readStateFile(destination)
+        if (data !== null) {
+          this.decodeState(data, true)
+          unlinkSync(destination)
+          previous = data
+        }
+      } catch (error) {
+        // Cover metadata must never block removing a project; keep a record this version cannot handle.
+        console.warn('[ProjectCover] Kept cover record while removing project:', projectKey, error)
       }
+      this.states.delete(destination)
       let removed: boolean
       try {
         removed = deleteProjectByKey(this.db, projectKey)
@@ -148,7 +158,11 @@ export class ProjectCoverService {
   async sync(): Promise<void> {
     const projects = getAllProjects(this.db)
     const keys = new Set(projects.map((project) => project.projectKey))
-    for (const key of new Set([...this.signatures.keys(), ...this.rejected.keys()])) {
+    for (const key of new Set([
+      ...this.signatures.keys(),
+      ...this.rejected.keys(),
+      ...this.syncWarnings.keys()
+    ])) {
       if (!keys.has(key)) this.forget(key)
     }
     await Promise.all(
@@ -163,7 +177,9 @@ export class ProjectCoverService {
       const project = getProjectByKey(this.db, projectKey)
       if (!project) return
       try {
-        const saved = this.readState(this.statePath(project))
+        const destination = this.statePath(project)
+        const saved = this.states.get(destination) ?? this.readState(destination)
+        if (saved) this.states.set(destination, saved)
         const state = saved || {
           version: 1 as const,
           mode: projectCoverMode(project),
@@ -175,9 +191,15 @@ export class ProjectCoverService {
         if (state.mode === 'auto' && project.projectPath) {
           await this.syncScreenshot(project, state)
         }
+        this.syncWarnings.delete(projectKey)
       } catch (error) {
         // A corrupt metadata record must not silently turn a custom cover into an automatic one.
-        console.warn('[ProjectCover] Could not sync:', projectKey, error)
+        // Log each distinct failure once instead of on every 5 s scan.
+        const text = String(error)
+        if (this.syncWarnings.get(projectKey) !== text) {
+          this.syncWarnings.set(projectKey, text)
+          console.warn('[ProjectCover] Could not sync:', projectKey, error)
+        }
       }
     })
   }
@@ -185,28 +207,43 @@ export class ProjectCoverService {
   private forget(projectKey: string): void {
     this.signatures.delete(projectKey)
     this.rejected.delete(projectKey)
+    this.syncWarnings.delete(projectKey)
   }
 
-  /** First existing candidate; only a missing file falls through, so a locked `<Name>.png` cannot flip the source. */
-  private async findScreenshot(project: ProjectRecord): Promise<{ source: string; before: Stats }> {
-    const candidates = projectThumbnailCandidates(project.projectPath!, project.originPath)
-    for (const [index, source] of candidates.entries()) {
+  /**
+   * First usable candidate. A missing, empty, oversized or undecodable `<Name>.png` falls back to the
+   * screenshot; a locked one does not, so a transient error cannot flip the source.
+   */
+  private async findScreenshot(
+    project: ProjectRecord
+  ): Promise<{ source: string; before: Stats; file: string } | null> {
+    const rejected = this.rejected.get(project.projectKey)
+    for (const source of projectThumbnailCandidates(project.projectPath!, project.originPath)) {
+      let before: Stats
       try {
-        return { source, before: await fs.stat(source) }
+        before = await fs.stat(source)
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code
-        if (index === candidates.length - 1 || (code !== 'ENOENT' && code !== 'ENOTDIR'))
-          throw error
+        if (code === 'ENOENT' || code === 'ENOTDIR') continue
+        throw error
       }
+      if (!before.isFile() || before.size === 0 || before.size > 32 * 1024 * 1024) continue
+      const file = `${source}:${before.mtimeMs}:${before.ctimeMs}:${before.size}`
+      if (rejected?.get(source) === file) continue
+      return { source, before, file }
     }
-    throw new Error('No screenshot candidates')
+    return null
   }
 
   private async syncScreenshot(project: ProjectRecord, state: CoverState): Promise<void> {
     const key = project.projectKey
     try {
-      const { source, before } = await this.findScreenshot(project)
-      const file = `${source}:${before.mtimeMs}:${before.ctimeMs}:${before.size}`
+      const found = await this.findScreenshot(project)
+      if (!found) {
+        this.signatures.delete(key)
+        return
+      }
+      const { source, before, file } = found
       if (this.signatures.get(key) === `${file}:${state.image}`) {
         try {
           await fs.access(join(this.thumbnailsDirectory, state.image))
@@ -216,8 +253,6 @@ export class ProjectCoverService {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         }
       }
-      if (this.rejected.get(key) === file) return
-      if (!before.isFile() || before.size === 0 || before.size > 32 * 1024 * 1024) return
       await this.withScreenshotSlot(async () => {
         const data = await fs.readFile(source)
         // Decode completely: a half-written PNG may have valid headers but no complete pixels.
@@ -228,10 +263,13 @@ export class ProjectCoverService {
             .toBuffer()
         } catch (error) {
           // A stable file that cannot be decoded would fail again; skip it until it changes.
-          if (sameFile(before, await fs.stat(source))) this.rejected.set(key, file)
+          if (sameFile(before, await fs.stat(source))) {
+            const rejected = this.rejected.get(key) ?? new Map<string, string>()
+            this.rejected.set(key, rejected.set(source, file))
+          }
           throw error
         }
-        this.rejected.delete(key)
+        this.rejected.get(key)?.delete(source)
         const after = await fs.stat(source)
         if (!sameFile(before, after)) return
         let current: Buffer | undefined
@@ -332,10 +370,12 @@ export class ProjectCoverService {
         throw new Error('Project no longer exists')
       }
     } catch (error) {
+      this.states.delete(destination)
       if (previous !== null) this.writeStateFile(destination, previous)
       else unlinkSync(destination)
       throw error
     }
+    this.states.set(destination, state)
     this.notifyChanged()
   }
 
@@ -376,7 +416,7 @@ export class ProjectCoverService {
       const recordsDirectory = join(this.thumbnailsDirectory, 'project-covers')
       let records: string[]
       try {
-        records = readdirSync(recordsDirectory)
+        records = await readdir(recordsDirectory)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         records = []
@@ -384,7 +424,15 @@ export class ProjectCoverService {
       for (const record of records) {
         if (!record.endsWith('.json')) continue
         // An unreadable or corrupt record aborts cleanup, preserving potentially owned images.
-        if (this.readState(join(recordsDirectory, record))?.image === image) return
+        // Async reads: this runs after every replacement and must not block the main thread.
+        let data: Buffer
+        try {
+          data = await readFile(join(recordsDirectory, record))
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+          throw error
+        }
+        if (this.decodeState(data)?.image === image) return
       }
       await unlink(join(this.thumbnailsDirectory, image))
     } catch (error) {

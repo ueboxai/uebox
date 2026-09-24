@@ -1643,7 +1643,7 @@ const handleMenuClick = async (key: string) => {
       await refreshProjectSectionData()
     } catch (error) {
       console.warn('[ProjectCover] Restore failed:', error)
-      message.error(t('page.home.project.messages.coverSaveFailed'))
+      message.error(t('page.home.project.messages.autoCoverRestoreFailed'))
     }
   }
 }

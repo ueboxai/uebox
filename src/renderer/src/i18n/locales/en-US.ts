@@ -1719,6 +1719,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
           projectMissingRemove: 'Remove from list',
           coverUpdated: 'Cover changed. Automatic updates are now off.',
           autoCoverRestored: 'Automatic cover restored',
+          autoCoverRestoreFailed: 'Failed to restore automatic cover',
           coverSaveFailed: 'Failed to save cover',
           selectCoverTitle: 'Select Cover Image',
           imageFile: 'Image Files',
