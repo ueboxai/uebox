@@ -7,6 +7,7 @@ import { BaseFileProcessor, FileMetadata } from './BaseFileProcessor'
 import { analyzeFromFile } from '../uasset-reader-new'
 import { PathManager } from '../PathManager'
 import { getSharp } from '../sharpLoader'
+import { projectThumbnailCandidates } from '../projectPath'
 
 /**
  * 红蓝对调的重组矩阵。
@@ -816,10 +817,7 @@ export class UnrealAssetProcessor extends BaseFileProcessor {
    */
   private getProjectThumbnail(filePath: string): string {
     try {
-      const name = basename(filePath, '.uproject')
-      const projectDir = dirname(filePath)
-
-      const candidates = this.getProjectThumbnailCandidates(projectDir, name)
+      const candidates = projectThumbnailCandidates(dirname(filePath), filePath)
       const found = candidates.find((p) => fse.existsSync(p))
 
       if (found) {
@@ -834,16 +832,6 @@ export class UnrealAssetProcessor extends BaseFileProcessor {
       console.warn(`获取项目缩略图失败 ${filePath}:`, error)
       return ''
     }
-  }
-
-  // 项目缩略图候选路径策略：优先同名png，其次 Saved/AutoScreenshot
-  private getProjectThumbnailCandidates(projectDir: string, name: string): string[] {
-    const list: string[] = []
-    const sameNamePng = join(projectDir, `${name}.png`)
-    const autoShot = join(projectDir, 'Saved', 'AutoScreenshot.png')
-    list.push(sameNamePng)
-    list.push(autoShot)
-    return list
   }
 
   /**

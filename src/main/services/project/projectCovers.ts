@@ -6,7 +6,8 @@ import {
   readFileSync,
   renameSync,
   unlinkSync,
-  writeFileSync
+  writeFileSync,
+  type Stats
 } from 'node:fs'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -20,7 +21,7 @@ import {
   type ProjectRecord
 } from '../../sqliteDataBase/models/project'
 import { projectCoverMode, type ProjectCoverMode } from '../../../shared/projectCover'
-import { projectComparisonKeyWithoutFs } from '../../utils/projectPath'
+import { projectComparisonKeyWithoutFs, projectThumbnailCandidates } from '../../utils/projectPath'
 
 interface CoverState {
   version: 1
@@ -34,6 +35,8 @@ const MAX_CONCURRENT_SCREENSHOTS = 4
 export class ProjectCoverService {
   private pending = new Map<string, Promise<unknown>>()
   private signatures = new Map<string, string>()
+  /** Source files that failed to decode; retried only once the file changes. */
+  private rejected = new Map<string, string>()
   private timer?: ReturnType<typeof setTimeout>
   private running?: Promise<void>
   private stopped = true
@@ -93,7 +96,7 @@ export class ProjectCoverService {
         if (previous !== null) this.writeStateFile(destination, previous)
         throw error
       }
-      this.signatures.delete(projectKey)
+      this.forget(projectKey)
       await this.removeUnreferencedImage(project.image)
       this.notifyChanged()
       return removed
@@ -105,7 +108,7 @@ export class ProjectCoverService {
       const project = getProjectByKey(this.db, projectKey)
       if (!project) throw new Error('Project no longer exists')
       this.commitState(project, { version: 1, mode: 'auto', image: project.image || '' }, true)
-      this.signatures.delete(projectKey)
+      this.forget(projectKey)
     })
     await this.syncProject(projectKey)
   }
@@ -145,8 +148,8 @@ export class ProjectCoverService {
   async sync(): Promise<void> {
     const projects = getAllProjects(this.db)
     const keys = new Set(projects.map((project) => project.projectKey))
-    for (const key of this.signatures.keys()) {
-      if (!keys.has(key)) this.signatures.delete(key)
+    for (const key of new Set([...this.signatures.keys(), ...this.rejected.keys()])) {
+      if (!keys.has(key)) this.forget(key)
     }
     await Promise.all(
       projects
@@ -179,12 +182,32 @@ export class ProjectCoverService {
     })
   }
 
+  private forget(projectKey: string): void {
+    this.signatures.delete(projectKey)
+    this.rejected.delete(projectKey)
+  }
+
+  /** First existing candidate; only a missing file falls through, so a locked `<Name>.png` cannot flip the source. */
+  private async findScreenshot(project: ProjectRecord): Promise<{ source: string; before: Stats }> {
+    const candidates = projectThumbnailCandidates(project.projectPath!, project.originPath)
+    for (const [index, source] of candidates.entries()) {
+      try {
+        return { source, before: await fs.stat(source) }
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (index === candidates.length - 1 || (code !== 'ENOENT' && code !== 'ENOTDIR'))
+          throw error
+      }
+    }
+    throw new Error('No screenshot candidates')
+  }
+
   private async syncScreenshot(project: ProjectRecord, state: CoverState): Promise<void> {
-    const source = join(project.projectPath!, 'Saved', 'AutoScreenshot.png')
+    const key = project.projectKey
     try {
-      const before = await fs.stat(source)
-      const signature = `${source}:${before.mtimeMs}:${before.ctimeMs}:${before.size}:${state.image}`
-      if (this.signatures.get(project.projectKey) === signature) {
+      const { source, before } = await this.findScreenshot(project)
+      const file = `${source}:${before.mtimeMs}:${before.ctimeMs}:${before.size}`
+      if (this.signatures.get(key) === `${file}:${state.image}`) {
         try {
           await fs.access(join(this.thumbnailsDirectory, state.image))
           return
@@ -193,21 +216,24 @@ export class ProjectCoverService {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         }
       }
+      if (this.rejected.get(key) === file) return
       if (!before.isFile() || before.size === 0 || before.size > 32 * 1024 * 1024) return
       await this.withScreenshotSlot(async () => {
         const data = await fs.readFile(source)
         // Decode completely: a half-written PNG may have valid headers but no complete pixels.
         const sharp = await getSharp()
-        await sharp(data, { failOn: 'warning', limitInputPixels: 16 * 1024 * 1024 })
-          .raw()
-          .toBuffer()
+        try {
+          await sharp(data, { failOn: 'warning', limitInputPixels: 16 * 1024 * 1024 })
+            .raw()
+            .toBuffer()
+        } catch (error) {
+          // A stable file that cannot be decoded would fail again; skip it until it changes.
+          if (sameFile(before, await fs.stat(source))) this.rejected.set(key, file)
+          throw error
+        }
+        this.rejected.delete(key)
         const after = await fs.stat(source)
-        if (
-          before.mtimeMs !== after.mtimeMs ||
-          before.ctimeMs !== after.ctimeMs ||
-          before.size !== after.size
-        )
-          return
+        if (!sameFile(before, after)) return
         let current: Buffer | undefined
         if (state.image && !/[/\\:]/.test(state.image)) {
           try {
@@ -217,15 +243,12 @@ export class ProjectCoverService {
           }
         }
         let image = state.image
-        if (!current?.equals(data)) image = await this.replace(project.projectKey, data, 'auto')
-        this.signatures.set(
-          project.projectKey,
-          `${source}:${after.mtimeMs}:${after.ctimeMs}:${after.size}:${image}`
-        )
+        if (!current?.equals(data)) image = await this.replace(key, data, 'auto')
+        this.signatures.set(key, `${file}:${image}`)
       })
     } catch {
       // Screenshot is missing, locked or still being written. Retry on the next scan.
-      this.signatures.delete(project.projectKey)
+      this.signatures.delete(key)
     }
   }
 
@@ -370,4 +393,12 @@ export class ProjectCoverService {
       }
     }
   }
+}
+
+function sameFile(before: Stats, after: Stats): boolean {
+  return (
+    before.mtimeMs === after.mtimeMs &&
+    before.ctimeMs === after.ctimeMs &&
+    before.size === after.size
+  )
 }

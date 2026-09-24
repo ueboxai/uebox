@@ -269,7 +269,7 @@ import {
 } from '@phosphor-icons/vue'
 import ProjectCoverModal from './ProjectCoverModal.vue'
 import { projectCoverAPI } from '@renderer/api/projectCover'
-import { projectCoverMode, type ProjectCoverMode } from '../../../../../../shared/projectCover'
+import { projectCoverMode, type ProjectCoverMode } from '@core/shared/projectCover'
 import { rankProjectSearch } from '@renderer/utils/projectSearch'
 import { useProjects } from '@renderer/hooks/useProjects'
 import { useConnectedProjects } from '@renderer/composables/useBridgeStatus'

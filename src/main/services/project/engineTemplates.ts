@@ -583,7 +583,7 @@ async function writeUproject(
  * 把模板缩略图拷成工程封面。
  *
  * `<工程目录>/<工程名>.png` 是 UE 认的工程图标位置，也正是盒子导入工程时找封面
- * 的第一个候选（`UnrealAssetProcessor.getProjectThumbnailCandidates`）。不拷的话，
+ * 的第一个候选（`projectThumbnailCandidates`）。不拷的话，
  * 新建的工程在首页是一张空白卡片，和手动导入的工程长得不一样。
  */
 async function copyThumbnail(

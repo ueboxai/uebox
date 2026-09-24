@@ -547,7 +547,7 @@ it('keeps an old image that another project still uses', async () => {
   expect(await readFile(join(directory, oldImage), 'utf8')).toBe('shared')
 })
 
-it('syncs only AutoScreenshot.png and keeps a changed screenshot from replacing a custom cover', async () => {
+it('keeps a changed screenshot from replacing a custom cover', async () => {
   const projectDir = join(directory, 'game')
   await mkdir(join(projectDir, 'Saved'), { recursive: true })
   const screenshot = await sharp({
@@ -556,7 +556,6 @@ it('syncs only AutoScreenshot.png and keeps a changed screenshot from replacing 
     .png()
     .toBuffer()
   await writeFile(join(projectDir, 'Saved', 'AutoScreenshot.png'), screenshot)
-  await writeFile(join(projectDir, 'game.png'), 'must not be used')
   createProject(db, { projectKey: 'one', projectPath: projectDir })
 
   await covers.sync()
@@ -573,6 +572,88 @@ it('syncs only AutoScreenshot.png and keeps a changed screenshot from replacing 
   const custom = getProjectByKey(db, 'one')
   expect(custom?.coverMode).toBe('custom')
   expect(await readFile(join(directory, custom?.image || ''), 'utf8')).toBe('my custom cover')
+})
+
+it('prefers <Name>.png over AutoScreenshot.png, like the UE project browser', async () => {
+  const projectDir = join(directory, 'game')
+  await mkdir(join(projectDir, 'Saved'), { recursive: true })
+  const thumbnail = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+    .png()
+    .toBuffer()
+  const screenshot = await sharp(thumbnail).negate().png().toBuffer()
+  await writeFile(join(projectDir, 'MyGame.png'), thumbnail)
+  await writeFile(join(projectDir, 'Saved', 'AutoScreenshot.png'), screenshot)
+  createProject(db, {
+    projectKey: 'one',
+    projectPath: projectDir,
+    originPath: join(projectDir, 'MyGame.uproject')
+  })
+
+  await covers.sync()
+  expect(await readFile(join(directory, getProjectByKey(db, 'one')?.image || ''))).toEqual(
+    thumbnail
+  )
+
+  // Without an explicit thumbnail the editor's screenshot takes over.
+  await rm(join(projectDir, 'MyGame.png'))
+  await covers.sync()
+  expect(await readFile(join(directory, getProjectByKey(db, 'one')?.image || ''))).toEqual(
+    screenshot
+  )
+})
+
+it('keeps a legacy <Name>.png cover when an AutoScreenshot.png also exists', async () => {
+  const projectDir = join(directory, 'game')
+  await mkdir(join(projectDir, 'Saved'), { recursive: true })
+  const thumbnail = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+    .png()
+    .toBuffer()
+  await writeFile(join(projectDir, 'MyGame.png'), thumbnail)
+  await writeFile(
+    join(projectDir, 'Saved', 'AutoScreenshot.png'),
+    await sharp(thumbnail).negate().png().toBuffer()
+  )
+  // Imported before cover modes existed: a copy of <Name>.png under a generated name.
+  const legacy = 'thumbnail-12345678-1234-1234-1234-123456789abc.png'
+  await writeFile(join(directory, legacy), thumbnail)
+  createProject(db, {
+    projectKey: 'one',
+    projectPath: projectDir,
+    originPath: join(projectDir, 'MyGame.uproject'),
+    image: legacy
+  })
+
+  await covers.sync()
+  expect(getProjectByKey(db, 'one')).toMatchObject({ image: legacy, coverMode: 'auto' })
+  expect(await readFile(join(directory, legacy))).toEqual(thumbnail)
+})
+
+it('does not reread an undecodable screenshot until the file changes', async () => {
+  const projectDir = join(directory, 'game')
+  const source = join(projectDir, 'Saved', 'AutoScreenshot.png')
+  await mkdir(join(projectDir, 'Saved'), { recursive: true })
+  await writeFile(source, 'not a png')
+  createProject(db, { projectKey: 'one', projectPath: projectDir })
+  const readSpy = vi.spyOn(fs, 'readFile')
+  const sourceReads = (): number =>
+    readSpy.mock.calls.filter((args) => String(args[0]) === source).length
+  try {
+    await covers.sync()
+    await covers.sync()
+    await covers.sync()
+    expect(sourceReads()).toBe(1)
+    expect(getProjectByKey(db, 'one')?.image).toBe('')
+
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } })
+      .png()
+      .toBuffer()
+    await writeFile(source, png)
+    await covers.sync()
+    expect(sourceReads()).toBe(2)
+    expect(await readFile(join(directory, getProjectByKey(db, 'one')?.image || ''))).toEqual(png)
+  } finally {
+    readSpy.mockRestore()
+  }
 })
 
 it('restoring automatic mode retains the custom image until a valid screenshot is available', async () => {
