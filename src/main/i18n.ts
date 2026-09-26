@@ -7,7 +7,7 @@
  * `AIProviders/probeCopy.ts` 是第一处落地）。但有两类东西**没有渲染层可以转交**：
  *
  * **一、操作系统画的控件**，渲染进程碰不到：
- *   - 托盘菜单（`Menu.buildFromTemplate`）
+ *   - 托盘菜单与悬停提示（`Menu.buildFromTemplate` / `tray.setToolTip`）
  *   - 原生文件对话框（`dialog.showOpenDialog` / `showSaveDialog` 的标题兜底）
  *   - 启动失败的错误框（`dialog.showErrorBox` —— 那时窗口还没有）
  *
@@ -39,8 +39,8 @@ type Lang = 'zh-CN' | 'en-US'
 /** 主进程自己拥有的那些字符串。键名按归属分组，别往里塞渲染层能显示的东西 */
 const STRINGS: Record<Lang, Record<string, string>> = {
   'zh-CN': {
-    'tray.show': '显示窗口',
-    'tray.minimize': '最小化',
+    'tray.tooltip': '虚幻盒子',
+    'tray.open': '打开虚幻盒子',
     'tray.quit': '退出',
 
     'startup.failedTitle': '虚幻盒子启动失败',
@@ -75,8 +75,8 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     'spotlight.askAiDesc': '发送此消息给 AI 助手'
   },
   'en-US': {
-    'tray.show': 'Show window',
-    'tray.minimize': 'Minimize',
+    'tray.tooltip': 'Unreal Box',
+    'tray.open': 'Open Unreal Box',
     'tray.quit': 'Quit',
 
     'startup.failedTitle': 'Unreal Box failed to start',
@@ -101,7 +101,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 /**
  * 取一句主进程文案。
  *
- * 查不到就原样返回 key —— 比返回空串好：界面上冒出个 `tray.show` 至少看得出
+ * 查不到就原样返回 key —— 比返回空串好：界面上冒出个 `tray.open` 至少看得出
  * 是漏配了，空白则会被当成布局出了问题。
  */
 export function mt(key: string, params?: Record<string, string | number>): string {
@@ -142,7 +142,7 @@ export function currentMainLanguage(): Lang {
 /**
  * 语言变了要重画的东西登记在这里。
  *
- * 托盘菜单是一次性建好交给操作系统的，语言换了它不会自己变 —— 用户在设置里
+ * 托盘菜单和悬停提示是一次性交给操作系统的，语言换了它们不会自己变 —— 用户在设置里
  * 切成英文，托盘却一直是中文，直到下次启动。
  */
 const listeners = new Set<() => void>()
