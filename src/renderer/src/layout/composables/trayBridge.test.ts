@@ -10,7 +10,7 @@ import { useTrayBridge } from './trayBridge'
 /**
  * 托盘菜单和界面之间的桥：
  * - 最近活跃的三条对话报给主进程（变了才报）
- * - 菜单点了什么回来：跳到那条会话 / 开新对话
+ * - 菜单点了什么回来：跳到那条会话 / 开新对话 / 弹插件没装上的对话框
  * - 动作本体只有 take-pending 一条路：收到提醒去取、挂载也取一次，取走即清
  */
 
@@ -45,6 +45,11 @@ vi.mock('@renderer/store/modules/chatSessions', () => ({
     },
     sessionById: (id: string) => sessions.value.find((session) => session.id === id) ?? null
   })
+}))
+
+const notifyPluginInstallFailure = vi.fn()
+vi.mock('@renderer/hooks/usePluginInstallNotice', () => ({
+  notifyPluginInstallFailure: (payload: unknown) => notifyPluginInstallFailure(payload)
 }))
 
 /** 主进程那句「托盘有动作，来取」的提醒（不带负载） */
@@ -103,6 +108,7 @@ describe('托盘桥', () => {
     off.mockClear()
     setRecentSessions.mockClear()
     takePending.mockClear()
+    notifyPluginInstallFailure.mockClear()
     historyTabs.length = 0
     sessions.value = []
     pendingAction = null
@@ -248,6 +254,24 @@ describe('托盘桥', () => {
     expect(arg.name).toBe('AssistantWelcome')
     expect(arg.query.sid).toMatch(/^[a-z0-9]+$/)
     expect(arg.query.sid.length).toBeGreaterThan(8)
+  })
+
+  it('plugin-failure：原样交给首页那张插件失败对话框', async () => {
+    mountHost()
+    pendingAction = {
+      type: 'plugin-failure',
+      pluginFailure: 'UPROJECT_UNREADABLE',
+      originPath: 'D:/Demo/Demo.uproject',
+      projectName: 'Demo'
+    }
+    firePoke()
+    await nextTick()
+    await nextTick()
+
+    expect(notifyPluginInstallFailure).toHaveBeenCalledWith({
+      pluginFailure: 'UPROJECT_UNREADABLE',
+      data: { originPath: 'D:/Demo/Demo.uproject', projectName: 'Demo' }
+    })
   })
 
   it('推送落空的那条挂载时取回来处理', async () => {

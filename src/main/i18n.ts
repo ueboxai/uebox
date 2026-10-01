@@ -44,7 +44,16 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // 和侧边栏按钮同一个叫法（渲染层 `menu.newChat`）
     'tray.newChat': '新对话',
     'tray.recentChats': '最近对话',
+    'tray.recentProjects': '最近项目',
+    'tray.running': '{name}（运行中）',
+    // 点了到插件连上来之间的那几十秒：还点不得，但得告诉用户它没在装死
+    'tray.launching': '{name}（启动中）',
     'tray.quit': '退出',
+    'tray.openFailedTitle': '打不开项目',
+    'tray.openFailedBody': '{name}：{error}',
+    'tray.openFailedMissing': '「{name}」的工程文件已经不在了',
+    'tray.pluginFailedTitle': '项目已打开，但 AI 暂时连不上',
+    'tray.pluginFailedBody': 'UnrealAgentLink 没有装上，点这里查看原因',
 
     'startup.failedTitle': '虚幻盒子启动失败',
     // {reason} 是原始异常，{logDir} 是日志目录 —— 这两样是用户唯一能拿去求助的东西
@@ -82,7 +91,15 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     'tray.open': 'Open Unreal Box',
     'tray.newChat': 'New AI Chat',
     'tray.recentChats': 'Recent chats',
+    'tray.recentProjects': 'Recent projects',
+    'tray.running': '{name} (running)',
+    'tray.launching': '{name} (starting)',
     'tray.quit': 'Quit',
+    'tray.openFailedTitle': 'Could not open project',
+    'tray.openFailedBody': '{name}: {error}',
+    'tray.openFailedMissing': 'The project file for "{name}" no longer exists',
+    'tray.pluginFailedTitle': 'Project opened, but the AI cannot connect yet',
+    'tray.pluginFailedBody': 'UnrealAgentLink was not installed — click to see why',
 
     'startup.failedTitle': 'Unreal Box failed to start',
     'startup.failedBody':

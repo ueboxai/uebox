@@ -26,7 +26,7 @@ export const TRAY_TAKE_PENDING_CHANNEL = 'tray:take-pending'
 /** 存着的托盘动作最多留这么久。超过就不认了 —— 一分钟后突然跳走比不跳更莫名其妙 */
 export const TRAY_PENDING_TTL_MS = 60 * 1000
 
-/** 「最近对话」最多列几条 —— 主进程和界面用同一个上限 */
+/** 「最近对话」「最近项目」各最多列几条 —— 主进程和界面用同一个上限 */
 export const TRAY_RECENT_LIMIT = 3
 
 /** 界面报给主进程的一条最近会话（托盘菜单只显示这么多信息） */
@@ -36,5 +36,19 @@ export interface TrayRecentSession {
   title: string
 }
 
-/** 托盘菜单点出来的动作。 */
-export type TrayAction = { type: 'open-session'; sessionId: string } | { type: 'new-session' }
+/**
+ * 托盘菜单点出来的动作。
+ *
+ * `plugin-failure` 复用首页那条「插件没装上」的对话框（`usePluginInstallNotice`），
+ * 所以带的字段和导入接口回包里的同名：原因码原样透传，AI 认得。
+ */
+export type TrayAction =
+  | { type: 'open-session'; sessionId: string }
+  | { type: 'new-session' }
+  | {
+      type: 'plugin-failure'
+      pluginFailure: string
+      /** `.uproject` 的绝对路径 —— 用户选「让 AI 看看」时它要去读这个文件 */
+      originPath: string
+      projectName: string
+    }

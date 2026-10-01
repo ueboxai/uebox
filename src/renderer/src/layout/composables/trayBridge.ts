@@ -25,6 +25,7 @@ import { useRouter } from 'vue-router'
 
 import { trayAPI } from '@renderer/api/tray'
 import { chatSessionRoute, generateChatSessionId } from '@renderer/common/chatRoute'
+import { notifyPluginInstallFailure } from '@renderer/hooks/usePluginInstallNotice'
 import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
 import { useTabsStore } from '@renderer/store/modules/tabs'
 import {
@@ -81,6 +82,12 @@ export function useTrayBridge(): void {
         })
       return
     }
+
+    // 工程打开了但插件没装上 —— 首页那张「让 AI 看看」的对话框原样复用
+    notifyPluginInstallFailure({
+      pluginFailure: action.pluginFailure,
+      data: { originPath: action.originPath, projectName: action.projectName }
+    })
   }
 
   /*
