@@ -41,6 +41,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
   'zh-CN': {
     'tray.tooltip': '虚幻盒子',
     'tray.open': '打开虚幻盒子',
+    // 和侧边栏按钮同一个叫法（渲染层 `menu.newChat`）
+    'tray.newChat': '新对话',
+    'tray.recentChats': '最近对话',
     'tray.quit': '退出',
 
     'startup.failedTitle': '虚幻盒子启动失败',
@@ -77,6 +80,8 @@ const STRINGS: Record<Lang, Record<string, string>> = {
   'en-US': {
     'tray.tooltip': 'Unreal Box',
     'tray.open': 'Open Unreal Box',
+    'tray.newChat': 'New AI Chat',
+    'tray.recentChats': 'Recent chats',
     'tray.quit': 'Quit',
 
     'startup.failedTitle': 'Unreal Box failed to start',
@@ -97,6 +102,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     'spotlight.askAiDesc': 'Send this message to the AI assistant'
   }
 }
+
+/** `mt` 的签名 —— 托盘各模块注入翻译函数时共用这一个类型 */
+export type MainTranslator = (key: string, params?: Record<string, string | number>) => string
 
 /**
  * 取一句主进程文案。
