@@ -49,6 +49,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // 点了到插件连上来之间的那几十秒：还点不得，但得告诉用户它没在装死
     'tray.launching': '{name}（启动中）',
     'tray.quit': '退出',
+    // 数的是会话操作：AI 轮次和分叉 / 截断 / 压缩这类历史操作都算，
+    // 但不是全部后台任务 —— 别让用户以为连导入也算
+    'tray.quitConfirm': '有 {count} 项会话操作尚未完成，退出会中断它们。',
+    'tray.quitConfirmOk': '仍然退出',
+    'tray.quitConfirmCancel': '取消',
     'tray.openFailedTitle': '打不开项目',
     'tray.openFailedBody': '{name}：{error}',
     'tray.openFailedMissing': '「{name}」的工程文件已经不在了',
@@ -95,6 +100,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     'tray.running': '{name} (running)',
     'tray.launching': '{name} (starting)',
     'tray.quit': 'Quit',
+    'tray.quitConfirm':
+      '{count} session operation(s) are still unfinished — quitting will interrupt them.',
+    'tray.quitConfirmOk': 'Quit anyway',
+    'tray.quitConfirmCancel': 'Cancel',
     'tray.openFailedTitle': 'Could not open project',
     'tray.openFailedBody': '{name}: {error}',
     'tray.openFailedMissing': 'The project file for "{name}" no longer exists',

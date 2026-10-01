@@ -46,6 +46,7 @@ import { initializeDockIcon } from './dockIcon'
 import { appSettingsManager } from './appSettingsManager'
 import { mt } from './i18n'
 import { startTrayMenuController } from './tray/trayController'
+import { countActiveSessionOperations } from './ipc/agentV3'
 import { serviceManager, logger } from './services'
 import { initializeApp } from './init'
 import { spotlightManager } from './spotlightManager'
@@ -259,11 +260,12 @@ function createWindow(): void {
       /*
        * 托盘菜单与悬停提示不能走「主进程回码、渲染层查语言包」那条路：
        * Electron 把它们交给操作系统画，渲染进程碰不到。所以托盘文案在主进程翻
-       * （见 `main/i18n.ts`）。菜单的结构、最近会话 / 最近项目都在
+       * （见 `main/i18n.ts`）。菜单的结构、最近会话 / 最近项目、退出确认都在
        * `tray/trayController.ts`，这里只把窗口相关的回调喂给它。
        */
       startTrayMenuController(tray, {
-        showMainWindow: showMainWindowFromTray
+        showMainWindow: showMainWindowFromTray,
+        countActiveOperations: countActiveSessionOperations
       })
       // macOS 单击由系统展开托盘菜单，避免同时把主窗口抢到前台。
       if (process.platform !== 'darwin') tray.on('click', showMainWindowFromTray)

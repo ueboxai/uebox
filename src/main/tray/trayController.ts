@@ -30,7 +30,16 @@
  * （取走即清）再处理，这是唯一的送达路径。跳到那条会话、开新对话、
  * 弹插件失败框全是界面的事（`layout/composables/trayBridge.ts`）。
  */
-import { app, dialog, ipcMain, Menu, Notification, Tray, type MessageBoxOptions } from 'electron'
+import {
+  app,
+  dialog,
+  ipcMain,
+  Menu,
+  Notification,
+  Tray,
+  type BrowserWindow,
+  type MessageBoxOptions
+} from 'electron'
 import { existsSync } from 'fs'
 
 import {
@@ -62,6 +71,7 @@ import {
   type TrayProjectCandidate
 } from './recentProjects'
 import { sanitizeTrayRecentSessions } from './recentSessions'
+import { createTrayQuitGuard, type TrayQuitDialogOptions } from './quitGuard'
 import { buildTrayMenuTemplate, type TrayRecentProject } from './trayMenu'
 import { createTtlCache } from './ttlCache'
 
@@ -71,6 +81,8 @@ export interface TrayControllerDeps {
    * —— `createWindow` 是 index.ts 的局部函数，反向 import 会绕成环，只能注入
    */
   showMainWindow: () => void
+  /** 退出前要看还有几项会话操作没收摊（`countActiveSessionOperations`，index 侧注入） */
+  countActiveOperations: () => number
 }
 
 /**
@@ -99,6 +111,9 @@ function projectQueryDeps(): RunningProjectsDeps {
 
 /** 非 win32 平台的菜单重建做 200ms 防抖 —— 工程连接变化是一串一串来的 */
 const REBUILD_DEBOUNCE_MS = 200
+
+/** 退出确认等重建的主窗口就绪最多这么久；超时退回独立确认框，不让托盘「退出」一直卡着 */
+const QUIT_DIALOG_READY_TIMEOUT_MS = 10_000
 
 /** 把托盘菜单挂到 `tray` 上。只调一次（托盘本来就只建一次）。 */
 export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): void {
@@ -220,6 +235,11 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
 
   let stopped = false
   let buildSeq = 0
+  /*
+   * 当前在途确认框的中止信号；每个框一份，系统退出只取消在途那一个 ——
+   * 退出被取消后托盘「退出」照样能用（再来一次发的是新信号）
+   */
+  let quitDialogAbort: AbortController | null = null
 
   let rebuildTimer: NodeJS.Timeout | null = null
   const scheduleRebuild = (): void => {
@@ -314,6 +334,124 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
     void shown.catch((error: unknown) => logger.warn('[托盘] 失败对话框弹不出来:', error))
   }
 
+  function waitWindowReadyToShow(
+    window: BrowserWindow,
+    signal: AbortSignal
+  ): Promise<'ready' | 'closed' | 'aborted' | 'timeout'> {
+    if (signal.aborted) {
+      return Promise.resolve('aborted')
+    }
+    if (window.isDestroyed()) {
+      return Promise.resolve('closed')
+    }
+    return new Promise<'ready' | 'closed' | 'aborted' | 'timeout'>((resolve) => {
+      const settle = (outcome: 'ready' | 'closed' | 'aborted' | 'timeout'): void => {
+        clearTimeout(timer)
+        window.removeListener('ready-to-show', onReady)
+        window.removeListener('closed', onClosed)
+        signal.removeEventListener('abort', onAbort)
+        resolve(outcome)
+      }
+      const onReady = (): void => settle('ready')
+      const onClosed = (): void => settle('closed')
+      const onAbort = (): void => settle('aborted')
+      window.once('ready-to-show', onReady)
+      window.once('closed', onClosed)
+      signal.addEventListener('abort', onAbort, { once: true })
+      const timer = setTimeout(() => settle('timeout'), QUIT_DIALOG_READY_TIMEOUT_MS)
+    })
+  }
+
+  /*
+   * 确认框优先挂到主窗口（有父窗口的框会跟着窗口居中、抢前台）；挂不上时
+   * 返回 null，由调用方退成独立确认框 —— 框降级不是不收，每个「挂不上」
+   * 都记一行，排查托盘报障时先看的也是这个
+   */
+  async function mainWindowForQuitDialog(signal: AbortSignal): Promise<BrowserWindow | null> {
+    const noParent = (reason: string): null => {
+      logger.warn(`[托盘] 退出确认框挂不到主窗口（${reason}），改用独立确认框`)
+      return null
+    }
+    const parentBefore = findMainWindow()
+    try {
+      deps.showMainWindow()
+    } catch {
+      return noParent('拉主窗口抛错')
+    }
+    const parent = findMainWindow()
+    if (!parent || parent.isDestroyed() || parent.webContents.isDestroyed()) {
+      return noParent('主窗口没了')
+    }
+
+    if (!parent.isVisible()) {
+      if (parent === parentBefore) {
+        return noParent('主窗口拉不到前台')
+      }
+      const waited = await waitWindowReadyToShow(parent, signal)
+      // 全局退出把等打断的：静默收摊；等就绪超时 / 窗口先没了都记一行，退回独立确认框
+      if (waited === 'aborted') return null
+      if (waited !== 'ready') {
+        return noParent(waited === 'timeout' ? '等就绪超时' : '等就绪期间窗口没了')
+      }
+      if (parent.isDestroyed() || parent.webContents.isDestroyed()) {
+        return noParent('主窗口在就绪前没了')
+      }
+    }
+
+    if (parent.isMinimized()) parent.restore()
+    if (!parent.isVisible()) parent.show()
+    parent.focus()
+    if (!parent.isVisible()) return noParent('主窗口还是不可见')
+
+    return parent
+  }
+
+  async function showQuitDialog(options: TrayQuitDialogOptions): Promise<number> {
+    if (stopped) return options.cancelId
+    const abort = new AbortController()
+    quitDialogAbort = abort
+    try {
+      const parent = await mainWindowForQuitDialog(abort.signal)
+      if (stopped || abort.signal.aborted) return options.cancelId
+      const box: MessageBoxOptions = {
+        type: 'warning',
+        message: options.message,
+        buttons: options.buttons,
+        defaultId: options.defaultId,
+        cancelId: options.cancelId,
+        noLink: true,
+        signal: abort.signal
+      }
+      try {
+        const { response } = parent
+          ? await dialog.showMessageBox(parent, box)
+          : await dialog.showMessageBox(box)
+        return stopped || abort.signal.aborted ? options.cancelId : response
+      } catch (error) {
+        if (stopped || abort.signal.aborted) return options.cancelId
+        // 弹不出来交给 confirmTrayQuit：记一笔，按用户意图直接退出
+        throw error
+      }
+    } finally {
+      if (quitDialogAbort === abort) quitDialogAbort = null
+    }
+  }
+
+  // 确认框弹着的时候菜单还能再点退出 —— createTrayQuitGuard 挡叠加
+  const confirmQuit = createTrayQuitGuard({
+    countActiveOperations: deps.countActiveOperations,
+    showDialog: showQuitDialog,
+    reportDialogError: (error) =>
+      logger.warn('[托盘] 退出确认框弹不出来，按用户意图直接退出:', error),
+    // __forceQuit__ 不用在这里置：app.quit() 先触发 before-quit，
+    // index.ts 的处理器在那里已经把它设上了；迟到的确认结果在
+    // showQuitDialog 里被那个框自己的 abort 挡住，不会再走到这
+    quit: () => {
+      if (!stopped) app.quit()
+    },
+    t: mt
+  })
+
   const handlers = {
     openMainWindow: () => deps.showMainWindow(),
     newSession: () => sendTrayAction({ type: 'new-session' }),
@@ -324,9 +462,9 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
       if (stopped) return
       void openTrayProject(project).catch((error) => logger.warn('[托盘] 打开最近工程失败:', error))
     },
-    // __forceQuit__ 不用在这里置：app.quit() 先触发 before-quit，
-    // index.ts 的处理器在那里已经把它设上了
-    quit: () => app.quit()
+    // 框弹不出来 confirmTrayQuit 已经记过并按用户意图退出；这个 catch
+    // 只兜意料外的抛出（比如 countActiveOperations 挂了）
+    quit: () => void confirmQuit().catch((error) => logger.warn('[托盘] 退出确认失败:', error))
   }
 
   const buildMenu = async (): Promise<Menu> =>
@@ -380,8 +518,13 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
     scheduleRebuild()
   })
 
+  // on 不是 once：退出可以被取消，下一次 before-quit 还得能取消那时在途的框。
+  // Windows 关机或注销不发 before-quit，在途的框不会在这里被取消；这条路径不处理
+  app.on('before-quit', () => quitDialogAbort?.abort())
+
   app.once('will-quit', () => {
     stopped = true
+    quitDialogAbort?.abort()
     if (rebuildTimer) clearTimeout(rebuildTimer)
     if (launchRevertTimer) clearTimeout(launchRevertTimer)
     unsubscribeLibraryChanged()
