@@ -130,6 +130,35 @@ Position, material colour, whether a light is on, shadow direction and compositi
 whatever the exposure. For numbers instead of impressions — clipping, region brightness, palette —
 pass `measure: true` (see "Measure, don't eyeball" below).
 
+### Measure, don't eyeball
+
+Judging "is the lighting right, does it look good" from a picture is the weakest thing you do,
+and grading your own scene pulls you toward "looks great already". When the question is about
+lighting, post-processing or overall look, pass `measure: true`. The reply adds a **测光** block
+computed locally from the saved PNG (the tonemapped image the player sees), plus a second image:
+
+- Brightness mean and 5 / 50 / 95 percentiles, and the 5–95 spread.
+- Share of clipped-white and crushed-black pixels.
+- Top, middle and bottom thirds of the frame: brightness, chroma, warm/cool (R − B) and hue.
+- The five most common colours with their share.
+- A value study: greyscale on the left, three fixed tones (dark / mid / light) on the right.
+
+How to use it:
+
+- **⚠️ lines are defects in any style**: blown highlights, crushed blacks, a spread too narrow to
+  have any depth. Fix them.
+- **The thirds are geometry, not detected sky and ground.** In an eye-level outdoor shot the top
+  is usually distance, which normally reads lighter, less saturated and cooler than the
+  foreground. Interiors, top-down shots and deliberate styles can break this. Compare against
+  the reference, not against a rule.
+- **Read the three-tone half of the value study.** If the subject and the background fall into the
+  same tone, they will not separate in the shot whatever the colours do. A frame that is all mid
+  tone has no light structure.
+- **Compare, don't grade.** Measure from the same camera before and after a change, and report the
+  difference. A pair of numbers moving the right way beats an adjective.
+- Without manual exposure the brightness numbers describe only this frame (the reply says so).
+  Lock exposure first.
+
 ## Point the camera before you shoot
 
 The viewport shows whatever the editor camera happens to be pointed at. An empty or black frame
