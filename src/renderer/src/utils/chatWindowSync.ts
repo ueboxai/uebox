@@ -14,6 +14,10 @@
  * ## 同步哪些对话
  *
  * 只有开在独立窗口里的那几条。主窗口其余的对话照旧只活在主窗口里，一个字节都不多发。
+ *
+ * 再加上它们派生出来的语音任务对话：通话开在小窗里时，派出去的活落在
+ * `voice-tasks-<sid>::<灶>` 上（见 `shared/voiceTaskSession.ts`），这些对话在小窗里建、
+ * 在小窗里跑，也得同步回主窗口存盘、显示在侧边栏里。
  */
 
 import { watch } from 'vue'
@@ -23,6 +27,8 @@ import { chatWindowAPI, chatWindowSid, isChatWindow } from '@renderer/api/chatWi
 import { useAgentStreamStore } from '@renderer/store/modules/agentStream'
 import { useChatMessagesStore } from '@renderer/store/modules/chatMessages'
 import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
+
+import { belongsToChat, voiceTaskOwnerSid } from '@core/shared/voiceTaskSession'
 
 import { setDetachedChats } from './detachedChats'
 import {
@@ -158,6 +164,20 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
     return state
   }
 
+  /** 独立窗口管的对话：它开着的那条，加上那通电话派生的任务对话 */
+  function owns(sid: string): boolean {
+    return role === 'chat-window' && belongsToChat(sid, ownSid)
+  }
+
+  /** 这条对话该不该同步。独立窗口里新建出来的任务对话第一次被动到时登记上 */
+  function syncable(sid: unknown): sid is string {
+    if (typeof sid !== 'string' || !sid) return false
+    if (tracked.has(sid)) return true
+    if (!owns(sid)) return false
+    track(sid)
+    return true
+  }
+
   function untrack(sid: string): void {
     const state = tracked.get(sid)
     if (state?.timer) clearTimeout(state.timer)
@@ -231,7 +251,7 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
       // 一条回复写完了：终稿立刻发，别让对面停在最后一帧半截上
       const final = name === 'replaceTyping' && args[3] === true
       for (const target of sids) {
-        if (typeof target !== 'string' || !tracked.has(target)) continue
+        if (!syncable(target)) continue
         markMessagesDirty(target, single ? (args[1] as string) : undefined, final)
       }
     })
@@ -264,11 +284,9 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
    */
   function sessionActionTargets(args: unknown[]): string[] {
     const first = args[0]
-    if (Array.isArray(first)) {
-      return first.filter((sid): sid is string => typeof sid === 'string' && tracked.has(sid))
-    }
+    if (Array.isArray(first)) return first.filter(syncable)
     if (typeof first === 'string') {
-      if (tracked.has(first)) return [first]
+      if (syncable(first)) return [first]
       // 别的、没被同步的会话
       if (chatStore.sessionById(first)) return []
     }
@@ -282,7 +300,7 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
       if (role === 'chat-window' && sid === ownSid) options.closeWindow()
       return
     }
-    if (role === 'chat-window' && sid !== ownSid) return
+    if (role === 'chat-window' && !owns(sid)) return
     const state = track(sid)
 
     // 这边正在流式写的那条气泡归这边管，见 `applyMessagesPatch`
@@ -312,7 +330,10 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
     const syncTracked = (sids: string[]): void => {
       setDetachedChats(sids)
       const next = new Set(sids)
-      for (const sid of [...tracked.keys()]) if (!next.has(sid)) untrack(sid)
+      // 派生的任务对话跟着它那条走：那条还开着就留着
+      for (const sid of [...tracked.keys()]) {
+        if (!next.has(sid) && !next.has(voiceTaskOwnerSid(sid))) untrack(sid)
+      }
       for (const sid of next) track(sid)
     }
     // 启动时问一次；但问的路上要是已经来过一次变更通知，以通知为准 ——
@@ -327,11 +348,17 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
     })
 
     // 独立窗口刚起来要一份全量：盘上那份最多落后两秒，正在打字的那条是半截的
+    // 派生的任务对话一起给：之前在主窗口打的电话派过的活，小窗里接着用同一个灶
     bridge.onSnapshotRequest(({ sid }) => {
       if (!sid) return
-      const state = track(sid)
-      state.known = emptyKnownState()
-      flush(sid, true)
+      const derived = chatStore.sessions
+        .map((session) => session.id)
+        .filter((id) => id !== sid && belongsToChat(id, sid))
+      for (const target of [sid, ...derived]) {
+        const state = track(target)
+        state.known = emptyKnownState()
+        flush(target, true)
+      }
     })
   } else if (ownSid) {
     track(ownSid)

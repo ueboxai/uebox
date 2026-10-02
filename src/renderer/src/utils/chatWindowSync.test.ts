@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
 
 import type { ChatSyncPatch } from '@core/shared/chatWindowSync'
+import { belongsToChat } from '@core/shared/voiceTaskSession'
 import { useAgentStreamStore } from '@renderer/store/modules/agentStream'
 import { useChatMessagesStore } from '@renderer/store/modules/chatMessages'
 import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
@@ -48,8 +49,8 @@ function createBus(): Bus {
       push: (patch) => {
         const targets =
           self.role === 'main'
-            ? windows.filter((w) => w.role === 'chat-window' && w.ownSid === patch.sid)
-            : self.ownSid === patch.sid
+            ? windows.filter((w) => w.role === 'chat-window' && belongsToChat(patch.sid, w.ownSid))
+            : belongsToChat(patch.sid, self.ownSid)
               ? windows.filter((w) => w.role === 'main')
               : []
         for (const target of targets) for (const cb of target.apply) cb(patch)
@@ -261,6 +262,48 @@ describe('chatWindowSync', () => {
     // 而且把自己这份再发回去，主窗口跟上
     await settle()
     expect(m.messages.getMessages('s1')[0].content).toBe('小窗最新的')
+  })
+
+  /**
+   * 通话开在小窗里：派出去的活落在派生的任务对话上，那些对话在小窗里建、在小窗里跑，
+   * 得同步回主窗口存盘、进侧边栏。别的对话派生的不归它。
+   */
+  it('小窗里打的电话派生的任务对话同步回主窗口', async () => {
+    const bus = createBus()
+    const main = bus.boot('main')
+    const m = stores(main)
+    m.sessions.createSession('s1', 't')
+    const chat = bus.detach('s1')
+    const c = stores(chat)
+
+    inWindow(chat, () => {
+      c.sessions.ensureSession('voice-tasks-s1::lighting', '灯光')
+      c.messages.pushUser('voice-tasks-s1::lighting', '把灯调暗')
+      c.sessions.ensureSession('voice-tasks-s9::lighting', '别人的')
+    })
+    await settle()
+
+    expect(m.sessions.sessionById('voice-tasks-s1::lighting')?.title).toBe('灯光')
+    expect(m.messages.getMessages('voice-tasks-s1::lighting')[0]?.content).toBe('把灯调暗')
+    expect(m.sessions.sessionById('voice-tasks-s9::lighting')).toBeNull()
+
+    // 主窗口那边动了它（比如改名），也同步回小窗
+    inWindow(main, () => m.sessions.updateTitle('voice-tasks-s1::lighting', '灯光组'))
+    await settle()
+    expect(c.sessions.sessionById('voice-tasks-s1::lighting')?.title).toBe('灯光组')
+  })
+
+  it('小窗打开时，主窗口以前打电话派生的任务对话一起给过去', async () => {
+    const bus = createBus()
+    const main = bus.boot('main')
+    const m = stores(main)
+    m.sessions.createSession('s1', 't')
+    m.sessions.createSession('voice-tasks-s1::props', '道具')
+    m.messages.pushUser('voice-tasks-s1::props', '摆三张桌子')
+
+    const chat = bus.detach('s1')
+    const c = stores(chat)
+    expect(c.messages.getMessages('voice-tasks-s1::props')[0]?.content).toBe('摆三张桌子')
   })
 
   it('别的窗口在跑的对话算忙：这边发消息会排队，不会被顶回来', async () => {

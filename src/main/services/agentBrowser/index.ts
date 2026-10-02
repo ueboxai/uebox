@@ -172,7 +172,22 @@ interface BrowserSurface {
   view: WebContentsView | null
 }
 
-/** 嵌入模式下渲染层报上来的位置。单位是主窗口内容区的 DIP */
+/**
+ * 嵌入模式下，这条会话的网页挂在哪个窗口里。
+ *
+ * 默认是主窗口。会话被拖成独立聊天窗口之后，网页要跟着它进那个窗口 ——
+ * 用户正对着的是小窗，网页留在被挡住的主窗口里等于没有。由
+ * `chatWindowManager.ts` 装上；返回 undefined 就退回主窗口。
+ */
+type EmbeddedHostResolver = (sessionId: string | undefined) => BrowserWindow | undefined
+
+let embeddedHostResolver: EmbeddedHostResolver = () => undefined
+
+export function setEmbeddedHostResolver(resolver: EmbeddedHostResolver | null): void {
+  embeddedHostResolver = resolver ?? (() => undefined)
+}
+
+/** 嵌入模式下渲染层报上来的位置。单位是宿主窗口内容区的 DIP */
 export interface EmbeddedBounds {
   x: number
   y: number
@@ -198,6 +213,15 @@ export class AgentBrowserService {
   private busy = false
   private embeddedBounds: EmbeddedBounds | null = null
   private embeddedVisible = false
+  /** 嵌入模式下视图眼下挂在哪个窗口上。换宿主（`rehostEmbedded`）时要从这里摘 */
+  private embeddedHostWindow: BrowserWindow | null = null
+  /**
+   * 每个窗口最近一次报上来的面板位置（按 `webContents.id`）。
+   *
+   * 换宿主的那一刻，新窗口里的面板多半早就挂好、报过位置了（那时被当成「不是宿主」
+   * 拦掉）。不记下来的话网页搬过去之后是隐藏的，要等用户动一下窗口才出现。
+   */
+  private boundsByHost = new Map<number, EmbeddedBounds | null>()
   private persistence: Promise<void> = Promise.resolve()
   private restoring: Promise<void> | null = null
   private restoreGeneration = 0
@@ -372,7 +396,10 @@ export class AgentBrowserService {
     this.dropSurface(surface, options)
     this.surface = [...this.tabs.values()].at(-1) ?? null
     this.debuggerAttached = debuggerAttachedOn(this.surface?.contents)
-    if (!this.surface) this.destroyGroupWindow()
+    if (!this.surface) {
+      this.destroyGroupWindow()
+      this.embeddedHostWindow = null
+    }
     this.applyEmbeddedBounds()
   }
 
@@ -452,11 +479,11 @@ export class AgentBrowserService {
       this.mode = mode
       return
     }
-    const main = findMainWindow()
+    const main = this.embeddedHost()
     if (mode === 'embedded' && !main) {
       throw new AgentBrowserError('BROWSER_NOT_OPEN', '找不到主窗口')
     }
-    const oldHost = this.groupWindow ?? main
+    const oldHost = this.groupWindow ?? this.embeddedHostWindow ?? main
     this.mode = mode
     const host = mode === 'embedded' ? main : this.ensureGroupWindow()
     for (const surface of this.tabs.values()) {
@@ -467,6 +494,7 @@ export class AgentBrowserService {
       surface.mode = mode
       surface.window = mode === 'embedded' ? null : this.groupWindow
     }
+    this.embeddedHostWindow = mode === 'embedded' ? (main ?? null) : null
     if (mode === 'embedded') this.destroyGroupWindow()
     this.embeddedBounds = null
     this.embeddedVisible = false
@@ -842,8 +870,11 @@ export class AgentBrowserService {
     }
 
     const mode = this.currentMode()
-    const host = mode === 'embedded' ? findMainWindow() : this.ensureGroupWindow()
+    // 已有的标签先跟上宿主，新开的这一个才不会和它们分在两个窗口里
+    if (mode === 'embedded') this.rehostEmbedded()
+    const host = mode === 'embedded' ? this.embeddedHost() : this.ensureGroupWindow()
     if (!host) throw new AgentBrowserError('BROWSER_NOT_OPEN', '找不到主窗口')
+    if (mode === 'embedded') this.embeddedHostWindow = host
     const view = new WebContentsView({ webPreferences: this.webPreferences() })
     view.setVisible(false)
     host.contentView.addChildView(view)
@@ -911,6 +942,37 @@ export class AgentBrowserService {
     return window
   }
 
+  /** 嵌入模式下这条会话现在该挂在哪：开着它的独立聊天窗口，否则主窗口 */
+  private embeddedHost(): BrowserWindow | undefined {
+    const resolved = embeddedHostResolver(this.sessionId)
+    if (resolved && !resolved.isDestroyed()) return resolved
+    return findMainWindow()
+  }
+
+  /**
+   * 宿主变了（会话拖进 / 拖出独立窗口）：把嵌入的视图整组搬过去。
+   *
+   * 搬的是同一个视图，页面、历史、滚动位置、填了一半的表单都留着 —— 和 `setMode`
+   * 在主窗口与浏览器窗口之间搬是同一个办法。位置用新窗口最近报过的那一份。
+   */
+  rehostEmbedded(): void {
+    if (this.currentMode() !== 'embedded' || this.tabs.size === 0) return
+    const next = this.embeddedHost()
+    const current = this.embeddedHostWindow
+    if (!next || next === current) return
+    for (const surface of this.tabs.values()) {
+      if (!surface.view) continue
+      if (current && !current.isDestroyed()) current.contentView.removeChildView(surface.view)
+      next.contentView.addChildView(surface.view)
+    }
+    this.embeddedHostWindow = next
+    const bounds = this.boundsByHost.get(next.webContents.id) ?? null
+    this.embeddedBounds = bounds
+    this.embeddedVisible = bounds !== null
+    this.applyEmbeddedBounds()
+    this.notifyState()
+  }
+
   /**
    * 渲染层报来的面板位置。
    *
@@ -919,7 +981,11 @@ export class AgentBrowserService {
    */
   setEmbeddedBounds(bounds: EmbeddedBounds | null, senderId?: number): void {
     if (senderId !== undefined) {
-      const expected = this.currentMode() === 'embedded' ? findMainWindow() : this.groupWindow
+      this.boundsByHost.set(senderId, bounds)
+      const expected =
+        this.currentMode() === 'embedded'
+          ? (this.embeddedHostWindow ?? this.embeddedHost())
+          : this.groupWindow
       if (!expected || expected.isDestroyed() || expected.webContents.id !== senderId) return
     }
     this.embeddedBounds = bounds
@@ -1044,7 +1110,7 @@ export class AgentBrowserService {
   /** 把一个非当前的 surface 从表里摘干净：视图、登记表、必要时连 contents 一起关掉 */
   private dropSurface(surface: BrowserSurface, options: { destroy?: boolean } = {}): void {
     this.tabs.delete(surface.id)
-    const host = surface.window ?? findMainWindow()
+    const host = surface.window ?? this.embeddedHostWindow ?? findMainWindow()
     // `contentView` 和 `webContents` 一样，窗口销毁之后再读会抛
     if (surface.view && host && !host.isDestroyed()) host.contentView.removeChildView(surface.view)
     unregisterNonAppWindow(surface.contentsId)
@@ -1335,6 +1401,11 @@ export function getSessionBrowser(sessionId?: string): AgentBrowserService {
     sessionBrowsers.set(sessionId, browser)
   }
   return browser
+}
+
+/** 这条会话的网页换个窗口挂（只动已经开着的，没开过的不新建实例） */
+export function rehostSessionBrowser(sessionId: string): void {
+  sessionBrowsers.get(sessionId)?.rehostEmbedded()
 }
 
 export async function deleteSessionBrowser(sessionId: string): Promise<void> {

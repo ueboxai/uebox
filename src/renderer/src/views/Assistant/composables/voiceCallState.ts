@@ -15,7 +15,17 @@ import { stopReadAloud } from './useReadAloud'
  */
 const inCall = ref(false)
 
-export const voiceCallActive: ComputedRef<boolean> = computed(() => inCall.value)
+/**
+ * **别的窗口**在通话（主进程按窗口算好了发过来，见主进程 `voiceCallPresence.ts`）。
+ *
+ * 和自己这份分开存：以前是一个布尔值两头写，独立聊天窗口把通话接过去的那一刻，
+ * 主窗口随后报的「我挂了」会把接手那边也一起写成「没在通话」。
+ */
+const inCallElsewhere = ref(false)
+
+export const voiceCallActive: ComputedRef<boolean> = computed(
+  () => inCall.value || inCallElsewhere.value
+)
 
 /**
  * 由 `voiceAssistant` 跟着那一路语音的状态推过来（主窗口）。
@@ -35,7 +45,7 @@ export function setVoiceCallActive(active: boolean): void {
  */
 export function followVoiceCallFromOtherWindows(): () => void {
   return voiceCallAPI.onChange((active) => {
-    inCall.value = active
+    inCallElsewhere.value = active
   })
 }
 
@@ -44,7 +54,7 @@ export function followVoiceCallFromOtherWindows(): () => void {
  *
  * 用户点了朗读、还没念完就开口打电话，那半句会一路念进刚打开的麦克风里。
  */
-watch(inCall, (active) => {
+watch(voiceCallActive, (active) => {
   if (active) stopReadAloud()
 })
 

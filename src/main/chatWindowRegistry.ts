@@ -9,7 +9,15 @@
  *
  * 再拖一次同一条对话，是把已经开着的那个窗口提到前面，不是再开一个。
  * 两个独立窗口显示同一条对话没有任何用处，却会让「同步转给谁」从一对一变成一对多。
+ *
+ * ## 小窗里开的语音通话，派生的任务对话也归它
+ *
+ * 语音派出去的活落在从说话那条对话派生出来的任务对话上（`voice-tasks-<sid>::<灶>`，
+ * 见 `shared/voiceTaskSession.ts`）。通话开在小窗里，这些对话就在小窗里建、在小窗里跑，
+ * 它们也得同步回主窗口存盘 —— 所以「这个窗口管哪些对话」按派生关系算，不只是它开着的那一条。
  */
+
+import { belongsToChat, voiceTaskOwnerSid } from '../shared/voiceTaskSession'
 
 export interface ChatWindowEntry {
   /** 界面这边的对话 id（标签页、消息、草稿都用它） */
@@ -42,8 +50,12 @@ export class ChatWindowRegistry {
     return undefined
   }
 
+  /** 管这条对话的独立窗口：开着它的，或者开着它派生自的那条的 */
   webContentsOf(chatSid: string): number | undefined {
-    return this.entries.get(chatSid)?.webContentsId
+    const direct = this.entries.get(chatSid)
+    if (direct) return direct.webContentsId
+    const owner = voiceTaskOwnerSid(chatSid)
+    return owner ? this.entries.get(owner)?.webContentsId : undefined
   }
 
   chatSidOf(webContentsId: number): string | undefined {
@@ -62,6 +74,14 @@ export class ChatWindowRegistry {
     const entry = this.entries.get(chatSid)
     if (!entry || entry.webContentsId !== webContentsId) return
     entry.agentSessionId = agentSessionId || undefined
+  }
+
+  /** 这个窗口那条对话现在的内核会话 id */
+  agentSessionOf(webContentsId: number): string | undefined {
+    for (const entry of this.entries.values()) {
+      if (entry.webContentsId === webContentsId) return entry.agentSessionId
+    }
+    return undefined
   }
 
   webContentsOfAgentSession(agentSessionId: string): number | undefined {
@@ -90,8 +110,9 @@ export class ChatWindowRegistry {
       const target = this.webContentsOf(chatSid)
       return target === undefined ? [] : [target]
     }
-    // 只许改自己开着的那条：一个窗口替别的对话发补丁，说明它的状态已经乱了
-    if (this.chatSidOf(senderId) !== chatSid) return []
+    // 只许改自己管的那几条：一个窗口替别的对话发补丁，说明它的状态已经乱了
+    const own = this.chatSidOf(senderId)
+    if (!own || !belongsToChat(chatSid, own)) return []
     return mainId === undefined ? [] : [mainId]
   }
 

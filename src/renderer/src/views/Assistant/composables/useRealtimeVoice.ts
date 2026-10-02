@@ -72,7 +72,8 @@ export type VoiceEvent =
   | { type: 'question-settled'; taskId?: string }
   | { type: 'error'; message: string }
   /** `reason`：服务端按规矩挂断（一分钟没人说话 / 单次 30 分钟），见 `onServerHangUp` */
-  | { type: 'closed'; reason?: 'idle_timeout' | 'session_timeout' }
+  /** `taken_over`：别的窗口开了通话，这一路被它接过去了 */
+  | { type: 'closed'; reason?: 'idle_timeout' | 'session_timeout' | 'taken_over' }
 
 /**
  * 用户能理解的会话阶段。
@@ -299,7 +300,7 @@ export interface RealtimeVoiceOptions {
    * 服务端按规矩挂断了（Box Plan：一分钟没人说话、单次会话满 30 分钟）。
    * **不自动重连** —— 空闲挂断后重连也是挂着计费、没人说话；由宿主说一句，等用户再点
    */
-  onServerHangUp?: (reason: 'idle_timeout' | 'session_timeout') => void
+  onServerHangUp?: (reason: 'idle_timeout' | 'session_timeout' | 'taken_over') => void
   /** 厂商无视 PCM 配置、返回压缩音频时给用户的安全提示 */
   unsupportedAudioMessage: string
   /** 这一段没听清时显示的话 */

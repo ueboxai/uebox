@@ -82,3 +82,19 @@ describe('ChatWindowRegistry 登记', () => {
     expect(value.removeByWebContents(CHAT)).toBeUndefined()
   })
 })
+
+describe('小窗里开的语音通话派生的任务对话', () => {
+  const task = 'voice-tasks-sid-a::lighting'
+
+  it('独立窗口的任务对话补丁转给主窗口', () => {
+    expect(registry().relayTargets(CHAT, task, MAIN)).toEqual([MAIN])
+  })
+
+  it('主窗口那边的改动转回管它的独立窗口', () => {
+    expect(registry().relayTargets(MAIN, task, MAIN)).toEqual([CHAT])
+  })
+
+  it('别的对话派生的任务对话不归它', () => {
+    expect(registry().relayTargets(CHAT, 'voice-tasks-sid-b::lighting', MAIN)).toEqual([])
+  })
+})

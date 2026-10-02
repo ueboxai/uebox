@@ -864,6 +864,7 @@ export default {
   },
   chatWindow: {
     windowTitle: 'AI 会话',
+    voiceTakenOver: '语音通话已转到另一个窗口。',
     minimize: '最小化',
     maximize: '最大化',
     close: '关闭'

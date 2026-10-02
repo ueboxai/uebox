@@ -54,35 +54,9 @@
  * 挑哪个灶由前台模型判断，判据和代价写在 `frontDesk.ts` 的工具描述里。
  */
 
-/**
- * 这通电话某个灶的活落在哪条对话上。
- *
- * 从说话那条的 id 加灶名派生，所以是纯函数、不用另存一份对应关系。
- * 前缀写死，普通会话 id 是 base36 时间戳，撞不上。
- */
-const VOICE_TASK_PREFIX = 'voice-tasks-'
-
-/**
- * 灶名和 chatSid 之间的分隔符。
- *
- * `::` 而不是 `-`：普通会话 id 是 base36 时间戳，里面不会有它，
- * 而灶名归一之后可能带连字符（`content-cleanup`）—— 用 `-` 分的话切不回来。
- */
-const WORKER_SEPARATOR = '::'
-
-export function voiceTaskSessionId(chatSid: string, workerKey: string): string {
-  return `${VOICE_TASK_PREFIX}${chatSid}${WORKER_SEPARATOR}${workerKey}`
-}
-
-/** 这条对话是某通电话的任务对话吗 */
-export function isVoiceTaskSessionId(sessionId: string): boolean {
-  return sessionId.startsWith(VOICE_TASK_PREFIX)
-}
-
-/** 这条任务对话属于哪通电话。不是任务对话就返回空串 */
-export function voiceTaskOwnerSid(sessionId: string): string {
-  if (!isVoiceTaskSessionId(sessionId)) return ''
-  const rest = sessionId.slice(VOICE_TASK_PREFIX.length)
-  const at = rest.lastIndexOf(WORKER_SEPARATOR)
-  return at === -1 ? rest : rest.slice(0, at)
-}
+export {
+  belongsToChat,
+  isVoiceTaskSessionId,
+  voiceTaskOwnerSid,
+  voiceTaskSessionId
+} from '@core/shared/voiceTaskSession'

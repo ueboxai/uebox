@@ -886,6 +886,7 @@ export default {
   },
   chatWindow: {
     windowTitle: 'AI Chat',
+    voiceTakenOver: 'The voice call moved to another window.',
     minimize: 'Minimize',
     maximize: 'Maximize',
     close: 'Close'

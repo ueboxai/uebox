@@ -13,8 +13,9 @@
  * 收尾（起标题、标完成、发通知都只做一遍），另一边只接补丁。所以拖出去的那一刻
  * 正在跑的会话不用「搬家」，也就没有接缝处丢字、重字的问题。
  *
- * 这一层只补三件事：哪些会话在别的窗口里跑（判忙、停止要用）、审批多弹一份
- * （见 `approvalChannel.ts`）、关窗时这个窗口还在跑活就先藏起来等它跑完。
+ * 这一层只补四件事：哪些会话在别的窗口里跑（判忙、停止要用）、审批多弹一份
+ * （见 `approvalChannel.ts`）、关窗时这个窗口还在跑活就先藏起来等它跑完、
+ * 这条会话的 Agent 内嵌浏览器挂进小窗（见下面 `setEmbeddedHostResolver`）。
  */
 
 import { BrowserWindow, ipcMain, screen, webContents, app, type IpcMainEvent } from 'electron'
@@ -31,6 +32,7 @@ import {
   resendPendingApprovalsTo,
   setApprovalMirrorResolver
 } from './agent-v3/host/approvalChannel'
+import { rehostSessionBrowser, setEmbeddedHostResolver } from './services/agentBrowser'
 import { logger } from './services'
 
 const DEFAULT_SIZE = { width: 560, height: 780 }
@@ -93,6 +95,10 @@ class ChatWindowManager {
   private readonly windows = new Map<string, BrowserWindow>()
   /** 用户点了关闭、但这个窗口还在跑活：先藏着，跑完再真关 */
   private readonly closingWhenIdle = new Set<BrowserWindow>()
+  /** 正在关（含藏起来等跑完的）：内嵌浏览器不再往它里挂，先搬回主窗口 */
+  private readonly leaving = new Set<BrowserWindow>()
+  /** 窗口 → 它的 `webContents.id`。建窗口时钉下来，销毁后再读 `webContents` 会抛 */
+  private readonly webContentsIds = new Map<BrowserWindow, number>()
 
   initialize(): void {
     this.registerIPC()
@@ -103,6 +109,22 @@ class ChatWindowManager {
         .map((id) => webContents.fromId(id))
         .filter((target): target is Electron.WebContents => Boolean(target))
     )
+
+    /*
+     * Agent 内嵌浏览器跟着会话走：会话开在小窗里，网页就挂进小窗。
+     *
+     * 网页是主进程挂在窗口上的一层原生视图。不搬的话它留在主窗口里 —— 而这条
+     * 会话的标签已经不在主窗口了，网页没人显示，用户在小窗里看不到 Agent 在操作哪个页面。
+     */
+    setEmbeddedHostResolver((sessionId) => {
+      if (!sessionId) return undefined
+      const id = this.registry.webContentsOfAgentSession(sessionId)
+      if (id === undefined) return undefined
+      for (const [win, contentsId] of this.webContentsIds) {
+        if (contentsId === id && !win.isDestroyed() && !this.leaving.has(win)) return win
+      }
+      return undefined
+    })
 
     onActiveRunsChanged(() => {
       this.broadcastRunsElsewhere()
@@ -115,6 +137,8 @@ class ChatWindowManager {
     const existing = this.windows.get(chatSid)
     if (existing && !existing.isDestroyed()) {
       this.closingWhenIdle.delete(existing)
+      // 藏着等跑完的那个又被叫回来了：不关了，网页也搬回来
+      if (this.leaving.delete(existing)) this.rehostBrowserOf(existing)
       if (existing.isMinimized()) existing.restore()
       existing.show()
       existing.focus()
@@ -148,6 +172,7 @@ class ChatWindowManager {
 
     const webContentsId = win.webContents.id
     this.windows.set(chatSid, win)
+    this.webContentsIds.set(win, webContentsId)
     this.registry.register(chatSid, webContentsId)
 
     win.once('ready-to-show', () => {
@@ -181,13 +206,21 @@ class ChatWindowManager {
         win.hide()
         logger.info(`[ChatWindow] ${chatSid} 还有一轮在跑，先隐藏，跑完再关`)
       }
+      // 不管是真关还是先藏：网页搬回主窗口，别跟着一个看不见的窗口走
+      this.leaving.add(win)
+      this.rehostBrowserOf(win)
     })
 
     win.on('closed', () => {
       if (resizeTimer) clearTimeout(resizeTimer)
       this.closingWhenIdle.delete(win)
       if (this.windows.get(chatSid) === win) this.windows.delete(chatSid)
+      const agentSessionId = this.registry.agentSessionOf(webContentsId)
       this.registry.removeByWebContents(webContentsId)
+      this.leaving.delete(win)
+      this.webContentsIds.delete(win)
+      // 没走 close 就没了（渲染进程崩了、跑完之后被 destroy）：兜一次，网页回主窗口
+      if (agentSessionId) rehostSessionBrowser(agentSessionId)
       this.broadcastChanged()
     })
 
@@ -207,6 +240,13 @@ class ChatWindowManager {
 
     this.broadcastChanged()
     logger.info(`[ChatWindow] 打开独立窗口: ${chatSid}`)
+  }
+
+  private rehostBrowserOf(win: BrowserWindow): void {
+    const contentsId = this.webContentsIds.get(win)
+    const agentSessionId =
+      contentsId === undefined ? undefined : this.registry.agentSessionOf(contentsId)
+    if (agentSessionId) rehostSessionBrowser(agentSessionId)
   }
 
   private closeIdleHiddenWindows(): void {
@@ -260,11 +300,12 @@ class ChatWindowManager {
       'chat-window:bind-agent-session',
       (event, args?: { chatSid?: string; agentSessionId?: string }) => {
         if (typeof args?.chatSid !== 'string') return
-        this.registry.bindAgentSession(
-          event.sender.id,
-          args.chatSid,
-          typeof args.agentSessionId === 'string' ? args.agentSessionId : ''
-        )
+        const previous = this.registry.agentSessionOf(event.sender.id)
+        const next = typeof args.agentSessionId === 'string' ? args.agentSessionId : ''
+        this.registry.bindAgentSession(event.sender.id, args.chatSid, next)
+        // 换了内核会话（清空对话）：旧的那份网页回主窗口，新的那份挂进来
+        if (previous && previous !== next) rehostSessionBrowser(previous)
+        if (next) rehostSessionBrowser(next)
       }
     )
 

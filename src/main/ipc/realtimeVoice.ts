@@ -35,7 +35,8 @@ import type {
   VoiceSessionHandle
 } from '../ai/realtime/types'
 import { projectManager } from '../services/project'
-import { sendToAppWindows } from '../appWindows'
+import { getAppWindows, sendToWindow } from '../appWindows'
+import { VoiceCallPresence } from './voiceCallPresence'
 import { completeText, resolveBinding, userMessage } from '../ai/piCompletion'
 import { CONDENSE_SYSTEM_PROMPT, acceptCondensed } from '../ai/realtime/spokenSummary'
 import { LIST_OPEN_EDITORS, LIST_PROJECTS, LOOK_AT_EDITOR } from '../../shared/voiceFrontDesk'
@@ -437,11 +438,27 @@ function stop(): void {
  * 只在**换了个窗口**时发这条。同一个 sender 重开（用户把语音关了再开）走的是
  * 原本那条路，再补一条 `closed` 反而会把刚建的那路当场关掉。
  */
+/** 每个窗口在不在通话，见 `voiceCallPresence.ts` */
+const callPresence = new VoiceCallPresence()
+
+/** 每个窗口收到的是「别的窗口在不在通话」 */
+function broadcastCallPresence(): void {
+  for (const window of getAppWindows()) {
+    sendToWindow(
+      window,
+      'realtime-voice:call-active',
+      callPresence.activeElsewhere(window.webContents.id)
+    )
+  }
+}
+
 function yieldSessionTo(senderId: number): void {
   const previous = active
   stop()
   if (previous && previous.sender.id !== senderId && !previous.sender.isDestroyed()) {
-    previous.sender.send('realtime-voice:event', { type: 'closed' })
+    // 带上原因：被抢走的那个窗口要跟用户说一声「通话到另一个窗口去了」，
+    // 不然用户看到的是通话自己断了
+    previous.sender.send('realtime-voice:event', { type: 'closed', reason: 'taken_over' })
   }
 }
 
@@ -545,8 +562,16 @@ export function registerRealtimeVoiceIPC(): void {
    * 「正在通话」这一位只在主窗口的渲染进程里有，而小窗是另一个渲染进程：它照样会在
    * 通话期间把回复念出来，念进正开着的麦克风。主窗口报上来，这里转给每个窗口
    */
-  ipcMain.on('realtime-voice:call-active', (_event, active: unknown) => {
-    sendToAppWindows('realtime-voice:call-active', active === true)
+  ipcMain.on('realtime-voice:call-active', (event, active: unknown) => {
+    const sender = event.sender
+    if (!callPresence.set(sender.id, active === true)) return
+    // 窗口直接关了也要撤：不然别的窗口会一直以为有人在通话，再也不自动朗读
+    if (active === true) {
+      sender.once('destroyed', () => {
+        if (callPresence.remove(sender.id)) broadcastCallPresence()
+      })
+    }
+    broadcastCallPresence()
   })
   ipcMain.on('realtime-voice:playback-ready', (event, connectionId: number) => {
     if (!active || active.sender.id !== event.sender.id || connectionId !== connectionGeneration)

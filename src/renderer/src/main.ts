@@ -76,6 +76,7 @@ import { initApprovalModeSync } from './views/Assistant/composables/approvalMode
 import { initAgentReattach } from './views/Assistant/composables/agentReattach'
 import { chatHistoryStorage } from './utils/chatHistoryStorage'
 import { installChatWindowSync } from './utils/chatWindowSync'
+import { followVoiceCallFromOtherWindows } from './views/Assistant/composables/voiceCallState'
 import { syncAppIconTheme } from './hooks/useTheme'
 import { initMotionPreference } from './hooks/useMotionPreference'
 
@@ -133,6 +134,8 @@ void chatHistoryStorage.preload().finally(() => {
   void initAgentReattach()
   // 拖出去的独立聊天窗口和主窗口之间同步对话（同样要等对话历史读进来）
   installChatWindowSync()
+  // 通话可能开在别的窗口（主窗口、独立聊天窗口、小窗）：那时这边不许自动朗读
+  followVoiceCallFromOtherWindows()
 
   app.mount('#app')
 })

@@ -327,7 +327,7 @@ vi.mock('./sessionState', () => ({
   })
 }))
 
-const { AgentBrowserService, AgentBrowserError } = await import('./index')
+const { AgentBrowserService, AgentBrowserError, setEmbeddedHostResolver } = await import('./index')
 
 type Service = InstanceType<typeof AgentBrowserService>
 
@@ -1204,4 +1204,69 @@ it('重建会话恢复整组地址和选中项，恢复过程中关闭不会复�
   await restoring
   expect(third.hasWindow()).toBe(false)
   expect(savedGroups.has('restore-group')).toBe(false)
+})
+
+/**
+ * 会话被拖成独立聊天窗口：网页跟着进小窗，拖回来（小窗关了）再回主窗口。
+ * 用户正对着的是小窗，网页留在被挡住的主窗口里等于没有。
+ */
+describe('嵌入宿主跟着会话走', () => {
+  afterEach(() => setEmbeddedHostResolver(null))
+
+  function fakeChatWindow(id: number): {
+    isDestroyed: () => boolean
+    webContents: { id: number }
+    children: unknown[]
+    contentView: { addChildView: (v: unknown) => void; removeChildView: (v: unknown) => void }
+  } {
+    const win = {
+      isDestroyed: () => false,
+      webContents: { id },
+      children: [] as unknown[],
+      contentView: {
+        addChildView: (view: unknown) => win.children.push(view),
+        removeChildView: (view: unknown) => {
+          win.children = win.children.filter((item) => item !== view)
+        }
+      }
+    }
+    return win
+  }
+
+  it('换宿主时搬同一个视图，用新窗口早先报过的位置立刻显示', async () => {
+    settings.mode = 'embedded'
+    const instance = new AgentBrowserService('s-chat')
+    await openPage(instance)
+    expect(attachedViews).toHaveLength(1)
+
+    const chat = fakeChatWindow(4242)
+    // 小窗的面板先挂好报了位置，那时它还不是宿主
+    instance.setEmbeddedBounds({ x: 0, y: 36, width: 500, height: 600 }, 4242)
+    expect(views[0].visible).toBe(false)
+
+    setEmbeddedHostResolver((sessionId) => (sessionId === 's-chat' ? (chat as never) : undefined))
+    instance.rehostEmbedded()
+    expect(attachedViews).toHaveLength(0)
+    expect(chat.children).toEqual([views[0]])
+    expect(views[0].bounds).toEqual({ x: 0, y: 36, width: 500, height: 600 })
+    expect(views[0].visible).toBe(true)
+    // 主窗口那边面板卸载时报的 null 不再算数
+    instance.setEmbeddedBounds(null, 9999)
+    expect(views[0].visible).toBe(true)
+
+    setEmbeddedHostResolver(null)
+    instance.rehostEmbedded()
+    expect(chat.children).toHaveLength(0)
+    expect(attachedViews).toEqual([views[0]])
+  })
+
+  it('别的会话不受影响', async () => {
+    settings.mode = 'embedded'
+    const chat = fakeChatWindow(4243)
+    setEmbeddedHostResolver((sessionId) => (sessionId === 's-chat' ? (chat as never) : undefined))
+    const other = new AgentBrowserService('s-other')
+    await openPage(other)
+    expect(attachedViews).toHaveLength(1)
+    expect(chat.children).toHaveLength(0)
+  })
 })

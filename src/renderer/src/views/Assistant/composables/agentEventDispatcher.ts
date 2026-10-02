@@ -34,11 +34,19 @@ import { agentV3API } from '@renderer/api/agentV3'
 import i18n from '@renderer/i18n'
 import { isTypingPlaceholder } from '@renderer/utils/typingPlaceholder'
 import { chatWindowSid, isChatWindow } from '@renderer/api/chatWindow'
+import { belongsToChat } from '@core/shared/voiceTaskSession'
 
-/** 这条内核会话是不是本独立窗口开着的那条对话 */
+/**
+ * 这条内核会话归不归本独立窗口：它开着的那条对话，或者这里打的电话派生的任务对话
+ * （那些活是这个窗口派出去的，审批得在这里弹）。
+ */
 function isOwnChatWindowSession(agentSessionId: string): boolean {
   const sid = chatWindowSid()
-  return Boolean(sid) && getChatSessionsStore().getAgentSessionId(sid) === agentSessionId
+  if (!sid) return false
+  const store = getChatSessionsStore()
+  if (store.getAgentSessionId(sid) === agentSessionId) return true
+  const chatSid = store.sessionByAgentSessionId(agentSessionId)?.id
+  return Boolean(chatSid) && belongsToChat(chatSid!, sid)
 }
 
 /**

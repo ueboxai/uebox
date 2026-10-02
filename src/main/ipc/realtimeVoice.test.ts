@@ -338,9 +338,12 @@ describe('语音 IPC 生命周期', () => {
     await expect(call).resolves.toMatchObject({ ok: true })
 
     expect(mock.connections).toHaveLength(2)
-    // 听写那路（先开的）被通话让掉并关掉了，Spotlight 收到一声 closed
+    // 听写那路（先开的）被通话让掉并关掉了，Spotlight 收到一声 closed，带着「被别处接走」的原因
     expect(mock.connections[0].handle.close).toHaveBeenCalled()
-    expect(spotlight.send).toHaveBeenCalledWith('realtime-voice:event', { type: 'closed' })
+    expect(spotlight.send).toHaveBeenCalledWith('realtime-voice:event', {
+      type: 'closed',
+      reason: 'taken_over'
+    })
   })
 
   it('听写等密钥期间通话先接上了：听写回 busy，不盖掉通话', async () => {

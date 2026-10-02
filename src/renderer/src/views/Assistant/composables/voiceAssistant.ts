@@ -594,7 +594,13 @@ function createVoiceAssistant(): RealtimeVoiceState {
     onAssistantDone: finishVoiceAssistantText,
     onAnnouncement: recordVoiceAnnouncement,
     // Box Plan 一分钟没人说话 / 满 30 分钟挂断：说一句，不自动重连
-    onServerHangUp: (reason) => message.info(t(`aiProvider.creatorPlan.realtime.${reason}`)),
+    // 被另一个窗口接过去了：通话只有一路，后开的那个窗口拿走它
+    onServerHangUp: (reason) =>
+      message.info(
+        reason === 'taken_over'
+          ? t('chatWindow.voiceTakenOver')
+          : t(`aiProvider.creatorPlan.realtime.${reason}`)
+      ),
     resolveSession: currentVoiceSession,
     listWorkers: voiceWorkers,
     listSessions: listVoiceSessions,
