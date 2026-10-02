@@ -33,6 +33,13 @@ import type { AgentQuestion, AgentQuestionAction } from '@core/shared/agentQuest
 import { agentV3API } from '@renderer/api/agentV3'
 import i18n from '@renderer/i18n'
 import { isTypingPlaceholder } from '@renderer/utils/typingPlaceholder'
+import { chatWindowSid, isChatWindow } from '@renderer/api/chatWindow'
+
+/** 这条内核会话是不是本独立窗口开着的那条对话 */
+function isOwnChatWindowSession(agentSessionId: string): boolean {
+  const sid = chatWindowSid()
+  return Boolean(sid) && getChatSessionsStore().getAgentSessionId(sid) === agentSessionId
+}
 
 /**
  * 事件处理器。
@@ -485,6 +492,8 @@ export function initAgentEventDispatcher(): void {
       allowAlways?: boolean
     }) => {
       if (!data?.toolCallId) return
+      // 独立聊天窗口只弹它自己那条对话的：别的对话的审批主窗口那边弹着
+      if (isChatWindow() && !isOwnChatWindowSession(data.sessionId)) return
       getPendingApprovalsStore().enqueue({
         sessionId: data.sessionId,
         toolCallId: data.toolCallId,
@@ -503,6 +512,23 @@ export function initAgentEventDispatcher(): void {
     if (!data?.toolCallId) return
     getPendingApprovalsStore().settle(data.toolCallId)
   })
+
+  // 提问卡片在别的窗口里答过了（独立聊天窗口显示着这一轮）。卡片的「已答」记在
+  // 这边的流式状态里，不收的话 agent 已经接着干了，这边还写着「等你回答」，
+  // 再同步过去又把那边答过的盖回去
+  on(
+    'agent-v3:question-settled',
+    (data: {
+      sessionId?: string
+      toolCallId?: string
+      action?: AgentQuestionAction
+      answers?: string[]
+    }) => {
+      if (!data?.sessionId || !data.toolCallId || !data.action) return
+      getStreamStore().resolveQuestion(data.sessionId, data.toolCallId, data.action, data.answers)
+      paintStreamingMessage(data.sessionId)
+    }
+  )
 
   // ── 上下文用量：内核算的真数 ─────────────────────────────────────────
   // 界面上原本那个计数是渲染层按屏幕上的消息估的，算不到系统提示词、

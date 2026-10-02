@@ -14,6 +14,8 @@
  * 在序列化之前做检查点合并；chat-sessions 等低频数据继续走这里的写盘节流。
  */
 
+import { isChatWindow } from '@renderer/api/chatWindow'
+
 /** 走这套存储的 key。跟主进程的白名单一一对应。 */
 const CHAT_KEYS = ['chat-messages', 'chat-sessions', 'follow-up-queue'] as const
 
@@ -30,8 +32,19 @@ export class ChatHistoryStorage implements Storage {
    * MiniChat 是独立窗口，跟主窗口写的是同一份文件；两边都写就是后写覆盖先写。
    * 它本来就靠 IPC 把整段消息交给主窗口（见 `layout/components/SideMenu.vue`
    * 里的 `chat-sessions:refresh`），不需要自己存盘。
+   *
+   * 从标签栏拖出来的独立聊天窗口同理：它的改动经同步补丁交给主窗口，由主窗口存
+   * （见 `chatWindowSync.ts`）。
    */
   private readOnly = false
+
+  /**
+   * 独立聊天窗口不接排队的跟进消息。
+   *
+   * 队列是按窗口投递的：两个窗口都从盘上读到同一批排队的话，同一句话会被两边
+   * 各发一次。主窗口排的归主窗口发，独立窗口只管它自己这次打开之后排的。
+   */
+  private skipFollowUpQueue = false
 
   constructor(private readonly throttleMs = 2000) {}
 
@@ -44,6 +57,7 @@ export class ChatHistoryStorage implements Storage {
   }
 
   getItem(key: string): string | null {
+    if (this.skipFollowUpQueue && key === 'follow-up-queue') return null
     return this.cache.get(key) ?? null
   }
 
@@ -76,7 +90,9 @@ export class ChatHistoryStorage implements Storage {
    * 本身就是「迁没迁过」的答案，中断了下次启动自然接着做。
    */
   async preload(): Promise<void> {
-    this.readOnly = window.location.hash.startsWith('#/mini-chat')
+    const chatWindow = isChatWindow()
+    this.readOnly = window.location.hash.startsWith('#/mini-chat') || chatWindow
+    this.skipFollowUpQueue = chatWindow
 
     let onDisk: Record<string, string | undefined> = {}
     try {

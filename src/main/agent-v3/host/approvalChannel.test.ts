@@ -13,7 +13,12 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { createApprovalRequester, resendPendingApprovals } from './approvalChannel'
+import {
+  createApprovalRequester,
+  resendPendingApprovals,
+  resendPendingApprovalsTo,
+  setApprovalMirrorResolver
+} from './approvalChannel'
 import type { ApprovalRequest } from '../core/approval'
 
 function fakeSender(id: number): {
@@ -103,5 +108,80 @@ describe('resendPendingApprovals', () => {
     const sender = fakeSender(1)
     expect(resendPendingApprovals(sender as never, [])).toBe(0)
     expect(sender.send).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 独立聊天窗口：一条会话显示在一个窗口里，这一轮却是另一个窗口发起的。
+ * 确认框只弹在发起窗口的话，用户正看着的那个窗口里什么都没有。
+ */
+describe('审批镜像', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    ipcHandlers.clear()
+  })
+
+  afterEach(() => {
+    setApprovalMirrorResolver(null)
+    vi.useRealTimers()
+  })
+
+  it('镜像窗口收到同一条审批，落定之后两边一起收掉', async () => {
+    const owner = fakeSender(1)
+    const viewer = fakeSender(2)
+    setApprovalMirrorResolver((sessionId) => (sessionId === 'session-1' ? [viewer as never] : []))
+
+    const pending = createApprovalRequester(owner as never)(request())
+    expect(viewer.send).toHaveBeenCalledWith(
+      'agent-v3:approval-required',
+      expect.objectContaining({ toolCallId: 'call-1' })
+    )
+
+    reply('call-1', 'approve')
+    await expect(pending).resolves.toBe('approve')
+    expect(viewer.send).toHaveBeenLastCalledWith('agent-v3:approval-settled', {
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      verdict: 'approve'
+    })
+    expect(owner.send).toHaveBeenLastCalledWith(
+      'agent-v3:approval-settled',
+      expect.objectContaining({ toolCallId: 'call-1' })
+    )
+  })
+
+  it('解析器把发起窗口自己也算进来时不会发两遍', () => {
+    const owner = fakeSender(1)
+    setApprovalMirrorResolver(() => [owner as never])
+    void createApprovalRequester(owner as never)(request())
+    expect(owner.send).toHaveBeenCalledTimes(1)
+    reply('call-1', 'reject')
+  })
+
+  it('解析器出错就只发给发起窗口，不耽误这一次审批', async () => {
+    const owner = fakeSender(1)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    setApprovalMirrorResolver(() => {
+      throw new Error('boom')
+    })
+    const pending = createApprovalRequester(owner as never)(request())
+    expect(owner.send).toHaveBeenCalledTimes(1)
+    reply('call-1', 'approve')
+    await expect(pending).resolves.toBe('approve')
+    error.mockRestore()
+  })
+
+  it('能把待审批补发给不是发起者的窗口', () => {
+    const owner = fakeSender(1)
+    const viewer = fakeSender(2)
+    void createApprovalRequester(owner as never)(request())
+
+    expect(resendPendingApprovalsTo(viewer as never, ['session-2'])).toBe(0)
+    expect(resendPendingApprovalsTo(viewer as never, ['session-1'])).toBe(1)
+    expect(viewer.send).toHaveBeenCalledWith(
+      'agent-v3:approval-required',
+      expect.objectContaining({ toolCallId: 'call-1' })
+    )
+    reply('call-1', 'reject')
   })
 })

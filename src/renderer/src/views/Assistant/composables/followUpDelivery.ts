@@ -188,6 +188,23 @@ export function useFollowUpDelivery(): void {
   )
 
   /*
+   * 别的窗口里跑的那一轮结束了也试一次。
+   *
+   * 独立聊天窗口显示的对话可能是主窗口在跑（或者反过来），`released` 只发给发起的
+   * 那个窗口，这边收不到；这边知道它空出来，靠的是主进程那张「别处在跑」的表变了
+   * （见 `agentStream.isBusyElsewhere`）。
+   */
+  watch(
+    () =>
+      Object.keys(queueStore.queues)
+        .filter((chatSid) => !streamStore.isBusy(chatSid))
+        .join(','),
+    (idle) => {
+      for (const chatSid of idle ? idle.split(',') : []) deliverNext(chatSid)
+    }
+  )
+
+  /*
    * 起来时先对已经排着的对话试投一次。
    *
    * 队列现在会落盘（见 store 里的注释），所以刷新页面 / 重开应用之后它还在。

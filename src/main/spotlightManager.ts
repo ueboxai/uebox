@@ -1,5 +1,5 @@
 import { BrowserWindow, globalShortcut, screen, ipcMain, app } from 'electron'
-import { getAppWindows, sendToAppWindows } from './appWindows'
+import { findMainWindow, getAppWindows, sendToAppWindows } from './appWindows'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
@@ -200,7 +200,10 @@ class SpotlightWindowManager {
       }
 
       // 其他操作 → 转发给主窗口
-      const mainWindow = getAppWindows().find((w) => w !== this.spotlightWindow && !w.isDestroyed())
+      // 先认登记过的主窗口：「第一个不是 Spotlight 的窗口」可能是 MiniChat 或独立聊天窗口
+      const mainWindow =
+        findMainWindow() ??
+        getAppWindows().find((w) => w !== this.spotlightWindow && !w.isDestroyed())
       if (mainWindow) {
         mainWindow.webContents.send('spotlight:action', action, data)
         mainWindow.show()

@@ -123,6 +123,23 @@ describe('ChatHistoryStorage', () => {
     expect(storage.getItem('chat-messages')).toBe('{"mini":1}')
   })
 
+  it('独立聊天窗口只读，而且不接盘上排着的跟进消息（主窗口会发，两边都发就重了）', async () => {
+    setHash('#/chat-window?sid=s1')
+    const { write } = stubDisk({
+      'chat-messages': '{"disk":1}',
+      'follow-up-queue': '{"queues":{"s1":[1]}}'
+    })
+
+    const storage = new ChatHistoryStorage(2000)
+    await storage.preload()
+    expect(storage.getItem('chat-messages')).toBe('{"disk":1}')
+    expect(storage.getItem('follow-up-queue')).toBeNull()
+
+    storage.setItem('chat-messages', '{"window":1}')
+    storage.flush()
+    expect(write).not.toHaveBeenCalled()
+  })
+
   it('磁盘读不出来时降级成纯内存，不炸', async () => {
     ;(window as unknown as { api: unknown }).api = {
       chatHistory: {

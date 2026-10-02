@@ -31,6 +31,7 @@ import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
 import { useAgentStreamStore } from '@renderer/store/modules/agentStream'
 import { agentV3API } from '@renderer/api/agentV3'
 import { isTypingPlaceholder } from '@renderer/utils/typingPlaceholder'
+import { isChatWindow } from '@renderer/api/chatWindow'
 
 /**
  * 接回来时从哪儿续写。
@@ -155,6 +156,10 @@ export async function initAgentReattach(): Promise<void> {
   // 让它也来裁决的话，它问主进程只会得到「你名下没有会话」（事件是往主窗口发的），
   // 于是把主窗口正在跑的那条判死，再顺手写回盘上。这个判断不归它做。
   if (window.location.hash.includes('spotlight')) return
+  // 独立聊天窗口同理：它从盘上读到的「还在打字」多半是主窗口那边在跑的，问主进程
+  // 只会得到「不是你的」，判死之后还会经同步发回主窗口。它那条对话的状态以主窗口
+  // 发来的全量为准（见 utils/chatWindowSync.ts）
+  if (isChatWindow()) return
 
   const chatMsgStore = useChatMessagesStore()
   const chatStore = useChatSessionsStore()

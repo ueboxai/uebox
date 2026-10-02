@@ -26,7 +26,7 @@ import path from 'path'
 import { z } from 'zod'
 
 import { defineV2Tool, type V2Tool } from '../../adaptV2Tool'
-import { getAppWindows } from '../../../../appWindows'
+import { findMainWindow, getAppWindows } from '../../../../appWindows'
 import { getCurrentRemoteHttpVaultContext } from '../../../../networkV2/currentRemoteHttpVault'
 import { pushAssetDelete } from '../../../../networkV2/NetworkSyncBridge'
 import { getVaultDatabase } from '../../../../sqliteDataBase'
@@ -178,7 +178,8 @@ export function createDeleteAssetsTool(): V2Tool {
 
       // 删掉的东西要让界面立刻反映出来，否则用户看着列表没变、以为工具在骗他
       if (deleted.length > 0) {
-        const mainWindow = getAppWindows()[0]
+        // 资产列表在主窗口里；「第一个窗口」可能是独立聊天窗口
+        const mainWindow = findMainWindow() ?? getAppWindows()[0]
         mainWindow?.webContents.send('asset:changed', {
           source: 'agent',
           op: 'delete',

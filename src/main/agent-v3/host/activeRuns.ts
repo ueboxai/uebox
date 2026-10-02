@@ -19,6 +19,28 @@ interface Run<T> {
 
 export class ActiveRuns<T> {
   private readonly runs = new Map<string, Run<T>>()
+  private readonly listeners = new Set<() => void>()
+
+  /**
+   * 表里增减了一条就叫一声。
+   *
+   * 给「别的窗口要知道这条会话在跑」用：独立聊天窗口显示的会话可能是主窗口
+   * 发起的，它自己的流式状态里没有这一轮，判忙、停止都得靠主进程说一句。
+   */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private emitChange(): void {
+    for (const listener of this.listeners) {
+      try {
+        listener()
+      } catch (error) {
+        console.error('[ActiveRuns] 变更监听出错:', error)
+      }
+    }
+  }
 
   /**
    * 登记一条开始执行的会话。
@@ -33,6 +55,7 @@ export class ActiveRuns<T> {
       finish = resolve
     })
     this.runs.set(sessionId, { entry, done, finish })
+    this.emitChange()
   }
 
   get(sessionId: string): T | undefined {
@@ -52,6 +75,7 @@ export class ActiveRuns<T> {
     const run = this.runs.get(sessionId)
     this.runs.delete(sessionId)
     run?.finish()
+    if (run) this.emitChange()
   }
 
   /**

@@ -325,6 +325,29 @@ const activeAgents = new ActiveRuns<ActiveAgentRun>()
 const deletingSessions = new Set<string>()
 
 /**
+ * 正在跑的 agent 轮次，以及各自是哪个窗口发起的。
+ *
+ * 给独立聊天窗口用（`chatWindowManager.ts`）：一条会话可能是主窗口发起、
+ * 却显示在独立窗口里，那边的流式状态里没有这一轮，判忙和停止都得靠这张表。
+ * 分叉、截断这类历史操作不算 —— 它们一闪而过，也不会让界面显示「在跑」。
+ */
+export function activeRunOwners(): Array<{ sessionId: string; senderId: number }> {
+  return activeAgents
+    .entries()
+    .filter(([, entry]) => entry.kind === 'agent')
+    .map(([sessionId, entry]) => ({ sessionId, senderId: entry.senderId }))
+}
+
+/** 这个窗口名下还有没收摊的会话操作。独立窗口关窗时据此决定先藏起来等它跑完 */
+export function hasActiveRunsOwnedBy(webContentsId: number): boolean {
+  return activeAgents.entries().some(([, entry]) => entry.senderId === webContentsId)
+}
+
+export function onActiveRunsChanged(listener: () => void): () => void {
+  return activeAgents.onChange(listener)
+}
+
+/**
  * 现在还有几项会话操作没收摊：AI 轮次、分叉 / 截断 / 压缩这类历史操作都算
  * —— 表里的条目覆盖了从占位、进行中到收尾的整段。托盘「退出」拿它决定
  * 要不要先问一句 —— 直接退会把干到一半的活撂在引擎里。

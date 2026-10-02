@@ -75,6 +75,7 @@ import { initAgentEventDispatcher } from './views/Assistant/composables/agentEve
 import { initApprovalModeSync } from './views/Assistant/composables/approvalModeSync'
 import { initAgentReattach } from './views/Assistant/composables/agentReattach'
 import { chatHistoryStorage } from './utils/chatHistoryStorage'
+import { installChatWindowSync } from './utils/chatWindowSync'
 import { syncAppIconTheme } from './hooks/useTheme'
 import { initMotionPreference } from './hooks/useMotionPreference'
 
@@ -130,6 +131,8 @@ void chatHistoryStorage.preload().finally(() => {
   initApprovalModeSync()
   // 刷新页面不会停掉 agent（它跑在主进程）—— 问一次主进程谁还活着，把界面接回去
   void initAgentReattach()
+  // 拖出去的独立聊天窗口和主窗口之间同步对话（同样要等对话历史读进来）
+  installChatWindowSync()
 
   app.mount('#app')
 })

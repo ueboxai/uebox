@@ -4,6 +4,8 @@ import {
   CHAT_MESSAGES_STORE_ID,
   chatMessagesPersistencePlugin
 } from '../utils/chatMessagesPersistence'
+import { guardPersistForChatWindow } from '../utils/chatWindowStorageGuard'
+import { isChatWindow } from '../api/chatWindow'
 
 // 创建pinia实例
 const pinia = createPinia()
@@ -13,6 +15,8 @@ const pinia = createPinia()
 pinia.use(chatMessagesPersistencePlugin)
 pinia.use((context) => {
   if (context.store.$id === CHAT_MESSAGES_STORE_ID) return
+  // 独立聊天窗口不改写主窗口的界面状态，见 chatWindowStorageGuard.ts
+  if (isChatWindow()) guardPersistForChatWindow(context.options)
   return piniaPluginPersistedstate(context)
 })
 

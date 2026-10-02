@@ -17,6 +17,19 @@ describe('ActiveRuns', () => {
     runs.release('s1')
     await expect(drained).resolves.toBe(true)
   })
+  it('登记和摘掉都会通知监听者，摘一条不存在的不吵', () => {
+    const runs = new ActiveRuns<Entry>()
+    let calls = 0
+    const off = runs.onChange(() => calls++)
+    runs.track('s1', { name: 'a' })
+    runs.release('s1')
+    runs.release('s1')
+    expect(calls).toBe(2)
+    off()
+    runs.track('s2', { name: 'b' })
+    expect(calls).toBe(2)
+  })
+
   it('登记之后能按 sessionId 找回来', () => {
     const runs = new ActiveRuns<Entry>()
     runs.track('s1', { name: 'a' })

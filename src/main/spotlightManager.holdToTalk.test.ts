@@ -78,7 +78,11 @@ vi.mock('node:fs', () => ({
   writeFileSync: vi.fn()
 }))
 vi.mock('fs', () => ({ existsSync: () => false, readFileSync: vi.fn(), writeFileSync: vi.fn() }))
-vi.mock('./appWindows', () => ({ getAppWindows: () => [], sendToAppWindows: broadcasts }))
+vi.mock('./appWindows', () => ({
+  getAppWindows: () => [],
+  findMainWindow: () => undefined,
+  sendToAppWindows: broadcasts
+}))
 vi.mock('./services', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('./security', () => ({ protectRendererWindow: vi.fn() }))
 vi.mock('@electron-toolkit/utils', () => ({ is: { dev: false } }))

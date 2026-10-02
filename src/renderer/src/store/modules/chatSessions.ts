@@ -4,6 +4,8 @@ import { usePersistOptions } from '../../hooks/usePersistOptions'
 import { chatHistoryStorage } from '../../utils/chatHistoryStorage'
 import { agentV3API } from '@renderer/api/agentV3'
 import { useChatSidebarStore } from './chatSidebarStore'
+import { applySessionPatch } from '../../utils/chatWindowSyncCore'
+import type { ChatSyncPatch } from '@core/shared/chatWindowSync'
 
 export interface SessionModel {
   providerId: string
@@ -616,6 +618,43 @@ export const useChatSessionsStore = defineStore(
       setBoundNotebook(id, null)
     }
 
+    /**
+     * 打上另一个窗口发来的同步补丁（见 `utils/chatWindowSync.ts`）。
+     *
+     * 会话记录**就地改**，不换对象：界面上不少地方拿着 `sessionById` 返回的那个引用。
+     */
+    function applySyncSession(
+      id: string,
+      patch: Pick<ChatSyncPatch, 'full' | 'session' | 'permissionMode' | 'draft'>
+    ): void {
+      if (!id) return
+      if (patch.session) {
+        const index = sessions.value.findIndex((session) => session.id === id)
+        const current = index >= 0 ? sessions.value[index] : null
+        const next = applySessionPatch<Record<string, unknown>>(
+          current ? { ...current } : null,
+          patch.session,
+          patch.full
+        )
+        if (!next) {
+          if (index >= 0) sessions.value.splice(index, 1)
+        } else if (current) {
+          const target = current as unknown as Record<string, unknown>
+          for (const key of Object.keys(target)) if (!(key in next)) delete target[key]
+          Object.assign(target, next)
+        } else {
+          sessions.value.push({ ...next, id } as unknown as ChatSession)
+        }
+      }
+      if ('permissionMode' in patch) {
+        const nextModes = { ...permissionModeById.value }
+        if (patch.permissionMode) nextModes[id] = patch.permissionMode as ChatPermissionMode
+        else delete nextModes[id]
+        permissionModeById.value = nextModes
+      }
+      if ('draft' in patch) setDraft(id, patch.draft || '')
+    }
+
     function getImageGenerationMode(id: string): boolean {
       return sessionById(id)?.isImageGenerationMode ?? false
     }
@@ -692,7 +731,8 @@ export const useChatSessionsStore = defineStore(
       getImageGenerationMode,
       setImageGenerationMode,
       getSkillMode,
-      setSkillMode
+      setSkillMode,
+      applySyncSession
     }
   },
   {

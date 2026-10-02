@@ -240,7 +240,7 @@
     </div>
 
     <AgentBrowserPane
-      v-if="browserSessionId || fileReview"
+      v-if="(browserSessionId && !inChatWindow) || fileReview"
       :key="`${sid}:${browserSessionId}`"
       :session-id="browserSessionId || ''"
       :open="browserPaneOpen || !!fileReview"
@@ -319,6 +319,7 @@ import AgentBrowserPane from './components/AgentBrowserPane.vue'
 import FileReviewPane from './components/FileReviewPane.vue'
 import { provideFileReview } from './composables/useFileReview'
 import { useSessionBrowser } from './composables/useSessionBrowser'
+import { isChatWindow } from '@renderer/api/chatWindow'
 import { useChatSessionsStore, type BoundNotebook } from '../../store/modules/chatSessions'
 import TeamBoardPanel from './components/TeamBoardPanel.vue'
 import { useTeamBoard } from './composables/useTeamBoard'
@@ -2580,10 +2581,18 @@ onDeactivated(() => {
  * 这个页面是 keep-alive 的：切到别的 TAB 时组件不卸载，只是失活。不跟着收起来
  * 的话，那层网页会**继续浮在别的界面上面** —— 它不参与渲染层的布局，别人挡不住它。
  */
-const paneActive = ref(true)
+/*
+ * 独立聊天窗口里不接 Agent 浏览器。
+ *
+ * 内嵌的网页是主进程挂在**主窗口**上的一层原生视图，浮在占位块上面；这里要了状态
+ * 就会触发恢复，网页会出现在主窗口里而不是这个窗口。改动审阅（FileReviewPane）
+ * 是纯界面的，照常显示。
+ */
+const inChatWindow = isChatWindow()
+const paneActive = ref(!inChatWindow)
 
 onActivated(() => {
-  paneActive.value = true
+  paneActive.value = !inChatWindow
 })
 
 onDeactivated(() => {

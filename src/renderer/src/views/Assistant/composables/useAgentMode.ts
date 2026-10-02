@@ -949,6 +949,23 @@ export function useAgentMode(params: UseAgentModeParams) {
     }
 
     if (!currentSessionId.value) {
+      /*
+       * 这一轮在**别的窗口**里跑（独立聊天窗口显示着主窗口发起的那一轮，或者反过来）。
+       * 这边没有它的流式状态，但主进程按会话停，不认窗口；停下来之后的收尾
+       * （气泡写上「已停止」）由发起的那个窗口做，再同步过来。
+       */
+      const elsewhereSessionId = agentStreamStore.isBusyElsewhere(sid.value)
+        ? chatStore.getAgentSessionId(sid.value)
+        : ''
+      if (elsewhereSessionId) {
+        try {
+          const result = await window.api.agentV3.stop({ sessionId: elsewhereSessionId })
+          return result?.drained !== false
+        } catch (error) {
+          console.error('[Agent模式] 停止别的窗口里的会话失败:', error)
+          return false
+        }
+      }
       return true
     }
 

@@ -881,7 +881,14 @@ export default {
     copy: 'Duplicate',
     pin: 'Pin',
     unpin: 'Unpin',
-    newChat: 'New AI Chat'
+    newChat: 'New AI Chat',
+    openInNewWindow: 'Open in New Window'
+  },
+  chatWindow: {
+    windowTitle: 'AI Chat',
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    close: 'Close'
   },
   assetLib: {
     shortcuts: {

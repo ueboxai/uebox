@@ -51,7 +51,9 @@ const MUTATING_ACTIONS = new Set([
   'setHistorySummary',
   'clearHistorySummary',
   'copySessionMessages',
-  'markTypingInterrupted'
+  'markTypingInterrupted',
+  // 独立聊天窗口发来的改动：只有主窗口会落盘（独立窗口的存储是只读的）
+  'applySyncMessages'
 ])
 
 /**

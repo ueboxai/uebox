@@ -60,7 +60,8 @@ vi.mock('../../../../networkV2/currentRemoteHttpVault', () => ({
   getCurrentRemoteHttpVaultContext
 }))
 vi.mock('../../../../appWindows', () => ({
-  getAppWindows: () => [{ webContents: { send } }]
+  getAppWindows: () => [{ webContents: { send } }],
+  findMainWindow: () => undefined
 }))
 vi.mock('../../../../utils/PathManager', () => ({
   PathManager: { getInstance: () => ({ getAssetDataPath, getCurrentVaultPath }) }

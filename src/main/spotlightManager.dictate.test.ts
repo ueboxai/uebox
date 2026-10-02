@@ -87,7 +87,11 @@ vi.mock('electron', () => ({
   ipcMain: { on: () => undefined, handle: () => undefined },
   app: { getPath: () => '/tmp' }
 }))
-vi.mock('./appWindows', () => ({ getAppWindows: () => [], sendToAppWindows: broadcasts }))
+vi.mock('./appWindows', () => ({
+  getAppWindows: () => [],
+  findMainWindow: () => undefined,
+  sendToAppWindows: broadcasts
+}))
 vi.mock('./security', () => ({ protectRendererWindow: () => undefined }))
 vi.mock('@electron-toolkit/utils', () => ({ is: { dev: false } }))
 vi.mock('./services', () => ({

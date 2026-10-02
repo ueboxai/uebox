@@ -25,7 +25,8 @@ vi.mock('../../../core/projectTargetContext', () => ({
 }))
 
 vi.mock('../../../../appWindows', () => ({
-  getAppWindows: () => []
+  getAppWindows: () => [],
+  findMainWindow: () => undefined
 }))
 
 // 压缩要拉 sharp 并读真实文件，这里只关心「有图就带上」

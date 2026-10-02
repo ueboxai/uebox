@@ -133,7 +133,27 @@ export const useAgentStreamStore = defineStore('agentStream', () => {
     for (const pending of awaitingRelease.values()) {
       if (pending === chatSid) return true
     }
-    return false
+    return busyElsewhere.has(chatSid)
+  }
+
+  /**
+   * 正在**别的窗口**里跑的对话（chatSid）。
+   *
+   * 独立聊天窗口显示的对话可能是主窗口发起的那一轮，反过来也一样 —— 事件只发给
+   * 发起的窗口，这边的流式状态里没有它，`isStreaming` 一直是 false。不看这张表的话，
+   * 这边一发消息就会被主进程顶回来一句「正在执行中」，排着的跟进消息也会抢着发。
+   * 由 `chatWindowSync.ts` 按主进程的通知维护。
+   */
+  const busyElsewhere = reactive(new Set<string>())
+
+  function setBusyElsewhere(chatSids: readonly string[]): void {
+    const next = new Set(chatSids.filter(Boolean))
+    for (const sid of [...busyElsewhere]) if (!next.has(sid)) busyElsewhere.delete(sid)
+    for (const sid of next) busyElsewhere.add(sid)
+  }
+
+  function isBusyElsewhere(chatSid: string): boolean {
+    return busyElsewhere.has(chatSid)
   }
 
   /** 发起一轮（execute / continue）之前叫一声。释放信号到了才算完 */
@@ -689,6 +709,8 @@ export const useAgentStreamStore = defineStore('agentStream', () => {
     getStream,
     isStreaming,
     isBusy,
+    isBusyElsewhere,
+    setBusyElsewhere,
     markAwaitingRelease,
     clearAwaitingRelease,
     getChatSidByAgentSession,

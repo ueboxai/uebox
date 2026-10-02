@@ -17,6 +17,13 @@ export function isSessionTab(path: string, sessionId: string): boolean {
   return new URLSearchParams(query).get('sid') === sessionId
 }
 
+/** 这个标签页开的是哪条会话；不是会话标签页（或者没带 sid）就是空串 */
+export function sessionIdOfTab(path: string): string {
+  if (!path.startsWith('/dev-assistant')) return ''
+  const query = path.split('?')[1] || ''
+  return new URLSearchParams(query).get('sid')?.trim() || ''
+}
+
 /**
  * 「打开某条会话」该跳到哪 —— 侧边栏、归档列表和系统通知共用。
  *

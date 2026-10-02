@@ -26,6 +26,7 @@ import type { EditorHealthResult } from '../shared/editorHealth'
 import type { TeamStateView } from '../shared/agentTeam'
 import type { AgentReviewResult, AgentReviewTarget } from '../shared/agentReview'
 import type { SideChatContext } from '../shared/sideChat'
+import type { ChatSyncPatch } from '../shared/chatWindowSync'
 import type {
   EditorSnapshot,
   EditorSnapshotCaptureResult,
@@ -1450,6 +1451,33 @@ declare global {
       onInitialContext: (callback: (context: SideChatContext) => void) => () => void
       onPinChanged: (callback: (pinned: boolean) => void) => () => void
       onResetSession: (callback: () => void) => () => void
+    }
+    /** 从标签栏拖出来的独立聊天窗口，以及它和主窗口之间的对话同步 */
+    chatWindow: {
+      /** 打开这条对话的独立窗口；已经开着就提到前面。坐标是松手处的屏幕坐标 */
+      open: (args: {
+        chatSid: string
+        screenX?: number
+        screenY?: number
+      }) => Promise<{ success: boolean; error?: string }>
+      /** 现在开在独立窗口里的对话 */
+      list: () => Promise<string[]>
+      /** 独立窗口报上它那条对话的内核会话 id（审批镜像按它找窗口） */
+      bindAgentSession: (args: { chatSid: string; agentSessionId: string }) => void
+      /** 在主窗口里打开一个路由（独立窗口里点了属于主界面的东西） */
+      openInMain: (path: string) => void
+      push: (patch: ChatSyncPatch) => void
+      /** 独立窗口要一份这条对话的最新全量，主窗口用 full 补丁回 */
+      requestSnapshot: (chatSid: string) => void
+      /** 把这几条会话的待审批补发给自己 */
+      resendApprovals: (sessionIds: string[]) => Promise<number>
+      /** 别的窗口正在跑的 agent 会话 */
+      runsElsewhere: () => Promise<string[]>
+      /** 这些 on* 一律返回取消订阅的函数 */
+      onChanged: (callback: (chatSids: string[]) => void) => () => void
+      onNavigate: (callback: (args: { path: string }) => void) => () => void
+      onApply: (callback: (patch: ChatSyncPatch) => void) => () => void
+      onSnapshotRequest: (callback: (args: { sid: string }) => void) => () => void
     }
     /** Spotlight 快捷搜索与窗口控制 */
     spotlight: {

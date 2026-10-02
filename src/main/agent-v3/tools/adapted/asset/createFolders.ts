@@ -6,7 +6,7 @@
 import { defineV2Tool } from '../../adaptV2Tool'
 import { z } from 'zod'
 import { v4 as uuidv4 } from 'uuid'
-import { getAppWindows } from '../../../../appWindows'
+import { findMainWindow, getAppWindows } from '../../../../appWindows'
 import { getVaultDatabase } from '../../../../sqliteDataBase'
 import {
   createAssetFolder,
@@ -336,8 +336,8 @@ export function createFoldersTool() {
 
         const totalCount = countFolders(results)
 
-        // 通知前端刷新资产树
-        const mainWindow = getAppWindows()[0]
+        // 通知前端刷新资产树。资产树在主窗口里；「第一个窗口」可能是独立聊天窗口
+        const mainWindow = findMainWindow() ?? getAppWindows()[0]
         if (mainWindow) {
           mainWindow.webContents.send('asset-tree:refresh', {
             parentKey: resolvedParentKey,

@@ -166,12 +166,28 @@ export function createQuestionRequester(
         if (payload?.toolCallId !== req.toolCallId) return
         const action: QuestionAction =
           payload.action === 'accept' || payload.action === 'decline' ? payload.action : 'cancel'
-        finish({
+        const outcome: QuestionOutcome = {
           action,
           ...(action === 'accept' && Array.isArray(payload.answers)
             ? { answers: payload.answers.map((a) => (typeof a === 'string' ? a : '')) }
             : {})
-        })
+        }
+        finish(outcome)
+        /*
+         * 告诉发起窗口：这张卡片答过了。
+         *
+         * 卡片的「已答」是发起窗口在自己的流式状态里记的。答的人可能在另一个窗口
+         * （独立聊天窗口显示的是主窗口跑的会话），不说一声的话 agent 已经接着干了，
+         * 发起窗口那边的卡片还写着「等你回答」，再同步过去又把答过的那边盖回去。
+         * 自己答的那次收到也无妨：按 toolCallId 就地改，重复一次结果一样。
+         */
+        if (!sender.isDestroyed()) {
+          sender.send('agent-v3:question-settled', {
+            sessionId: req.sessionId,
+            toolCallId: req.toolCallId,
+            ...outcome
+          })
+        }
       }
 
       // 用户按停止 / 删除会话：不是「他拒绝回答」，是这一轮整个不作数了

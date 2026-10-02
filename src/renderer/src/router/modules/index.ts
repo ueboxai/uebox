@@ -62,6 +62,22 @@ const miniChatRoute: RouteRecordRaw = {
 }
 
 /**
+ * 从标签栏拖出来的独立聊天窗口（主进程 `chatWindowManager.ts` 用 `?sid=` 打开）。
+ *
+ * standalone：不走主窗口的语言门、启动落点，也不进标签栏 —— 它只放这一条对话。
+ */
+const chatWindowRoute: RouteRecordRaw = {
+  path: '/chat-window',
+  name: 'ChatWindow',
+  component: () => import('@renderer/views/ChatWindow/ChatWindow.vue'),
+  meta: {
+    title: 'chatWindow.windowTitle',
+    standalone: true,
+    isShowInTab: false
+  }
+}
+
+/**
  * 屏幕录制选区独立窗口路由
  */
 const selectionRoute: RouteRecordRaw = {
@@ -99,6 +115,7 @@ const routes: Array<RouteRecordRaw> = [
   languageGateRoute,
   spotlightRoute,
   miniChatRoute,
+  chatWindowRoute,
   selectionRoute,
   quickRecorderRoute
 ]

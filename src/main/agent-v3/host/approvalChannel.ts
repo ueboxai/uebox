@@ -50,6 +50,51 @@ interface ApprovalPayload {
 const pendingApprovals = new Map<string, { senderId: number; payload: ApprovalPayload }>()
 
 /**
+ * 审批除了发起它的窗口，还要给谁看一份。
+ *
+ * 一条会话可以显示在独立聊天窗口里，而这一轮是主窗口发起的（拖出去之前就在跑），
+ * 反过来也一样。确认框只弹在发起的那个窗口，用户正看着的那个窗口里什么都没有，
+ * 只能干等五分钟然后被告知「被拒绝了」。由 `chatWindowManager.ts` 装上，
+ * 没装（测试、没有独立窗口）就只发给发起窗口，和原来一样。
+ */
+type ApprovalMirrorResolver = (sessionId: string, ownerId: number) => WebContents[]
+
+let mirrorResolver: ApprovalMirrorResolver | null = null
+
+export function setApprovalMirrorResolver(resolver: ApprovalMirrorResolver | null): void {
+  mirrorResolver = resolver
+}
+
+function mirrorsOf(sessionId: string, ownerId: number): WebContents[] {
+  if (!mirrorResolver) return []
+  try {
+    return mirrorResolver(sessionId, ownerId).filter(
+      (target) => target.id !== ownerId && !target.isDestroyed()
+    )
+  } catch (error) {
+    console.error('[AgentV3] 审批镜像目标解析失败，只发给发起窗口:', error)
+    return []
+  }
+}
+
+/**
+ * 把这几条会话的待审批补发给一个**不是发起者**的窗口。
+ *
+ * 独立窗口刚打开时用：拖出去那一刻主窗口那边可能正弹着确认框，新窗口要看到同一个。
+ */
+export function resendPendingApprovalsTo(target: WebContents, sessionIds: readonly string[]): number {
+  if (target.isDestroyed() || sessionIds.length === 0) return 0
+  const wanted = new Set(sessionIds)
+  let sent = 0
+  for (const entry of pendingApprovals.values()) {
+    if (!wanted.has(entry.payload.sessionId)) continue
+    target.send('agent-v3:approval-required', entry.payload)
+    sent += 1
+  }
+  return sent
+}
+
+/**
  * 把这个窗口名下、属于这几条会话的待审批重新发一遍。
  *
  * 按 senderId 过滤：审批只对**发起它的那个窗口**有意义，别的窗口收到会弹出
@@ -101,12 +146,11 @@ export function createApprovalRequester(
         })
         // 反过来也一样：用户口头批了（语音那条路直接回传），屏幕上那个确认框
         // 还开着，他再点一下等于对一个已经不存在的审批表态。告诉界面收掉它
-        if (!sender.isDestroyed()) {
-          sender.send('agent-v3:approval-settled', {
-            sessionId: req.sessionId,
-            toolCallId: req.toolCallId,
-            verdict
-          })
+        const outcome = { sessionId: req.sessionId, toolCallId: req.toolCallId, verdict }
+        if (!sender.isDestroyed()) sender.send('agent-v3:approval-settled', outcome)
+        // 另一个窗口里那份也得收掉，否则用户在这边点完，那边还开着
+        for (const mirror of mirrorsOf(req.sessionId, sender.id)) {
+          mirror.send('agent-v3:approval-settled', outcome)
         }
         resolve(verdict)
       }
@@ -138,6 +182,9 @@ export function createApprovalRequester(
       }
       pendingApprovals.set(req.toolCallId, { senderId: sender.id, payload })
       sender.send('agent-v3:approval-required', payload)
+      for (const mirror of mirrorsOf(req.sessionId, sender.id)) {
+        mirror.send('agent-v3:approval-required', payload)
+      }
       /*
        * 这条也不走 eventBridge（它是 `beforeToolCall` 里直接发的），旁路要单独喂。
        *

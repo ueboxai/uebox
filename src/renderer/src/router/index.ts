@@ -10,6 +10,8 @@ import routesDefault from './modules'
 import { useTabsStore } from '@renderer/store/modules/tabs'
 import { useAppInfo } from '@renderer/hooks/useAppInfo'
 import { installPageLoading } from './pageLoading'
+import { chatWindowGuard } from './chatWindowGuard'
+import { chatWindowAPI, isChatWindow } from '@renderer/api/chatWindow'
 
 // 创建路由实例
 import i18n, { hasExplicitLocale } from '@renderer/i18n'
@@ -102,7 +104,18 @@ const coreBeforeEach: NavigationGuard = async (to, from, next) => {
 }
 
 function installCoreGuards(): void {
+  // 排在最前：要改道去别的窗口的导航，不该先在这里改标题、走语言门
+  router.beforeEach(chatWindowGuard)
   router.beforeEach(coreBeforeEach)
+}
+
+// 独立聊天窗口里点了属于主界面的东西，主进程把它转到这里来开（见 chatWindowGuard.ts）
+if (!isChatWindow()) {
+  chatWindowAPI.onNavigate(({ path }) => {
+    router.push(path).catch((error) => {
+      console.warn('[Router] 打开独立窗口转来的页面失败:', path, error)
+    })
+  })
 }
 
 installPageLoading(router)

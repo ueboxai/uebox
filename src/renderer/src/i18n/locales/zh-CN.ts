@@ -859,7 +859,14 @@ export default {
     copy: '复制',
     pin: '固定',
     unpin: '取消固定',
-    newChat: '和 AGENT 对话'
+    newChat: '和 AGENT 对话',
+    openInNewWindow: '在新窗口打开'
+  },
+  chatWindow: {
+    windowTitle: 'AI 会话',
+    minimize: '最小化',
+    maximize: '最大化',
+    close: '关闭'
   },
   assetLib: {
     shortcuts: {

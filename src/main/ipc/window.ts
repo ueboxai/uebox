@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
-import { getAppWindows } from '../appWindows'
+import { findMainWindow, getAppWindows } from '../appWindows'
 
 /**
  * 注册窗口控制相关的IPC处理函数
@@ -67,8 +67,12 @@ export function registerWindowIPC(): void {
     })
 
     // 如果找不到符合条件的主窗口，回退到 focusedWindow 或第一个非销毁窗口
+    // 登记过的主窗口优先：按尺寸猜会猜中拉大了的独立聊天窗口
     const targetWindow =
-      mainWindow || BrowserWindow.getFocusedWindow() || allWindows.find((win) => !win.isDestroyed())
+      findMainWindow() ||
+      mainWindow ||
+      BrowserWindow.getFocusedWindow() ||
+      allWindows.find((win) => !win.isDestroyed())
 
     if (!targetWindow) return
 

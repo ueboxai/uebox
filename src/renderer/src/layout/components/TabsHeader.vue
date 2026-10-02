@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppTooltip from '@renderer/components/AppTooltip.vue'
 import {
+  PhArrowSquareOut,
   PhBooks,
   PhChatCircle,
   PhCubeTransparent,
@@ -21,7 +22,8 @@ import {
 import type { Component } from 'vue'
 import { computed, watch, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { generateChatSessionId } from '@renderer/common/chatRoute'
+import { generateChatSessionId, sessionIdOfTab } from '@renderer/common/chatRoute'
+import { chatWindowAPI } from '@renderer/api/chatWindow'
 import { useTabsStore, DEFAULT_TAB_KEY } from '@renderer/store/modules/tabs'
 import { useI18n } from '@renderer/hooks/useI18n'
 import ContextMenu from '@renderer/components/ContextMenu/ContextMenu.vue'
@@ -236,9 +238,11 @@ const handleDragStart = (event: DragEvent, tabKey: string) => {
   }
 
   draggedTab.value = tabKey
+  droppedOnTab = false
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', tabKey)
+    // 不用 text/plain：拖到输入框上松手，浏览器会把标签的路径当文字插进去
+    event.dataTransfer.setData(TAB_DRAG_MIME, tabKey)
   }
 }
 
@@ -270,12 +274,62 @@ const handleDrop = (event: DragEvent, targetTabKey: string) => {
   }
 
   // 使用store的重排序方法
+  droppedOnTab = true
   tabsStore.reorderTabs(sourceTabKey, targetTabKey)
   resetDragState()
 }
 
-const handleDragEnd = () => {
+const handleDragEnd = (event: DragEvent): void => {
+  const tabKey = draggedTab.value
   resetDragState()
+  if (!tabKey || droppedOnTab) return
+  // 会话标签拖离标签栏松手：拎出来成独立窗口，像浏览器那样
+  if (sessionIdOfTab(tabKey) && isDraggedOffTabBar(event)) {
+    void detachTab(tabKey, { screenX: event.screenX, screenY: event.screenY })
+  }
+}
+
+/** 拖动标签用的数据类型 */
+const TAB_DRAG_MIME = 'application/x-uebox-tab'
+
+/**
+ * 往下拖出标签栏多远才算「拎出来」。
+ *
+ * 太近的话，用户只是排序时手抖往下偏了一点，松手就弹出一个窗口。
+ */
+const DETACH_DISTANCE_PX = 48
+
+/** 这一次拖动落在了另一个标签上（是排序，不是拎出来） */
+let droppedOnTab = false
+
+const headerRef = ref<HTMLElement | null>(null)
+
+function isDraggedOffTabBar(event: DragEvent): boolean {
+  const { clientX, clientY } = event
+  const outsideWindow =
+    clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight
+  const bottom = headerRef.value?.getBoundingClientRect().bottom ?? 0
+  return outsideWindow || clientY > bottom + DETACH_DISTANCE_PX
+}
+
+/**
+ * 把这个会话标签挪进独立窗口：窗口开出来之后才从标签栏摘掉。
+ *
+ * 顺序反过来的话，窗口没开成（主进程那边出错）标签却已经没了，用户只能去侧边栏找。
+ */
+async function detachTab(
+  tabKey: string,
+  point?: { screenX: number; screenY: number }
+): Promise<void> {
+  const sid = sessionIdOfTab(tabKey)
+  if (!sid) return
+  try {
+    if (!(await chatWindowAPI.open(sid, point))) return
+  } catch (error) {
+    console.error('[TabsHeader] 打开独立窗口失败:', error)
+    return
+  }
+  handleTabRemove(tabKey, new Event('click'))
 }
 
 const resetDragState = () => {
@@ -374,6 +428,17 @@ const getContextMenuItems = (tabKey: string): MenuItem[] => {
   const isLockedTab = tab.fixed && !tab.isCanDelete
 
   return [
+    // 会话标签多一项：拖出去成独立窗口的另一个入口（不方便拖、或者不知道能拖的时候）
+    ...(sessionIdOfTab(tab.key)
+      ? [
+          {
+            key: 'open-in-window',
+            label: t('tabs.openInNewWindow'),
+            icon: PhArrowSquareOut
+          },
+          { type: 'divider' as const }
+        ]
+      : []),
     {
       key: 'close',
       label: t('tabs.close'),
@@ -425,6 +490,9 @@ const handleMenuClick = (key: string) => {
   if (!tabKey) return
 
   switch (key) {
+    case 'open-in-window':
+      void detachTab(tabKey)
+      break
     case 'close':
       handleTabRemove(tabKey, new Event('click'))
       break
@@ -673,7 +741,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="header" :class="{ 'mac-controls-inset': isMac && (collapsed || !showSidebarToggle) }">
+  <div
+    ref="headerRef"
+    class="header"
+    :class="{ 'mac-controls-inset': isMac && (collapsed || !showSidebarToggle) }"
+  >
     <!-- 只在侧边栏收起时出现的展开按钮。展开时这枚开关在侧边栏 logo 右边，
          收起后侧边栏整块不见了，才由标签栏这头接手。
          不挂 Tooltip：悬停它本来就会把侧边栏浮出来，再弹一条提示是重复的干扰 -->

@@ -4,6 +4,8 @@ import type { AgentTurnUsage } from '@core/shared/agentUsage'
 import { snapshotAgentProcess } from '../../utils/agentProcessSnapshot'
 import { TYPING_PLACEHOLDER, isTypingPlaceholder } from '../../utils/typingPlaceholder'
 import type { ChatMessagesPersistedState } from '../../utils/chatMessagesPersistence'
+import { applyMessagesPatch } from '../../utils/chatWindowSyncCore'
+import type { ChatSyncPatch } from '@core/shared/chatWindowSync'
 
 export type ChatRole = 'user' | 'assistant'
 
@@ -707,6 +709,43 @@ export const useChatMessagesStore = defineStore(
     }
 
     /**
+     * 打上另一个窗口发来的同步补丁（见 `utils/chatWindowSync.ts`）。
+     *
+     * 返回被挡掉的消息 id：`protectedId` 是这个窗口正在流式写的那条气泡，
+     * 这一轮的事件只到这里，对方那份只会比这边旧。
+     */
+    function applySyncMessages(
+      sid: string,
+      patch: Pick<
+        ChatSyncPatch,
+        'full' | 'order' | 'messages' | 'historySummary' | 'compressedUserCount'
+      >,
+      protectedId?: string | null
+    ): Set<string> {
+      const k = String(sid || '').trim()
+      if (!k) return new Set()
+      let skipped = new Set<string>()
+      if (patch.full || patch.order || patch.messages?.length) {
+        const result = applyMessagesPatch(
+          (messagesBySid.value[k] || []) as Array<ChatMessage & { id: string }>,
+          patch,
+          protectedId
+        )
+        messagesBySid.value[k] = result.messages
+        skipped = result.skipped
+      }
+      if ('historySummary' in patch) {
+        if (patch.historySummary) historySummaryBySid.value[k] = patch.historySummary
+        else delete historySummaryBySid.value[k]
+      }
+      if ('compressedUserCount' in patch) {
+        if (patch.compressedUserCount) compressedUserCountBySid.value[k] = patch.compressedUserCount
+        else delete compressedUserCountBySid.value[k]
+      }
+      return skipped
+    }
+
+    /**
      * 获取已压缩的user消息数
      * @param sid 会话ID
      * @returns 已压缩的user消息数，如果不存在则返回0
@@ -900,6 +939,7 @@ export const useChatMessagesStore = defineStore(
       setHistorySummary,
       clearHistorySummary,
       markTypingInterrupted,
+      applySyncMessages,
       exportChatMessagesPersistence,
       hydrateChatMessagesPersistence
     }

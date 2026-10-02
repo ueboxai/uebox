@@ -23,6 +23,7 @@ import {
 import type { AgentTurnUsage } from '../shared/agentUsage'
 import type { AgentReviewTarget } from '../shared/agentReview'
 import type { SideChatContext } from '../shared/sideChat'
+import type { ChatSyncPatch } from '../shared/chatWindowSync'
 import type { EditorSnapshot, MiniChatInitialMessage } from '../shared/editorSnapshot'
 import type { SpotlightAction, SpotlightSearchResponse } from '../shared/spotlight'
 import type { NotebookContextLevel } from '../shared/notebookContext'
@@ -129,6 +130,11 @@ const GENERIC_EVENT_CHANNELS = new Set([
   // 模型把这条对话改挂到别的工程下了（`set_session_project`）。
   // 侧边栏分组和顶栏胶囊靠它跟上
   'agent-v3:session-project',
+  // 别的窗口正在跑的会话变了。独立聊天窗口显示的会话可能是主窗口发起的，
+  // 判忙、停止都要知道它在跑
+  'agent-v3:runs-elsewhere',
+  // 提问卡片在别的窗口里答过了，发起窗口要把自己那张也收成只读
+  'agent-v3:question-settled',
   'agent-v3:start',
   'agent-v3:stopped',
   'agent-v3:step',
@@ -287,6 +293,44 @@ const api = {
       const handler = (): void => callback()
       ipcRenderer.on('mini-chat:reset-session', handler)
       return () => ipcRenderer.removeListener('mini-chat:reset-session', handler)
+    }
+  },
+  /**
+   * 从标签栏拖出来的独立聊天窗口，以及它和主窗口之间的对话同步。
+   * 见 main/chatWindowManager.ts 文件头。
+   */
+  chatWindow: {
+    open: (args: { chatSid: string; screenX?: number; screenY?: number }) =>
+      ipcRenderer.invoke('chat-window:open', args),
+    list: (): Promise<string[]> => ipcRenderer.invoke('chat-window:list'),
+    bindAgentSession: (args: { chatSid: string; agentSessionId: string }) =>
+      ipcRenderer.send('chat-window:bind-agent-session', args),
+    openInMain: (path: string) => ipcRenderer.send('chat-window:open-in-main', { path }),
+    push: (patch: ChatSyncPatch) => ipcRenderer.send('chat-sync:push', patch),
+    requestSnapshot: (chatSid: string) =>
+      ipcRenderer.send('chat-sync:request-snapshot', { chatSid }),
+    resendApprovals: (sessionIds: string[]): Promise<number> =>
+      ipcRenderer.invoke('chat-window:resend-approvals', { sessionIds }),
+    runsElsewhere: (): Promise<string[]> => ipcRenderer.invoke('agent-v3:runs-elsewhere'),
+    onChanged: (callback: (chatSids: string[]) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, chatSids: string[]) => callback(chatSids)
+      ipcRenderer.on('chat-window:changed', handler)
+      return () => ipcRenderer.removeListener('chat-window:changed', handler)
+    },
+    onNavigate: (callback: (args: { path: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, args: { path: string }) => callback(args)
+      ipcRenderer.on('chat-window:navigate', handler)
+      return () => ipcRenderer.removeListener('chat-window:navigate', handler)
+    },
+    onApply: (callback: (patch: ChatSyncPatch) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, patch: ChatSyncPatch) => callback(patch)
+      ipcRenderer.on('chat-sync:apply', handler)
+      return () => ipcRenderer.removeListener('chat-sync:apply', handler)
+    },
+    onSnapshotRequest: (callback: (args: { sid: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, args: { sid: string }) => callback(args)
+      ipcRenderer.on('chat-sync:snapshot-request', handler)
+      return () => ipcRenderer.removeListener('chat-sync:snapshot-request', handler)
     }
   },
   /** Spotlight 快捷搜索窗口；收口到专用桥接，避免裸 IPC 被安全白名单拦截。 */

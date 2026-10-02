@@ -74,6 +74,22 @@ export const setLocale = (locale: string) => {
   }
 }
 
+/**
+ * 跟着别的窗口切语言。返回取消监听的函数。
+ *
+ * 语言在设置页里切，而设置页只在主窗口。独立聊天窗口不听的话会一直停在打开它那一刻
+ * 的语言，直到关掉重开。只改这个窗口的界面，不写回、不推主进程 —— 那些切的那个窗口已经做了。
+ */
+export const followLocaleFromOtherWindows = (): (() => void) => {
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key !== LOCALE_STORAGE_KEY || !event.newValue) return
+    if (event.newValue !== 'zh-CN' && event.newValue !== 'en-US') return
+    i18n.global.locale.value = event.newValue
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
+}
+
 // 导出获取当前语言的方法
 export const getLocale = () => {
   return i18n.global.locale.value

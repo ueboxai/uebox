@@ -51,6 +51,7 @@ import { serviceManager, logger } from './services'
 import { initializeApp } from './init'
 import { spotlightManager } from './spotlightManager'
 import { miniChatManager } from './miniChatManager'
+import { chatWindowManager } from './chatWindowManager'
 import { ShortcutService } from './services/shortcutService'
 import { serveRemoteAsset } from './networkV2/assetProxy'
 import { installSystemProxyFetch } from './utils/systemProxyFetch'
@@ -687,6 +688,8 @@ appReady?.then(async () => {
     // （两者各自都会打一行「初始化完成」，这里不再复述）
     spotlightManager.initialize()
     miniChatManager.initialize()
+    // 从标签栏拖出来的独立聊天窗口（见 chatWindowManager.ts 文件头）
+    chatWindowManager.initialize()
 
     // 初始化应用全局快捷键
     ShortcutService.getInstance().registerGlobalShortcuts()

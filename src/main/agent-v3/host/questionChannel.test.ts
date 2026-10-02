@@ -182,6 +182,25 @@ describe('createQuestionRequester', () => {
    * WebContents、新的 id，认不出这条。不收掉的话这次运行会一直挂着攥着资产锁。
    * 这不算替用户做主：能让他回答的界面已经不存在了。
    */
+  /**
+   * 卡片可能是在另一个窗口里答的（独立聊天窗口显示着主窗口跑的这一轮）。
+   * 发起窗口的「已答」记在它自己的流式状态里，不告诉它的话卡片一直写着「等你回答」。
+   */
+  it('答完之后告诉发起窗口这张卡片怎么答的', async () => {
+    const sender = fakeSender(1)
+    const pending = createQuestionRequester(sender as never)(request())
+
+    reply('call-1', 'accept', ['补适配层（推荐）'])
+    await pending
+
+    expect(sender.send).toHaveBeenLastCalledWith('agent-v3:question-settled', {
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      action: 'accept',
+      answers: ['补适配层（推荐）']
+    })
+  })
+
   it('所属窗口被销毁时按取消处理', async () => {
     const sender = fakeSender(1)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)

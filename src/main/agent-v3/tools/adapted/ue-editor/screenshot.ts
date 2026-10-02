@@ -85,7 +85,7 @@
 
 import { defineV2Tool, type V2Tool } from '../../adaptV2Tool'
 import { z } from 'zod'
-import { getAppWindows } from '../../../../appWindows'
+import { findMainWindow, getAppWindows } from '../../../../appWindows'
 import { serviceManager } from '../../../../services'
 import * as fs from 'fs/promises'
 
@@ -733,8 +733,8 @@ PostProcessVolume），截图、视口、游戏各自收敛到不同亮度，还
           if (response.restore_app_window) {
             try {
               // getAppWindows()：不能把 Agent 浏览器窗口恢复到前台，
-              // 用户等的是盒子的界面
-              const mainWindow = getAppWindows()[0]
+              // 用户等的是盒子的界面。先认主窗口：「第一个窗口」可能是独立聊天窗口
+              const mainWindow = findMainWindow() ?? getAppWindows()[0]
               if (mainWindow) {
                 if (mainWindow.isMinimized()) {
                   mainWindow.restore()
