@@ -107,20 +107,28 @@ to pin the samples around an event instead of spreading them evenly. Each cell i
 hundred pixels wide: enough for where things are, whether they move, whether the screen goes
 dark; not enough for material detail, small props or any text. Say so when you cannot see it.
 
-### The exposure is not the user's exposure
+### Brightness is only as trustworthy as the exposure lock
 
-The default path renders its own frame, and its auto-exposure has not converged the way the
-editor viewport's has. Measured on a real project: consistently about one stop darker, with
-weaker bloom.
+Every capture reports which exposure the frame used (`exposure`, and a line in `message`).
+Read it before saying anything about brightness.
 
-Trust it for: what exists, where it sits, what colour a material is, whether a light is on,
-shadow direction, composition.
+- **Manual exposure** (an unbound PostProcessVolume with Metering Mode = Manual): the capture,
+  the viewport and the running game all land on the same brightness. What the image shows is
+  what the player sees — judge brightness, over- and under-exposure from it.
+- **Locked by the editor viewport only** (`exposure_source: viewport`): true inside the editor,
+  but PIE and packaged builds still follow the project and post-process settings.
+- **Auto exposure**: each view converges on its own brightness, and a darkened scene gets pulled
+  back up. The image has no brightness baseline. To judge or tune lighting, lock exposure first,
+  then adjust Exposure Compensation.
 
-Do not trust it for: overall brightness, over/under-exposure, whether the exposure needs
-adjusting. When the user says "it looks too dark", do **not** check that claim against this
-image, and do not go changing light intensity or exposure compensation because the frame looks
-dim — that is the capture, not the scene. Take one with `show_ui: true` instead: that is the
-user's own screen, viewport included, with no exposure drift. Or ask the user what they see.
+**Never close out a lighting problem as "screenshot bias".** That was the old advice here and it
+became the excuse: on 2026-09-26 a level artist tuned lights for four rounds, every frame came back
+blue and washed out, and it stopped by blaming the capture — the user's viewport was just as bright.
+Unlocked: lock, then tune. Locked: the scene is the problem.
+
+Position, material colour, whether a light is on, shadow direction and composition are reliable
+whatever the exposure. For numbers instead of impressions — clipping, region brightness, palette —
+pass `measure: true` (see "Measure, don't eyeball" below).
 
 ## Point the camera before you shoot
 

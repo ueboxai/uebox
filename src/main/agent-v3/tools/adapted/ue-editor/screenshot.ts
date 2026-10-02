@@ -747,6 +747,7 @@ PostProcessVolume），截图、视口、游戏各自收敛到不同亮度，还
             ...(response.camera_location ? { camera_location: response.camera_location } : {}),
             ...(response.camera_rotation ? { camera_rotation: response.camera_rotation } : {}),
             ...(response.exposure ? { exposure: response.exposure } : {}),
+            ...(response.exposure_source ? { exposure_source: response.exposure_source } : {}),
             message:
               (response.saved
                 ? `截图已成功获取（${response.width}x${response.height}${scope}）`
