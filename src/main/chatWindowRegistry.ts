@@ -17,7 +17,7 @@
  * 它们也得同步回主窗口存盘 —— 所以「这个窗口管哪些对话」按派生关系算，不只是它开着的那一条。
  */
 
-import { belongsToChat, voiceTaskOwnerSid } from '../shared/voiceTaskSession'
+import { voiceTaskOwnerSid } from '../shared/voiceTaskSession'
 
 export interface ChatWindowEntry {
   /** 界面这边的对话 id（标签页、消息、草稿都用它） */
@@ -110,9 +110,9 @@ export class ChatWindowRegistry {
       const target = this.webContentsOf(chatSid)
       return target === undefined ? [] : [target]
     }
-    // 只许改自己管的那几条：一个窗口替别的对话发补丁，说明它的状态已经乱了
-    const own = this.chatSidOf(senderId)
-    if (!own || !belongsToChat(chatSid, own)) return []
+    // 独立窗口的补丁一律交给主窗口：除了它管的那几条，它也可能在跑别的对话
+    // （小窗里打的电话把活派给了侧边栏里的某一条），那一轮的结果也得由主窗口存
+    if (!this.isChatWindow(senderId)) return []
     return mainId === undefined ? [] : [mainId]
   }
 

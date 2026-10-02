@@ -2430,6 +2430,8 @@ declare global {
       onInterruptShortcut: (handler: () => void) => () => void
       /** 主窗口报「语音通话接通 / 挂断」，主进程转给每个窗口 */
       setCallActive: (active: boolean) => void
+      /** 别的窗口现在在不在通话（窗口刚起来时问一次） */
+      getCallActiveElsewhere: () => Promise<boolean>
       /** 别的窗口的语音通话接通 / 挂断。返回取消订阅函数 */
       onCallActive: (handler: (active: boolean) => void) => () => void
       /** Spotlight 开始听写（该停下朗读了）。返回取消订阅函数 */

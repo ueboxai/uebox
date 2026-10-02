@@ -25,8 +25,8 @@ describe('ChatWindowRegistry.relayTargets', () => {
     expect(registry().relayTargets(CHAT, 'sid-a', MAIN)).toEqual([MAIN])
   })
 
-  it('独立窗口替别的对话发补丁：不转（它的状态已经乱了）', () => {
-    expect(registry().relayTargets(CHAT, 'sid-b', MAIN)).toEqual([])
+  it('独立窗口在跑的别的对话（小窗电话派过去的活）：也交给主窗口', () => {
+    expect(registry().relayTargets(CHAT, 'sid-b', MAIN)).toEqual([MAIN])
   })
 
   it('MiniChat 这类不参与同步的窗口发来的：不转', () => {
@@ -94,7 +94,7 @@ describe('小窗里开的语音通话派生的任务对话', () => {
     expect(registry().relayTargets(MAIN, task, MAIN)).toEqual([CHAT])
   })
 
-  it('别的对话派生的任务对话不归它', () => {
-    expect(registry().relayTargets(CHAT, 'voice-tasks-sid-b::lighting', MAIN)).toEqual([])
+  it('主窗口改别的对话派生的任务对话：不转给这个窗口', () => {
+    expect(registry().relayTargets(MAIN, 'voice-tasks-sid-b::lighting', MAIN)).toEqual([])
   })
 })

@@ -2584,6 +2584,9 @@ const api = {
     },
     /** 主窗口的语音通话接通 / 挂断了。主进程转给每个窗口 —— 小窗据此在通话期间不自动朗读 */
     setCallActive: (active: boolean) => ipcRenderer.send('realtime-voice:call-active', active),
+    /** 别的窗口现在在不在通话（窗口刚起来时问一次） */
+    getCallActiveElsewhere: (): Promise<boolean> =>
+      ipcRenderer.invoke('realtime-voice:call-active-elsewhere'),
     onCallActive: (handler: (active: boolean) => void) => {
       const listener = (_event: unknown, active: unknown): void => handler(active === true)
       ipcRenderer.on('realtime-voice:call-active', listener)

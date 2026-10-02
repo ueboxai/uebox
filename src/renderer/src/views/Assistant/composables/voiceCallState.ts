@@ -44,9 +44,17 @@ export function setVoiceCallActive(active: boolean): void {
  * 通话期间照样自动朗读，念进主窗口正开着的麦克风。返回取消订阅函数。
  */
 export function followVoiceCallFromOtherWindows(): () => void {
-  return voiceCallAPI.onChange((active) => {
+  let notified = false
+  const stop = voiceCallAPI.onChange((active) => {
+    notified = true
     inCallElsewhere.value = active
   })
+  // 在场状态只在变化时广播：这个窗口是在通话中途打开的就收不到，先问一次。
+  // 问的路上已经来过通知的话，以通知为准
+  void voiceCallAPI.activeElsewhere().then((active) => {
+    if (!notified) inCallElsewhere.value = active
+  })
+  return stop
 }
 
 /*

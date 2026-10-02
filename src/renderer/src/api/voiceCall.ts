@@ -16,6 +16,10 @@ export const voiceCallAPI = {
   announce(active: boolean): void {
     bridge()?.setCallActive?.(active)
   },
+  /** 别的窗口现在在不在通话。拿不到桥就当没有 */
+  async activeElsewhere(): Promise<boolean> {
+    return (await bridge()?.getCallActiveElsewhere?.()) === true
+  },
   /** 其他窗口：跟着主窗口的通话状态走。返回取消订阅函数 */
   onChange(handler: (active: boolean) => void): () => void {
     return bridge()?.onCallActive?.(handler) ?? (() => {})

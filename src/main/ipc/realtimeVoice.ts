@@ -440,6 +440,8 @@ function stop(): void {
  */
 /** 每个窗口在不在通话，见 `voiceCallPresence.ts` */
 const callPresence = new VoiceCallPresence()
+/** 已经挂了「窗口没了就撤」监听的窗口 */
+const presenceWatched = new Set<number>()
 
 /** 每个窗口收到的是「别的窗口在不在通话」 */
 function broadcastCallPresence(): void {
@@ -565,14 +567,22 @@ export function registerRealtimeVoiceIPC(): void {
   ipcMain.on('realtime-voice:call-active', (event, active: unknown) => {
     const sender = event.sender
     if (!callPresence.set(sender.id, active === true)) return
-    // 窗口直接关了也要撤：不然别的窗口会一直以为有人在通话，再也不自动朗读
-    if (active === true) {
+    // 窗口直接关了也要撤：不然别的窗口会一直以为有人在通话，再也不自动朗读。
+    // 每个窗口只挂一次，一个窗口里来回通话很多次不会越挂越多
+    if (active === true && !presenceWatched.has(sender.id)) {
+      presenceWatched.add(sender.id)
+      const id = sender.id
       sender.once('destroyed', () => {
-        if (callPresence.remove(sender.id)) broadcastCallPresence()
+        presenceWatched.delete(id)
+        if (callPresence.remove(id)) broadcastCallPresence()
       })
     }
     broadcastCallPresence()
   })
+  // 窗口刚起来时问一次：通话可能早就开着了，而在场状态只在变化时才广播
+  ipcMain.handle('realtime-voice:call-active-elsewhere', (event) =>
+    callPresence.activeElsewhere(event.sender.id)
+  )
   ipcMain.on('realtime-voice:playback-ready', (event, connectionId: number) => {
     if (!active || active.sender.id !== event.sender.id || connectionId !== connectionGeneration)
       return

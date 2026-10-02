@@ -169,11 +169,17 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
     return role === 'chat-window' && belongsToChat(sid, ownSid)
   }
 
-  /** 这条对话该不该同步。独立窗口里新建出来的任务对话第一次被动到时登记上 */
+  /**
+   * 这条对话该不该同步。独立窗口里新建出来的任务对话第一次被动到时登记上。
+   *
+   * 还有这个窗口**正在跑**的别的对话：小窗里打的电话可以把活派给侧边栏里任何一条对话
+   * （`voiceAssistant` 的 `listVoiceSessions`），那一轮的事件只到这里，不同步的话
+   * 气泡和提问卡片只活在小窗里，主窗口看不到，也没人存盘。
+   */
   function syncable(sid: unknown): sid is string {
     if (typeof sid !== 'string' || !sid) return false
     if (tracked.has(sid)) return true
-    if (!owns(sid)) return false
+    if (!owns(sid) && !(role === 'chat-window' && streamStore.getStream(sid))) return false
     track(sid)
     return true
   }
@@ -202,11 +208,13 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
 
   function flush(sid: string, full = false): void {
     const state = tracked.get(sid)
-    if (!state || !ready) return
+    if (!state) return
     if (state.timer) {
       clearTimeout(state.timer)
       state.timer = null
     }
+    // 还没拿到全量：改动先攒着（dirty 不清），下一次改动会重新排上
+    if (!ready) return
     const dirty = state.dirty
     state.dirty = new Set()
     const patch = buildPatch(sid, localState(sid), state.known, dirty, full)
@@ -300,7 +308,7 @@ export function createChatWindowSync(options: ChatWindowSyncOptions): { flushAll
       if (role === 'chat-window' && sid === ownSid) options.closeWindow()
       return
     }
-    if (role === 'chat-window' && !owns(sid)) return
+    if (role === 'chat-window' && !owns(sid) && !tracked.has(sid)) return
     const state = track(sid)
 
     // 这边正在流式写的那条气泡归这边管，见 `applyMessagesPatch`
