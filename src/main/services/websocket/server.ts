@@ -44,6 +44,8 @@ type InboundHandler = (message: MessageEnvelope, connectionId: string) => Promis
 const ZOMBIE_TIMEOUT_STREAK = 3
 /** 探活等多久。只读的项目信息，活着的编辑器一两秒内就答 */
 const PROBE_TIMEOUT_MS = 8_000
+/** 单帧硬上限（见 createServer 里 maxPayload 的说明） */
+const MAX_FRAME_BYTES = 32 * 1024 * 1024
 
 export class WebSocketService implements IWebSocketService {
   private server?: WebSocketServer
@@ -138,11 +140,10 @@ export class WebSocketService implements IWebSocketService {
       this.server = new WebSocketServer({
         host: '127.0.0.1',
         port,
-        // 协议层的硬上限。留一倍余量给应用层的 config.message.maxBytes ——
-        // 应用层超限能定位到具体请求并回一个像样的错误，协议层超限只能断连，
-        // 所以正常情况下应该是应用层先拦下。这一层是兜底，防的是恶意超大帧
-        // 把主进程的内存吃光。
-        maxPayload: config.message.maxBytes * 2,
+        // 协议层的硬上限，兜底防恶意超大帧把主进程内存吃光；超限只能断连。
+        // 回包由应用层 config.message.maxBytes 先拦（能定位到请求、回个像样的错误）；
+        // 导入事件不受那条限制，体积随资产数增长，按每个资产约 0.8KB 留到四万个。
+        maxPayload: MAX_FRAME_BYTES,
         verifyClient: (info, done) => {
           // 浏览器 WebSocket 不受 CORS 约束，外部网页可以直接连接回环端口。
           // 不能简单拒绝所有 Origin：UE 的 libwebsockets 会发送这个回环 Origin；
@@ -599,11 +600,15 @@ export class WebSocketService implements IWebSocketService {
       // 只能等超时（有的工具 60 秒），日志里只有一行 warn，
       // 上层看到的是「虚幻引擎没反应」而不是「响应太大」。
       // 先解析出 id，就能把失败精确地还给那一个请求。
-      if (data.length > config.message.maxBytes) {
+      //
+      // 只管回包（type=res）。这个上限是替 agent 的上下文挡大结果的；用户在虚幻里
+      // 主动发来的事件（content.import_assets 带全部依赖的元数据，一个资产约 0.8KB）
+      // 体积跟着资产数涨，八百多个就过 512KB —— 以前被这里整包丢掉，盒子毫无动静。
+      if (envelope.type === 'res' && data.length > config.message.maxBytes) {
         const limit = config.message.maxBytes
         const detail = `响应过大：${envelope.method ?? '未知方法'} 返回 ${data.length} 字节，超过上限 ${limit} 字节。请用 limit / 分页参数缩小范围。`
         logger.warn(`[WebSocketService] ${detail}`)
-        if (envelope.type === 'res' && envelope.id) {
+        if (envelope.id) {
           this.requestStateManager.rejectRequest(
             envelope.id,
             new WebSocketServiceError(WebSocketErrorCode.E_MESSAGE_TOO_LARGE, detail)

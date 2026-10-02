@@ -297,6 +297,36 @@ describe('请求生命周期', () => {
     socket.close()
   })
 
+  /**
+   * 回包上限不能误伤用户主动发来的事件。
+   *
+   * 虚幻里「导入到盒子」发的 content.import_assets 带着依赖闭包的全部元数据，
+   * 823 个资产就是 660KB。以前被回包上限整包丢掉，盒子资产库一直是空的。
+   */
+  it('超过回包上限的导入事件照常交给路由', async () => {
+    const socket = await connectPlugin()
+    await waitForConnections(1)
+    onInbound.mockClear()
+
+    socket.send(
+      JSON.stringify({
+        ver: '1.0',
+        type: 'evt',
+        method: 'content.import_assets',
+        payload: { asset_real_paths: ['x'], asset_metadata: 'x'.repeat(2 * 1024 * 1024) }
+      })
+    )
+
+    await vi.waitFor(() =>
+      expect(onInbound).toHaveBeenCalledWith(
+        expect.objectContaining({ topic: 'content.import_assets' }),
+        expect.any(String)
+      )
+    )
+
+    socket.close()
+  })
+
   it('正常响应能匹配回请求', async () => {
     const socket = await connectPlugin()
     await waitForConnections(1)
