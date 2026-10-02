@@ -611,15 +611,7 @@ PostProcessVolume），截图、视口、游戏各自收敛到不同亮度，还
 把贴图流送冲一遍、再渲几帧预热，然后才拍。等不到位的部分会写在 message 里
 （见下面的 pending_*），**看到那句警告就别拿这张图判断材质和贴图**。
 
-【参数说明】：
-- filepath: 可选，保存的文件名或路径
-- resolution: 可选，[宽度, 高度]，默认 [1920, 1080]
-- show_ui: 可选，true = 拍整个编辑器窗口（面板、菜单、弹窗），默认 false = 只拍场景。
-  为 true 时 resolution / world / warmup_frames 都不起作用 —— 那条路是抓屏，不渲染
-- window: 可选，只配合 show_ui=true：点名拍哪个资产编辑器（资产名或路径），
-  或 level 拍主关卡窗口。不传就拍用户最后用过的那扇
-- world: 可选，auto（默认，PIE 在跑就拍游戏）/ editor（强制拍编辑器世界）
-- warmup_frames: 可选，预热帧数，默认 4。嫌 GI 有噪点、阴影缺角就调大
+【参数】各参数的说明见参数定义。show_ui=true 时 resolution / world / warmup_frames 都不起作用 —— 那条路是抓屏，不渲染。
 
 【返回数据】：
 - 截图本身（作为图片附件，你能直接看到）
