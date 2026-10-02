@@ -279,6 +279,7 @@ import {
   watch,
   nextTick,
   inject,
+  provide,
   type PropType,
   type Ref
 } from 'vue'
@@ -371,6 +372,7 @@ import {
   SELF_CHECK_ACTION,
   type SelfCheckInput
 } from './composables/selfCheck'
+import { SESSION_PROJECT_KEY } from './composables/reviewOpenProject'
 import { captureChatAsPng } from './components/chatImageExport'
 
 const chatStore = useChatSessionsStore()
@@ -494,6 +496,11 @@ const props = defineProps({
 })
 
 const sid = ref<string>('')
+// 审查时引擎没连上，气泡要知道该替用户打开哪个工程
+provide(
+  SESSION_PROJECT_KEY,
+  computed(() => chatStore.getProject?.(sid.value) ?? null)
+)
 /** 工作室模式的任务板。不是工作室的会话 team 为 null，面板不出现 */
 const teamBoard = useTeamBoard(sid)
 const {

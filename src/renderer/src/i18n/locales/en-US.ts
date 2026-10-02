@@ -2209,12 +2209,23 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
      * never saved and the blueprint does not compile.
      */
     review: {
-      run: 'Ask AI to verify',
+      run: 'Review',
       running: 'Reviewing…',
       clean: 'Checked {count} asset(s), nothing wrong',
       found: '{count} issue(s) found',
       // Must be said out loud: with no engine, "nothing wrong" only covers naming
       engineOffline: 'Engine not connected — only naming was checked',
+      // Engine offline but we know this chat's project: offer to open it
+      openProjectTitle: 'Project not open',
+      openProjectContent:
+        'Saving, compiling and broken references can only be checked in the editor. Open "{name}" and review once it connects?',
+      openProjectOk: 'Open and review',
+      openProjectCancel: 'Naming only',
+      openingProject: 'Opening "{name}" — the review runs once it connects…',
+      openProjectFailed: 'Could not open the project: {error}',
+      pluginNotInstalled:
+        'The project opened, but the plugin is not installed, so the engine cannot connect: {error}',
+      editorWaitTimeout: 'The editor has not connected yet — click Review again once it is open',
       failed: 'The review did not run',
       fix: 'Ask AI to fix',
       // Used when the compile error comes with the engine's text, which may span lines

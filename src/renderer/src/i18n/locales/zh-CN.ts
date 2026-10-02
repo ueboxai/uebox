@@ -2153,12 +2153,21 @@ export default {
      * 工具全回成功，材质也可能没落盘、蓝图也可能编译不过。
      */
     review: {
-      run: '让 AI 自证',
+      run: '审查',
       running: '审查中…',
       clean: '查了 {count} 个资产，没发现问题',
       found: '发现 {count} 处问题',
       // 引擎没连时**必须**说出来：这时候「没问题」只代表命名没问题
       engineOffline: '引擎没连上，只做了命名检查',
+      // 引擎没连上、但知道这条会话是哪个工程时，问要不要替用户打开
+      openProjectTitle: '工程没开',
+      openProjectContent: '落盘、编译、断引用要在编辑器里查。打开「{name}」，连上后接着审查？',
+      openProjectOk: '打开并审查',
+      openProjectCancel: '只查命名',
+      openingProject: '正在打开「{name}」，连上后自动审查…',
+      openProjectFailed: '没能打开工程：{error}',
+      pluginNotInstalled: '工程打开了，但插件没装上，连不上引擎：{error}',
+      editorWaitTimeout: '编辑器迟迟没连上，等它打开后再点一次审查',
       failed: '审查没跑成',
       fix: '交给 AI 修',
       // 编译报错带原文时用这一句；原文是引擎给的，可能好几行

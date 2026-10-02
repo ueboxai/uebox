@@ -200,10 +200,14 @@
             <button
               type="button"
               class="response-review-run"
-              :disabled="reviewing"
+              :disabled="reviewing || openingProject"
               @click="runReview"
             >
-              {{ reviewing ? t('assistant.review.running') : t('assistant.review.run') }}
+              {{
+                reviewing || openingProject
+                  ? t('assistant.review.running')
+                  : t('assistant.review.run')
+              }}
             </button>
             <span v-if="reviewSummary" class="response-review-summary" :class="reviewSummaryTone">
               {{ reviewSummary }}
@@ -612,6 +616,13 @@ import {
   collectGeneratedMediaFromAgentArtifacts
 } from '../composables/agentGeneratedMedia'
 import { reviewTargetsFrom, shouldAutoReview } from '../composables/reviewTargets'
+import {
+  findSessionUproject,
+  isSessionProjectConnected,
+  SESSION_PROJECT_KEY
+} from '../composables/reviewOpenProject'
+import { useConnectedProjects } from '@renderer/composables/useBridgeStatus'
+import { confirmDialog } from '@renderer/utils/dialog'
 import { REVIEW_FIX_ACTION, reviewFindingText, SELF_CHECK_ACTION } from '../composables/selfCheck'
 import { AGENT_RESUME_ACTION } from '../composables/agentHandlerShared'
 import { isCreatorPlanAction, runCreatorPlanAction } from '../composables/creatorPlanChatError'
@@ -1431,6 +1442,10 @@ const reviewSummary = ref('')
 const reviewSummaryTone = ref<'ok' | 'warn' | 'bad'>('ok')
 /** 自证请求发出去了没有。发过就在结论后面挂一句「回复在下面」 */
 const selfCheckSent = ref(false)
+/** 上一次手动审查是不是卡在「引擎没连上」 */
+const engineOffline = ref(false)
+/** 正在替用户打开工程、等它连上 */
+const openingProject = ref(false)
 /** 「交给 AI 修」点过没有。点过就收起按钮，回复在下面 */
 const fixSent = ref(false)
 
@@ -1456,6 +1471,7 @@ async function checkEngine(auto: boolean): Promise<number | null> {
     selfCheckSent.value = false
   }
   fixSent.value = false
+  engineOffline.value = false
 
   try {
     const result = await agentV3API.reviewChanges(reviewTargets.value)
@@ -1465,6 +1481,7 @@ async function checkEngine(auto: boolean): Promise<number | null> {
       // 引擎没连上时**必须**说出来：这时候「没查出问题」只代表命名没问题，
       // 而落盘、编译、断引用这些真正会咬人的检查一项都没跑。
       reviewFindings.value = result?.findings ?? []
+      engineOffline.value = true
       reviewSummaryTone.value = 'warn'
       reviewSummary.value = t('assistant.review.engineOffline')
       return null
@@ -1502,6 +1519,10 @@ async function runReview(): Promise<void> {
   cancelAutoReview()
 
   const checked = await checkEngine(false)
+  // 工程没开就替用户打开，连上后从头再审一遍
+  if (checked === null && engineOffline.value && (await openProjectForReview())) {
+    return runReview()
+  }
   // 引擎没连时**不发自证**：未连接引擎时内核根本不注册 ue.* 只读工具
   // （见 createAgent.ts 的 resolveTools），要它「用工具重新查一遍」只能换回
   // 一段凭记忆编的话 —— 而凭记忆正是自证要禁掉的东西。
@@ -1509,6 +1530,106 @@ async function runReview(): Promise<void> {
   // 机器查干净了也照样要它自证 —— 那正是自证最有用的时候：
   // 所有事实都对，但东西不是用户要的
   if (checked !== null) requestSelfCheck(checked)
+}
+
+// ==================== 引擎没连上：替用户打开工程 ====================
+
+const sessionProject = inject(SESSION_PROJECT_KEY, null)
+const connectedProjects = useConnectedProjects()
+/** 气泡卸载时停止等编辑器 */
+const openProjectAbort = new AbortController()
+onBeforeUnmount(() => openProjectAbort.abort())
+
+/** UE 冷启动加编译着色器，十分钟不算离谱；编辑器本来开着的话两分钟就够分清连不连得上 */
+const EDITOR_WAIT_MS = 10 * 60 * 1000
+const RUNNING_EDITOR_WAIT_MS = 2 * 60 * 1000
+
+function waitForSessionProject(waitMs: number): Promise<boolean> {
+  const project = sessionProject?.value
+  const reachable = (): boolean => isSessionProjectConnected(project, connectedProjects.value ?? [])
+  return new Promise((resolve) => {
+    if (reachable()) return resolve(true)
+    const signal = openProjectAbort.signal
+    const finish = (ok: boolean): void => {
+      clearTimeout(timer)
+      stop()
+      signal.removeEventListener('abort', onAbort)
+      resolve(ok)
+    }
+    const onAbort = (): void => finish(false)
+    const timer = setTimeout(() => finish(false), waitMs)
+    const stop = watch(connectedProjects, () => {
+      if (reachable()) finish(true)
+    })
+    signal.addEventListener('abort', onAbort)
+  })
+}
+
+/**
+ * 引擎没连上时问一句要不要打开这条会话的工程；用户同意就打开并等它连上。
+ *
+ * 不知道该开哪个工程（会话没绑工程、库里没有 .uproject）、或者工程其实连着
+ * （那是引擎那边跑失败了，再开一个也没用）时不问，照旧显示「只做了命名检查」。
+ * 返回 true 表示工程已经连上，可以重新审查。
+ */
+async function openProjectForReview(): Promise<boolean> {
+  const project = sessionProject?.value
+  if (!project || isSessionProjectConnected(project, connectedProjects.value ?? [])) return false
+
+  const rows = await window.api.database.project
+    .getAll()
+    .then((res) => (res?.success ? res.data || [] : []))
+    .catch(() => [])
+  const uproject = findSessionUproject(project, rows)
+  if (!uproject) return false
+
+  const offlineSummary = reviewSummary.value
+  reviewSummary.value = ''
+  const confirmed = await new Promise<boolean>((resolve) =>
+    confirmDialog({
+      title: t('assistant.review.openProjectTitle'),
+      content: t('assistant.review.openProjectContent', { name: project.projectName }),
+      okText: t('assistant.review.openProjectOk'),
+      cancelText: t('assistant.review.openProjectCancel'),
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false)
+    })
+  )
+  if (!confirmed) {
+    reviewSummary.value = offlineSummary
+    return false
+  }
+
+  openingProject.value = true
+  reviewSummaryTone.value = 'warn'
+  reviewSummary.value = t('assistant.review.openingProject', { name: project.projectName })
+  try {
+    // forImport：编辑器已经开着就复用，且不藏主界面 —— 用户正等着审查结果
+    const res = (await window.api.invoke('shell:openUproject', uproject, { forImport: true })) as {
+      success?: boolean
+      error?: string
+      pluginFailure?: string
+      alreadyRunning?: boolean
+    } | null
+    if (!res?.success) {
+      reviewSummary.value = t('assistant.review.openProjectFailed', { error: res?.error || '' })
+      return false
+    }
+    // 插件没装上，这个工程永远连不上盒子，干等没有意义
+    if (res.pluginFailure) {
+      reviewSummary.value = t('assistant.review.pluginNotInstalled', { error: res.pluginFailure })
+      return false
+    }
+    const connected = await waitForSessionProject(
+      res.alreadyRunning ? RUNNING_EDITOR_WAIT_MS : EDITOR_WAIT_MS
+    )
+    if (!connected && !openProjectAbort.signal.aborted) {
+      reviewSummary.value = t('assistant.review.editorWaitTimeout')
+    }
+    return connected
+  } finally {
+    openingProject.value = false
+  }
 }
 
 // ==================== 一轮结束时自动体检 ====================
