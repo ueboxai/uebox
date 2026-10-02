@@ -85,7 +85,7 @@
   },
   "dependencies": {
     "@antv/g6": "^5.1.1",
-    "@earendil-works/pi-agent-core": "0.84.3",
+    "@earendil-works/pi-agent-core": "0.87.1",
     "@earendil-works/pi-ai": "0.84.3",
     "@electron-toolkit/utils": "^4.0.0",
     "@firecrawl/anydoc": "^0.2.4",
