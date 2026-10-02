@@ -64,6 +64,8 @@ watch(reason, (next) => {
 
 <style scoped lang="less">
 .bridge-banner {
+  /* 挂在内容列里，内容区 flex: 1 会把它压扁；它只占自己那一行 */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: var(--space-3);

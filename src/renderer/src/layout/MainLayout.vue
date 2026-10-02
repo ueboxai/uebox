@@ -524,6 +524,14 @@ onUnmounted(() => {
         />
       </div>
 
+      <!--
+        引擎桥接没起来时的横幅。挂在这里而不是某一页：桥接是整个应用的能力，
+        而主进程写好的那句原因（端口被谁占了、怎么办）以前根本没有出口。
+        放在内容这一列（纵向）里而不是最外层：最外层是横向一排，横幅会变成和侧边栏、
+        内容区并排的一列，把内容区挤到只剩一条
+      -->
+      <BridgeUnavailableBanner />
+
       <!-- 内容区域 -->
       <Content class="content glass" :class="!showMenu && !showTab ? 'full-content' : ''">
         <AppPageLoading v-if="pendingPage" class="pending-page" :path="pendingPage.path" />
@@ -544,12 +552,6 @@ onUnmounted(() => {
 
     <!-- 全局音频播放器 -->
     <GlobalAudioPlayer />
-
-    <!--
-      引擎桥接没起来时的横幅。挂在这里而不是某一页：桥接是整个应用的能力，
-      而主进程写好的那句原因（端口被谁占了、怎么办）以前根本没有出口
-    -->
-    <BridgeUnavailableBanner />
 
     <!-- 截图模式组件 -->
     <ScreenshotMode />
