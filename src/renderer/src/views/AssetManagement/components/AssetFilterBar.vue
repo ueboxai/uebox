@@ -1556,6 +1556,12 @@ const toggleAssetType = (classNameCn: string): void => {
   font-size: 14px;
 }
 
+/* 服务器库标签可能上百个：限高滚动，免得菜单冲出窗口。这张菜单没有子菜单，滚动不会裁掉什么 */
+.server-tag-menu {
+  max-height: min(400px, 60vh);
+  overflow-y: auto;
+}
+
 /* 标签名可能很长（中文长名）：一行截断，完整名字在悬浮提示里 */
 .option-label {
   display: inline-block;

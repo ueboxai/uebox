@@ -93,3 +93,26 @@ describe('AssetFilterBar 样式', () => {
     expect(overflowOf(menu)).toEqual(ALL_VISIBLE)
   })
 })
+
+describe('服务器标签菜单', () => {
+  it('限高并可滚动，标签多时不冲出窗口', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const wrapper = mount(
+      {
+        components: { AppMenu, AppMenuItem },
+        template: `<AppMenu class="server-tag-menu" ${SCOPE_ID}><AppMenuItem item-key="a">a</AppMenuItem></AppMenu>`
+      },
+      { attachTo: host }
+    )
+    cleanups.push(() => {
+      wrapper.unmount()
+      host.remove()
+    })
+    injectStyles()
+
+    const cs = getComputedStyle(wrapper.get<HTMLElement>('.app-menu').element)
+    expect(cs.overflowY).toBe('auto')
+    expect(cs.maxHeight).not.toBe('')
+  })
+})
