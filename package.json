@@ -198,7 +198,7 @@
     "jsdom": "^26.1.0",
     "less": "^4.9.1",
     "less-loader": "^12.3.0",
-    "minimatch": "3.1.4",
+    "minimatch": "10.2.6",
     "playwright-core": "^1.63.0",
     "prettier": "^3.6.2",
     "typescript": "^5.8.3",
