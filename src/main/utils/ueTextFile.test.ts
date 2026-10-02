@@ -51,6 +51,17 @@ describe('decodeUeText', () => {
 })
 
 describe('readUeJsonFile', () => {
+  it('认结尾多余的逗号（引擎自己的 .uplugin 就这么写），字符串里的逗号不动', async () => {
+    const file = join(tmp, 'SequencerScripting.uplugin')
+    writeFileSync(
+      file,
+      '{\n\t"FriendlyName": "a,]b \\" ,}",\n\t"Plugins": [\n\t\t{ "Name": "PythonScriptPlugin", "Enabled": true },\n\t],\n}'
+    )
+    const data = await readUeJsonFile<{ FriendlyName: string; Plugins: unknown[] }>(file)
+    expect(data.FriendlyName).toBe('a,]b " ,}')
+    expect(data.Plugins).toHaveLength(1)
+  })
+
   /**
    * 这是真实事故的回归用例：中文工程被 UE 存成 UTF-16 之后，
    * 按 utf-8 读会得到 `��{\0...`，JSON.parse 抛 `Unexpected token '�'`，

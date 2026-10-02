@@ -35,6 +35,12 @@ import {
   importUAssetsBatchToProject,
   type ProjectImportProjectRecord
 } from '../../../../ipc/projectImport'
+import { resolveProjectFilePath } from '../../../../ipc/projectImportPath'
+import {
+  checkPluginsInstalled,
+  enablePluginsInUproject
+} from '../../../../services/project/requiredPlugins'
+import { pluginStateIn } from '../ue-system/managePlugin'
 import type {
   ImportFailureReason,
   MissingDependencyState
@@ -1555,6 +1561,85 @@ function findLiveConnection(projectPath: string | null | undefined): string | un
 }
 
 /**
+ * 给没开着的工程开插件：直接写 `.uproject`。
+ *
+ * 工程开着时不碰文件 —— 编辑器启动时把插件清单读进了内存，用户之后在编辑器里改任何插件，
+ * 它都按内存那份整个写回去，这里加的几条就没了。那种情况走 ue_manage_plugin，
+ * 让编辑器自己改自己的清单。
+ *
+ * 只写本机有的插件：写一个没装的进去，编辑器启动报「找不到插件」，工程直接打不开。
+ */
+export async function enablePluginsForProject(
+  pluginNames: string[],
+  ref: { projectKey?: string; projectPath?: string }
+): Promise<Record<string, unknown>> {
+  const names = Array.from(new Set(pluginNames.map((n) => String(n || '').trim()).filter(Boolean)))
+  if (names.length === 0) {
+    return { success: false, error: '需要 pluginNames：要开的插件名列表' }
+  }
+
+  const resolved = await resolveImportTarget(ref)
+  if (!resolved.target) {
+    return { success: false, error: resolved.error ?? '无法确定是哪个工程' }
+  }
+  const { record, connected } = resolved.target
+  if (connected) {
+    return {
+      success: false,
+      error:
+        `「${record.projectName}」正开着编辑器，不能直接改 .uproject（编辑器下次改插件时会把它冲掉）。` +
+        `改用 ue_manage_plugin(action="Enable") 逐个开：${names.join('、')}，开完提醒用户重启编辑器。`
+    }
+  }
+
+  const projectFile = await resolveProjectFilePath(record)
+  if (!projectFile) {
+    return { success: false, error: `找不到「${record.projectName}」的 .uproject` }
+  }
+
+  const check = await checkPluginsInstalled(projectFile, names)
+  if (!check.engineFound) {
+    return {
+      success: false,
+      error:
+        `没找到「${record.projectName}」用的引擎，没法确认这些插件本机有没有。` +
+        '写一个没装的插件进去会让工程打不开，所以这次不写。'
+    }
+  }
+  if (check.notInstalled.length > 0) {
+    return {
+      success: false,
+      error:
+        `本机没有这些插件：${check.notInstalled.join('、')}。写进去会让工程打不开，所以一个都没写。` +
+        '去掉它们再调一次；本机没有的插件只能让用户自己装（导入结果里有 Fab 链接的就给他）。'
+    }
+  }
+
+  const { enabled } = await enablePluginsInUproject(projectFile, check.installed)
+
+  // 回读：没有回读的「成功」等于没有成功（见 managePlugin.ts 开头那次事故）
+  const written = await readUeJsonFile<{ Plugins?: Array<{ Name?: string; Enabled?: boolean }> }>(
+    projectFile
+  )
+  const notWritten = check.installed.filter((n) => pluginStateIn(written, n) !== 'enabled')
+  if (notWritten.length > 0) {
+    return {
+      success: false,
+      uproject_path: projectFile,
+      error: `写完回读 ${projectFile}，这些插件仍不是开启状态：${notWritten.join('、')}`
+    }
+  }
+
+  return {
+    success: true,
+    uproject_path: projectFile,
+    enabled,
+    already_enabled: check.installed.filter((n) => !enabled.includes(n)),
+    details: [`已写进 .uproject 并回读确认。下次打开「${record.projectName}」时生效。`]
+  }
+}
+
+/**
  * 定这次导入的目标工程。
  *
  * 点名了 projectKey / projectPath 就按点名的来 —— 项目库里存着每个工程的路径，
@@ -2168,6 +2253,30 @@ async function importAssetsToProject(
         )
       }
 
+      // 文件全了、插件没开，蓝图照样编译不过。写 .uproject 要重启编辑器，交给用户决定
+      if (batchResult.missingPlugins && batchResult.missingPlugins.length > 0) {
+        details.push(
+          `⚠️ 「${projectRecord.projectName}」还没开这些资产用到的引擎插件：` +
+            `${batchResult.missingPlugins.map((p) => p.name).join('、')}。` +
+            '不开的话蓝图编译会报无效类型、找不到函数。先问用户要不要开；同意了再开：' +
+            (connected
+              ? '工程正开着，用 ue_manage_plugin(action="Enable") 逐个开，开完要重启编辑器。'
+              : `工程没开着，用 project_manage(action="enable_plugins", pluginNames=[...], projectPath="${projectRecord.originPath || projectRecord.projectPath}") 一次开完，下次打开工程生效。`)
+        )
+      }
+      // 本机根本没有的：只能告诉用户缺什么、去哪装
+      for (const p of batchResult.unavailablePlugins ?? []) {
+        const what =
+          p.kind === 'project-code'
+            ? `原工程${p.sourceProject ? `「${p.sourceProject}」` : ''}自己的 C++ 模块`
+            : p.kind === 'unknown'
+              ? '来源不明的代码模块（可能是第三方插件或原工程的 C++）'
+              : `第三方插件${p.versionName ? ` v${p.versionName}` : ''}${p.fabUrl ? `，Fab：${p.fabUrl}` : ''}`
+        details.push(
+          `⚠️ 本机没有 ${p.friendlyName}（${p.name}）：${what}，用到它的蓝图装好之前打不开`
+        )
+      }
+
       // 缺了哪个依赖、影响了谁 —— 一条依赖一行，不是每个资产重复一遍
       for (const missing of batchResult.report.missingDependencies) {
         details.push(
@@ -2402,6 +2511,11 @@ export function createProjectTool(): V2Tool {
   - 外部文件（FBX/PNG/OBJ 等）会自动经过 UE 导入 API，再尝试放入场景
   - 仅 StaticMesh / SkeletalMesh / Blueprint 类资产会尝试放入场景；贴图、材质、音频等会保留为已导入资产
  - setup_level_sequence: 在当前项目中创建或复用 Level Sequence，并可选生成角色 Actor、绑定到 Sequencer、添加动画轨
+- enable_plugins: 给**没开着**的工程开插件（需要 pluginNames，用 projectKey / projectPath 点名工程）
+  - import_assets 的 details 说「还没开这些插件」、**用户同意后**再用；直接写 .uproject，下次打开工程生效
+  - 只开本机有的插件（引擎自带或工程 Plugins 目录里的），写完会回读确认
+  - 工程正开着时会拒绝，改用 ue_manage_plugin(action="Enable") 逐个开 —— 编辑器手里有一份插件清单，
+    它下次自己改插件时会整个写回去，直接改文件的那几条会被冲掉
 
 示例调用：
 1. 列出模板: { "action": "list_templates" }
@@ -2422,10 +2536,11 @@ export function createProjectTool(): V2Tool {
           'open_project',
           'import_assets',
           'import_assets_to_scene',
-          'setup_level_sequence'
+          'setup_level_sequence',
+          'enable_plugins'
         ])
         .describe(
-          '【必填】操作类型：list_templates（列出模板）、create_project（创建项目）、list_projects（列出项目）、open_project（打开项目）、import_assets（导入资产到 UE 项目）、import_assets_to_scene（导入并放入场景）、setup_level_sequence（创建定序器并可选绑定角色和动画）'
+          '【必填】操作类型：list_templates（列出模板）、create_project（创建项目）、list_projects（列出项目）、open_project（打开项目）、import_assets（导入资产到 UE 项目）、import_assets_to_scene（导入并放入场景）、setup_level_sequence（创建定序器并可选绑定角色和动画）、enable_plugins（给没开着的工程开插件）'
         ),
       templateName: z
         .string()
@@ -2467,7 +2582,13 @@ export function createProjectTool(): V2Tool {
         .optional()
         .describe(
           '项目的目录路径或 .uproject 文件路径（没有 projectKey 时用它）。' +
-            'open_project 和两个 import 动作都认'
+            'open_project、两个 import 动作和 enable_plugins 都认'
+        ),
+      pluginNames: z
+        .array(z.string())
+        .optional()
+        .describe(
+          '要开的插件名（仅 enable_plugins），用 .uproject 里写的名字，如 ["PoseSearch", "MotionWarping"]'
         ),
       waitSeconds: z
         .number()
@@ -2720,15 +2841,21 @@ export function createProjectTool(): V2Tool {
               spawnTransform: input.spawnTransform
             })
           }
+          case 'enable_plugins': {
+            return enablePluginsForProject(input.pluginNames ?? [], {
+              projectKey: input.projectKey,
+              projectPath: input.projectPath
+            })
+          }
           default:
             console.error(
               '[ProjectTool] 收到未知操作:',
               input.action,
-              '有效操作: list_templates, create_project, list_projects, open_project, import_assets, import_assets_to_scene, setup_level_sequence'
+              '有效操作: list_templates, create_project, list_projects, open_project, import_assets, import_assets_to_scene, setup_level_sequence, enable_plugins'
             )
             return {
               success: false,
-              error: `未知操作: ${input.action}。有效操作: list_templates, create_project, list_projects, open_project, import_assets, import_assets_to_scene, setup_level_sequence`
+              error: `未知操作: ${input.action}。有效操作: list_templates, create_project, list_projects, open_project, import_assets, import_assets_to_scene, setup_level_sequence, enable_plugins`
             }
         }
       } catch (err) {

@@ -32,6 +32,7 @@ import { useAutoReadAloud } from '@renderer/views/Assistant/composables/autoRead
 import { hasVisibleSidebarFloatingOverlay, useSidebarPeek } from './composables/sidebarPeek'
 import { useNotificationActivation } from './composables/notificationActivation'
 import { useTrayBridge } from './composables/trayBridge'
+import { promptEnableMissingPlugins } from '@renderer/views/AssetManagement/utils/missingPluginsPrompt'
 // StatusBar 已移至 AssetManagement 专用，只在资产库页面显示
 
 const { Content } = Layout
@@ -179,6 +180,7 @@ const handleImportRetry = async (): Promise<void> => {
     const result = await window.api.projectImport.importUAssetsBatch(retry.project, retry.sources, {
       requestId
     })
+    if (!result?.cancelled) promptEnableMissingPlugins(retry.project, result?.missingPlugins, result?.unavailablePlugins)
     if (result?.success && !result.cancelled) {
       message.success(t('importResultModal.retrySucceeded'))
       /*

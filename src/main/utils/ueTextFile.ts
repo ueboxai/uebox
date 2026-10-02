@@ -56,7 +56,43 @@ export async function readUeTextFile(filePath: string): Promise<string> {
   return decodeUeText(await fs.promises.readFile(filePath))
 }
 
+/**
+ * 去掉数组/对象收尾前的多余逗号（`[a, b,]`），字符串里的不动。
+ *
+ * 引擎的 JSON 读取器认这种写法，引擎自己的 `.uplugin` 里就有：5.7 有 36 个，
+ * SequencerScripting、VariantManager 都在里面。`JSON.parse` 一碰就抛，
+ * 于是这些插件在盒子眼里「不存在」。手改过的 `.uproject` 也常见。
+ */
+export function stripTrailingCommas(text: string): string {
+  let out = ''
+  let inString = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      out += ch
+      if (ch === '\\') {
+        out += text[++i] ?? ''
+      } else if (ch === '"') {
+        inString = false
+      }
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      out += ch
+      continue
+    }
+    if (ch === ',') {
+      let j = i + 1
+      while (j < text.length && /\s/.test(text[j])) j++
+      if (text[j] === ']' || text[j] === '}') continue
+    }
+    out += ch
+  }
+  return out
+}
+
 /** 读引擎写的 JSON（`.uproject` / `.uplugin` / 启动器清单） */
 export async function readUeJsonFile<T = unknown>(filePath: string): Promise<T> {
-  return JSON.parse(await readUeTextFile(filePath)) as T
+  return JSON.parse(stripTrailingCommas(await readUeTextFile(filePath))) as T
 }

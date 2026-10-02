@@ -45,6 +45,8 @@ import {
 import { calculateFastFileHash } from '../../sqliteDataBase/ipc/assetData/fileUtils'
 import { findIdenticalLocalAssets } from '../../sqliteDataBase/ipc/assetData/importDedup'
 import { deriveFallbackSoftPath, deriveSoftPathFromDiskPath } from './backupSoftPath'
+import { defaultAnalyzer } from '../project/packageImports'
+import { readPackageScriptModules, type SourcePluginLookup } from '../project/requiredPlugins'
 
 /**
  * 生成安全的 assetKey，防止文件名过长导致 Windows MAX_PATH 错误
@@ -128,6 +130,8 @@ export interface ImportOptions {
   packageToFolderKey?: Map<string, string>
   // 新增：引擎版本号（来自 UE 插件报告，如 "5.3.2-29314046+++UE5+Release-5.3"）
   engineVersion?: string
+  /** 从虚幻加资产时，原工程的「模块 → 插件」查找表。有它才记 pluginInfo */
+  sourcePluginLookup?: SourcePluginLookup
 }
 
 export class AssetImportService {
@@ -1024,6 +1028,18 @@ export class AssetImportService {
       // 🎯 结束预处理阶段计时
       perfCollector.endPhase('assetParsing', processedUassets)
 
+      // 从虚幻加进来的：趁原工程还在手边，记下每个资产用到的模块归哪个插件。
+      // 导到别的工程时，那边没装的插件就能说出全名和 Fab 链接，而不是只有一个模块名。
+      // 读的是源文件的导入表，每个包一两毫秒；失败就不记，不拦导入
+      if (options.sourcePluginLookup) {
+        for (const [filePath, metadata] of processedMetadata) {
+          if (!/\.(uasset|umap)$/i.test(filePath) || !metadata?.metadata) continue
+          const modules = await readPackageScriptModules(filePath, defaultAnalyzer)
+          const info = modules ? options.sourcePluginLookup(modules) : undefined
+          if (info) metadata.metadata.assetPluginInfo = info
+        }
+      }
+
       // 初始化资产备份管理器和预处理备份信息（仅在备份模式下）
       const backupManager = isBackupMode ? new AssetBackupManager() : null
       let timestampFolderPath: string | null = null
@@ -1798,8 +1814,9 @@ export class AssetImportService {
                     isDependency: fileMetadata.isMainAsset ? 0 : 1,
                     fileMd5: fileMd5, // 添加MD5值
                     // 🔌 插件信息：如果是 .uplugin 文件，保存详细的插件元数据
-                    pluginInfo:
-                      fileExtension === 'uplugin' && fileMetadata.metadata
+                    pluginInfo: fileMetadata.metadata?.assetPluginInfo
+                      ? JSON.stringify(fileMetadata.metadata.assetPluginInfo)
+                      : fileExtension === 'uplugin' && fileMetadata.metadata
                         ? JSON.stringify({
                             friendlyName: fileMetadata.metadata.friendlyName,
                             description: fileMetadata.metadata.description,

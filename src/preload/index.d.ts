@@ -40,7 +40,7 @@ import type {
   ObjectStorageSaveInput
 } from '../shared/objectStorage'
 import type { DroppedPathVerdict } from '../shared/droppedPath'
-import type { ImportFailureReport } from '../shared/projectImport'
+import type { ImportFailureReport, MissingPlugin, UnavailablePlugin } from '../shared/projectImport'
 import type { ProjectCoverMode } from '../shared/projectCover'
 import type { SpotlightAction, SpotlightSearchResponse } from '../shared/spotlight'
 import type { NotebookContextLevel } from '../shared/notebookContext'
@@ -1753,8 +1753,17 @@ declare global {
         warnings: string[]
         /** 出了什么问题、影响了谁。失败详情弹窗读它 */
         report: ImportFailureReport
+        /** 这批资产用到、目标工程没开的插件 */
+        missingPlugins?: MissingPlugin[]
+        /** 本机哪儿都找不到的插件和代码，只能提示 */
+        unavailablePlugins?: UnavailablePlugin[]
         error?: string
       }>
+      /** 把插件写进工程的 .uproject（用户在弹窗里确认过的）。重启编辑器生效 */
+      enablePlugins: (
+        project: ProjectRecord,
+        names: string[]
+      ) => Promise<{ success: boolean; enabled?: string[]; error?: string }>
       /** 中止一批正在跑的导入；正在拷的那个文件会写完 */
       cancelImportUAssetsBatch: (requestId: string) => Promise<{ success: boolean; found: boolean }>
       /** 订阅批量导入进度，返回取消订阅函数 */

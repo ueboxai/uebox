@@ -22,7 +22,7 @@ type AnalyzedPackage = {
 
 export type PackageAnalyzer = (filePath: string) => Promise<AnalyzedPackage | Error>
 
-const defaultAnalyzer: PackageAnalyzer = (filePath) =>
+export const defaultAnalyzer: PackageAnalyzer = (filePath) =>
   analyzeFromFile(filePath, { saveHexView: false }) as Promise<AnalyzedPackage | Error>
 
 /**

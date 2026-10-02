@@ -33,8 +33,24 @@ import {
 } from '../services/project/packageCopyQueue'
 import {
   createPackageImportsReader,
+  defaultAnalyzer,
   type PackageAnalyzer
 } from '../services/project/packageImports'
+import {
+  enablePluginsInUproject,
+  describeUnavailable,
+  findMissingPlugins,
+  findUnknownModules,
+  parseAssetPluginInfo,
+  resolveEngineRoot,
+  getEngineCoreModules,
+  getEnginePlugins,
+  readPackageScriptModules,
+  scanPluginDirectory,
+  type UprojectPluginRef
+} from '../services/project/requiredPlugins'
+import { readUeJsonFile } from '../utils/ueTextFile'
+import { isSameProjectPath } from '../agent-v3/core/projectPathKey'
 import {
   settleImportBatch,
   type MissingDependencyFact,
@@ -45,7 +61,10 @@ import {
   emptyImportFailureReport,
   isCleanImportReport,
   MAX_REPORT_ROWS,
-  type ImportFailureReport
+  type ImportFailureReport,
+  type AssetPluginInfo,
+  type MissingPlugin,
+  type UnavailablePlugin
 } from '../../shared/projectImport'
 import {
   HttpDownloadPool,
@@ -1233,6 +1252,13 @@ export type ProjectImportBatchResult = {
   assets: SettledAsset[]
   /** 出了什么问题、影响了谁。界面的「查看详情」读它 */
   report: ImportFailureReport
+  /** 这批资产用到、目标工程没开的插件。界面据此问用户要不要写进 .uproject */
+  missingPlugins?: MissingPlugin[]
+  /**
+   * 本机哪儿都找不到的插件和代码（没装的第三方插件、原工程的 C++）。只能提示，没法替用户开。
+   * 加资产进盒子时记下了来源的，能说出插件全名和 Fab 链接
+   */
+  unavailablePlugins?: UnavailablePlugin[]
   error?: string
 }
 
@@ -1443,6 +1469,9 @@ export async function importUAssetsBatchToProject(
     return imports
   }
 
+  /** 这批落到工程里的全部包（主资产 + 依赖闭包），收尾时据此查缺哪些插件 */
+  const packagesInBatch = new Set<string>()
+
   /** 闭包没走完的资产。有文件失败时，这些资产不能当作「确认没事」结算 */
   const closureIncompleteIndexes = new Set<number>()
 
@@ -1467,6 +1496,7 @@ export async function importUAssetsBatchToProject(
       ])
     )
     let budget = MAX_NODES
+    if (rootSoftPath) packagesInBatch.add(rootSoftPath)
 
     while (queue.length > 0) {
       if (budget-- <= 0) {
@@ -1480,6 +1510,7 @@ export async function importUAssetsBatchToProject(
       const softPath = queue.shift() as string
       if (!softPath || seen.has(softPath)) continue
       seen.add(softPath)
+      packagesInBatch.add(softPath)
 
       const relative = softPath.replace(/^\/Game\/?/, '')
       if (relative) addTargetOwner(path.join(contentBase, relative), index)
@@ -1680,6 +1711,18 @@ export async function importUAssetsBatchToProject(
     const queueStats = session.copyQueue.stats
     emit()
 
+    const { missingPlugins, unavailablePlugins } = session.cancelled
+      ? { missingPlugins: [], unavailablePlugins: [] }
+      : await checkMissingPlugins({
+          projectFile,
+          projectEngine,
+          contentBase,
+          softPaths: packagesInBatch,
+          pluginInfoOf: (softPath) =>
+            parseAssetPluginInfo(getAssetDataBySoftPath(db, softPath)?.pluginInfo),
+          analyze: options?.analyzePackage ?? defaultAnalyzer
+        })
+
     return {
       /*
        * 「整批一个问题都没有」必须连报告一起看。
@@ -1702,12 +1745,86 @@ export async function importUAssetsBatchToProject(
       cancelled: session.cancelled,
       assets: settlement.assets,
       report: settlement.report,
+      missingPlugins,
+      unavailablePlugins,
       // 上千个资产各报一条警告的话，弹窗会长到没法看，也白白撑大 IPC 载荷
       warnings: capWarnings(warnings)
     }
   } finally {
     if (requestId) activeBatchSessions.delete(requestId)
     await cleanupSessionTempFiles(session, httpTempDir)
+  }
+}
+
+/**
+ * 导进工程的这批包用到了哪些插件、工程里没开。
+ *
+ * 读的是**工程里**的文件：这时队列已经排空，已存在而跳过的包也在那儿，一并算上 ——
+ * 重导一次就能把上次漏问的插件补问出来。
+ * 只是附加信息，查不出来不影响导入结果，所以出错一律当「没缺」。
+ */
+const checkMissingPlugins = async (params: {
+  projectFile: string
+  projectEngine: ResolvedProjectEngineVersion
+  contentBase: string
+  softPaths: ReadonlySet<string>
+  /** 资产加进盒子时记下的插件来源 */
+  pluginInfoOf: (softPath: string) => AssetPluginInfo | undefined
+  analyze: PackageAnalyzer
+}): Promise<{ missingPlugins: MissingPlugin[]; unavailablePlugins: UnavailablePlugin[] }> => {
+  const none = { missingPlugins: [], unavailablePlugins: [] }
+  try {
+    const modules = new Set<string>()
+    for (const softPath of params.softPaths) {
+      const relative = softPath.replace(/^\/Game\/?/, '')
+      if (!relative || relative === softPath) continue
+      for (const ext of ['.uasset', '.umap']) {
+        const file = path.join(params.contentBase, relative + ext)
+        if (!nodeFs.existsSync(file)) continue
+        for (const m of (await readPackageScriptModules(file, params.analyze)) ?? []) {
+          modules.add(m)
+        }
+        break
+      }
+    }
+    if (modules.size === 0) return none
+
+    const engineRoot = await resolveEngineRoot(params.projectEngine)
+    const [uproject, enginePlugins, projectPlugins, coreModules] = await Promise.all([
+      readUeJsonFile<{ Plugins?: UprojectPluginRef[]; Modules?: Array<{ Name?: string }> }>(
+        params.projectFile
+      ),
+      engineRoot ? getEnginePlugins(engineRoot) : Promise.resolve([]),
+      scanPluginDirectory(path.join(path.dirname(params.projectFile), 'Plugins')),
+      engineRoot ? getEngineCoreModules(engineRoot) : Promise.resolve(null)
+    ])
+    const missingPlugins = findMissingPlugins({
+      modules,
+      uprojectPlugins: Array.isArray(uproject?.Plugins) ? uproject.Plugins : [],
+      enginePlugins,
+      projectPlugins
+    })
+    // 引擎本体清单读不到时分不清「引擎自带」和「本机没有」，宁可不报
+    const unknownModules = coreModules
+      ? findUnknownModules({
+          modules,
+          coreModules,
+          plugins: [...enginePlugins, ...projectPlugins],
+          projectModules: (Array.isArray(uproject?.Modules) ? uproject.Modules : [])
+            .map((m) => String(m?.Name || ''))
+            .filter(Boolean)
+        })
+      : []
+    if (unknownModules.length === 0) return { missingPlugins, unavailablePlugins: [] }
+    const sources: AssetPluginInfo[] = []
+    for (const softPath of params.softPaths) {
+      const info = params.pluginInfoOf(softPath)
+      if (info) sources.push(info)
+    }
+    return { missingPlugins, unavailablePlugins: describeUnavailable(unknownModules, sources) }
+  } catch (error) {
+    console.warn('[project:importUAssetsBatch] 检查所需插件失败:', error)
+    return none
   }
 }
 
@@ -1872,6 +1989,74 @@ ipcMain.handle(
     // 它要的是计数和 report，两者都是有界的。主进程内的调用方（projectTool）
     // 直接拿函数返回值，不受这里影响
     return { ...result, assets: [] }
+  }
+)
+
+/**
+ * 用户在弹窗里点了「开启」之后，把插件开起来。重启编辑器才生效，界面负责把这句话说清楚。
+ *
+ * 工程正开着时先让编辑器自己开：它启动时把插件清单读进了内存，之后用户在编辑器里
+ * 改任何插件，它都按内存那份整个写回 `.uproject` —— 只改文件的话，这几条会被冲掉。
+ * 编辑器改完再由盒子写一遍文件兜底：新插件包已经落过盘，这一步什么都不改；
+ * 老插件包只改内存不落盘（见 managePlugin.ts 开头那次事故），这一步补上。
+ * 最后回读，文件里不是开启状态就如实报失败。
+ */
+export async function enablePluginsForImport(
+  projectFile: string,
+  names: string[]
+): Promise<{ success: boolean; enabled?: string[]; error?: string }> {
+  const wanted = Array.from(new Set(names.map((n) => String(n || '').trim()).filter(Boolean)))
+  if (wanted.length === 0) return { success: true, enabled: [] }
+
+  const live = projectManager
+    .getInteractiveProjects()
+    .find((p) => isSameProjectPath(p.projectPath, path.dirname(projectFile)))
+  if (live) {
+    const ws = serviceManager.getWebSocketService()
+    for (const name of wanted) {
+      try {
+        await ws.callRequest(
+          'system.manage_plugin',
+          { plugin_name: name, action: 'Enable' },
+          live.connectionId,
+          30000
+        )
+      } catch (error) {
+        // 编辑器没开成就靠下面写文件；只是用户下次在编辑器里改插件前得先重启
+        console.warn(`[project:enablePlugins] 编辑器开启 ${name} 失败，改为直接写文件:`, error)
+      }
+    }
+  }
+
+  const { enabled } = await enablePluginsInUproject(projectFile, wanted)
+
+  const written = await readUeJsonFile<{ Plugins?: UprojectPluginRef[] }>(projectFile)
+  const plugins = Array.isArray(written?.Plugins) ? written.Plugins : []
+  const notWritten = wanted.filter(
+    (name) => !plugins.some((p) => p?.Name === name && p.Enabled === true)
+  )
+  if (notWritten.length > 0) {
+    return { success: false, error: `写完回读，这些插件仍不是开启状态：${notWritten.join('、')}` }
+  }
+  // 编辑器那边已经写过的，盒子这里就没再改 —— 对用户来说都是「这次开的」
+  return { success: true, enabled: live ? wanted : enabled }
+}
+
+ipcMain.handle(
+  'project:enablePlugins',
+  async (
+    _,
+    project: ProjectImportProjectRecord,
+    names: string[]
+  ): Promise<{ success: boolean; enabled?: string[]; error?: string }> => {
+    void _
+    const projectFile = await resolveProjectFilePath(project)
+    if (!projectFile) return { success: false, error: '工程路径无效' }
+    try {
+      return await enablePluginsForImport(projectFile, Array.isArray(names) ? names : [])
+    } catch (error) {
+      return { success: false, error: String(error instanceof Error ? error.message : error) }
+    }
   }
 )
 

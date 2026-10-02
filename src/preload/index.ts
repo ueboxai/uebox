@@ -1845,6 +1845,9 @@ const api = {
       sources: unknown[],
       options?: { requestId?: string; ignoreEngineVersion?: boolean }
     ) => ipcRenderer.invoke('project:importUAssetsBatch', project, sources, options),
+    /** 把插件写进工程的 .uproject（用户在弹窗里确认过的） */
+    enablePlugins: (project: unknown, names: string[]) =>
+      ipcRenderer.invoke('project:enablePlugins', project, names),
     /** 中止一批正在跑的导入；正在拷的那个文件会写完 */
     cancelImportUAssetsBatch: (requestId: string) =>
       ipcRenderer.invoke('project:importUAssetsBatch:cancel', requestId),

@@ -5921,6 +5921,24 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     importCompatibleOnly: 'Import the rest',
     forceImport: 'Import anyway',
     forceImportAll: 'Import all anyway',
+    missingPlugins: {
+      title: '{count} plugins need to be enabled',
+      desc: 'The imported assets use these engine plugins, which {project} has not enabled. Without them, Blueprints fail to compile with "invalid type" and "function not found" errors.',
+      restartHint: "They will be added to the project's .uproject and take effect after restarting the Unreal Editor.",
+      enable: 'Enable plugins',
+      later: 'Not now',
+      done: 'Enabled {count} plugins. Restart the Unreal Editor to apply.',
+      failed: 'Could not update .uproject: {error}',
+      unavailableTitle: '{count} items are not on this machine',
+      unavailableDesc: 'The box cannot enable these for you. Related Blueprints will not open until they are installed:',
+      fromProject: 'from "{project}"',
+      projectCode: 'C++ code from "{project}"',
+      projectCodeUnknown: 'C++ code from the original project',
+      onlyModuleName: 'Only the module name is known. It may be a third-party plugin or C++ from the original project.',
+      openFab: 'View on Fab',
+      unavailableHint: 'Restart the editor after installing plugins. C++ from the original project needs its source copied over and compiled.',
+      gotIt: 'Got it'
+    },
 
     title: 'Import into a project',
     archive: {

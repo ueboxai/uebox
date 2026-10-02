@@ -129,3 +129,59 @@ export const isCleanImportReport = (report: ImportFailureReport | undefined | nu
     report.unconfirmed.length === 0 &&
     report.orphanFileFailures === 0 &&
     report.unattributedMissing === 0)
+
+/**
+ * 导进来的资产用到了、目标工程却没开的引擎插件。
+ *
+ * 文件拷全了也打不开：类型和函数在插件的代码模块里，插件不开引擎就不认识，
+ * 蓝图编译报「无效类型」「找不到函数」。UE 自己的「迁移」也只拷文件，同样会踩。
+ */
+export type MissingPlugin = {
+  /** .uproject 里写的名字 */
+  name: string
+  /** 插件管理器里显示的名字 */
+  friendlyName: string
+}
+
+/**
+ * 原工程里，资产用到的代码模块归哪个插件。
+ *
+ * 从虚幻把资产加进盒子时记下来，存在 `assetData.pluginInfo`（和 `.uplugin` 文件那份
+ * 共用一列，靠 `kind` 区分）。导入到别的工程时，那边找不到的模块就靠它说出
+ * 「缺的是哪个插件、去哪装」—— 光有模块名，用户只能自己猜。
+ */
+export type AssetPluginRef = {
+  /** 插件名；原工程自己的 C++ 模块就是模块名 */
+  name: string
+  friendlyName: string
+  kind: 'plugin' | 'project-code'
+  /** 原工程里插件装在哪：引擎目录（引擎自带、从 Fab 装进引擎的）还是工程 Plugins 目录 */
+  location?: 'engine' | 'project'
+  versionName?: string
+  /** Fab 商品页（https）。启动器专用链接换不出网页地址的不记 */
+  fabUrl?: string
+  createdBy?: string
+  /** 这个资产用到的、属于它的模块 */
+  modules: string[]
+}
+
+export type AssetPluginInfo = {
+  kind: 'asset-plugins'
+  /** 原工程名 */
+  sourceProject?: string
+  plugins: AssetPluginRef[]
+}
+
+/**
+ * 目标工程那台机器上找不到的插件或代码 —— 只能提示，没法替用户开。
+ * `unknown` 是连原工程那边都没记下来源的模块（旧数据、或者加资产时没连着编辑器）。
+ */
+export type UnavailablePlugin = {
+  name: string
+  friendlyName: string
+  kind: 'plugin' | 'project-code' | 'unknown'
+  versionName?: string
+  fabUrl?: string
+  sourceProject?: string
+  modules: string[]
+}

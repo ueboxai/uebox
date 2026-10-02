@@ -32,7 +32,7 @@ describe('project 工具的动作划分', () => {
     expect(overlap).toEqual([])
   })
 
-  it('底层七个动作一个不落', () => {
+  it('底层八个动作一个不落', () => {
     expect([...READ_ACTIONS, ...WRITE_ACTIONS].sort()).toEqual(
       [
         'create_project',
@@ -41,7 +41,8 @@ describe('project 工具的动作划分', () => {
         'list_projects',
         'list_templates',
         'open_project',
-        'setup_level_sequence'
+        'setup_level_sequence',
+        'enable_plugins'
       ].sort()
     )
   })
@@ -60,7 +61,9 @@ describe('project 工具的动作划分', () => {
     'open_project',
     'import_assets',
     'import_assets_to_scene',
-    'setup_level_sequence'
+    'setup_level_sequence',
+    // 改 .uproject，下次开工程就生效 —— 必须每次问用户
+    'enable_plugins'
   ])('%s 属于写组', (action) => expect(WRITE_ACTIONS as readonly string[]).toContain(action))
 })
 
@@ -167,12 +170,12 @@ describe('两个工具暴露给模型的 action 枚举', () => {
   })
 
   /** 两个工具的并集仍是后端全集 —— 收窄的是入口，不是能力 */
-  it('两边合起来还是七个动作，一个都没少', () => {
+  it('两边合起来还是八个动作，一个都没少', () => {
     const union = new Set([
       ...actionsOf(createProjectListTool() as { inputSchema?: unknown }),
       ...actionsOf(createProjectWriteTool() as { inputSchema?: unknown })
     ])
 
-    expect(union.size).toBe(7)
+    expect(union.size).toBe(8)
   })
 })

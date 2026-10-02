@@ -13,6 +13,8 @@ import { getAppWindows } from '../../../appWindows'
 import { getDatabaseManager } from '../../../sqliteDataBase'
 import { createAssetFolder, getAssetFolderByKey } from '../../../sqliteDataBase/models/assetFolder'
 import { AssetImportService } from '../../asset/AssetImportService'
+import { projectManager } from '../../project'
+import { buildSourcePluginLookup, type SourcePluginLookup } from '../../project/requiredPlugins'
 
 /** ALL 文件夹常量 */
 const ALL_FOLDER = 'ALL'
@@ -147,6 +149,33 @@ export class ContentHandler {
   private async handleImportFolder(envelope: MessageEnvelope, connectionId: string): Promise<void> {
     const payload = (envelope.payload || {}) as ImportFolderPayload
     await this.processImportRequest(payload, envelope.id, connectionId, 'content.import_folder')
+  }
+
+  /**
+   * 原工程的「模块 → 插件」查找表，记进每个资产的 pluginInfo。
+   *
+   * 插件发来的载荷里没有工程路径，但连上来时报过（project.info），从 projectManager 拿。
+   * 拿不到（旧插件、连接已断）或者读不出来就不记 —— 只是少一份来源信息，不拦导入。
+   */
+  private async buildSourcePluginLookup(
+    connectionId: string,
+    projectName: string
+  ): Promise<SourcePluginLookup | undefined> {
+    const projectDir = projectManager.getProject(connectionId)?.projectPath
+    if (!projectDir) return undefined
+    try {
+      const uproject = (await fs.readdir(projectDir)).find((f) =>
+        f.toLowerCase().endsWith('.uproject')
+      )
+      if (!uproject) return undefined
+      return await buildSourcePluginLookup({
+        projectFile: path.join(projectDir, uproject),
+        projectName
+      })
+    } catch (error) {
+      logger.warn('[ContentHandler] 读原工程插件信息失败，这批资产不记插件来源:', error)
+      return undefined
+    }
   }
 
   /**
@@ -348,6 +377,8 @@ export class ContentHandler {
       const vaultName = vaultInfo.name || '默认保管库'
       const importedPath = `${vaultName}/ALL/${versionFolderName}/${projectName}`
 
+      const sourcePluginLookup = await this.buildSourcePluginLookup(connectionId, projectName)
+
       // 导入每个路径
       let totalImported = 0
       let totalFailed = 0
@@ -404,6 +435,7 @@ export class ContentHandler {
               preloadedMetadata: assetMetadata, // 🚀 传递虚幻引擎预获取的元数据
               packageToFolderKey, // 🚀 传递 package 路径到文件夹的映射
               engineVersion: trimmedVersion, // 🚀 传递清理后的引擎版本号（如 5.3.0）
+              sourcePluginLookup,
               onProgress: (progress) =>
                 this.broadcast('asset:folderImportProgress', {
                   taskId: uiTaskId,
@@ -458,6 +490,7 @@ export class ContentHandler {
               preloadedMetadata: assetMetadata, // 🚀 传递虚幻引擎预获取的元数据
               packageToFolderKey, // 🚀 传递 package 路径到文件夹的映射
               engineVersion: trimmedVersion, // 🚀 传递清理后的引擎版本号（如 5.3.0）
+              sourcePluginLookup,
               onProgress: (progress) =>
                 this.broadcast('asset:folderImportProgress', {
                   taskId: uiTaskId,

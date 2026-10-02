@@ -221,6 +221,7 @@ import {
   type ImportFilterChip
 } from '../../utils/importProjectChoices'
 import { summarizeBlockedAssets, type BlockedAsset } from '../../utils/blockedAssetsSummary'
+import { promptEnableMissingPlugins } from '../../utils/missingPluginsPrompt'
 import { checkImportCompatibility, getImportProjectCollections } from '@renderer/api/projectImport'
 import AppProgress from '@renderer/components/AppProgress.vue'
 import AppEmpty from '@renderer/components/AppEmpty.vue'
@@ -1662,6 +1663,8 @@ const doFolderImport = async (
       // 有文件没落盘但归不到具体资产头上（依赖文件没有 assetKey），
       // 这时候 stats.error 是 0，不额外记一笔就会显示成「全部成功」
       filesFailed += Number(r?.filesFailed || 0)
+      // 文件拷全了、插件没开，蓝图照样编译不过。取消了就不问，没导完的那批算不准
+      if (!r?.cancelled) promptEnableMissingPlugins(payloadProject, r?.missingPlugins, r?.unavailablePlugins)
     } catch (e: any) {
       warnings.push(String(e?.message || e))
       stats.error += unrealAssets.length

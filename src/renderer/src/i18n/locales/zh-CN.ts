@@ -5751,6 +5751,24 @@ export default {
     importCompatibleOnly: '只导其余的',
     forceImport: '仍然导入',
     forceImportAll: '仍然全部导入',
+    missingPlugins: {
+      title: '还要开 {count} 个插件',
+      desc: '导进来的资产用到了这些引擎插件，{project} 还没开。不开的话蓝图编译会报「无效类型」「找不到函数」。',
+      restartHint: '会写进工程的 .uproject，重启虚幻编辑器后生效。',
+      enable: '开启插件',
+      later: '先不开',
+      done: '已开启 {count} 个插件，重启虚幻编辑器后生效',
+      failed: '没写进 .uproject：{error}',
+      unavailableTitle: '有 {count} 项本机没有',
+      unavailableDesc: '这些盒子没法替你开，相关蓝图在装好之前打不开：',
+      fromProject: '来自「{project}」',
+      projectCode: '「{project}」自己的 C++ 代码',
+      projectCodeUnknown: '原工程自己的 C++ 代码',
+      onlyModuleName: '只知道模块名，可能是第三方插件或原工程的 C++',
+      openFab: '在 Fab 上查看',
+      unavailableHint: '插件装好后重启编辑器；原工程的 C++ 要连源码一起拷过来编译。',
+      gotIt: '知道了'
+    },
 
     title: '导入到工程',
     archive: {
