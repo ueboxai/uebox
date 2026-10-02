@@ -106,6 +106,22 @@ describe('AssetDependencyResolver 的跨次调用状态', () => {
     expect(found).toContain(skeleton)
   })
 
+  it('主资产的 classKey 是库里的分类（blueprint）时照样解析依赖', async () => {
+    // 导入到工程时主资产取自资产库记录，classKey 是 blueprint/animblueprint 之类的分类。
+    // 以前只认 'uasset'，CBP_SandboxCharacter 的 26 个依赖一个都没拷
+    const found: string[] = []
+    const resolver = new AssetDependencyResolver({
+      onAssetFound: (asset) => {
+        found.push(asset.originPath)
+      }
+    })
+    await resolver.resolveDependencies([
+      { ...makeAsset(animRun, '/Game/Anims/A_Run'), classKey: 'blueprint' }
+    ])
+
+    expect(found).toContain(skeleton)
+  })
+
   it('clearCache 之后重新解析', async () => {
     const found: string[] = []
     const resolver = new AssetDependencyResolver({

@@ -311,7 +311,12 @@ export class AssetDependencyResolver {
    */
   private async extractDependencyPaths(assets: AssetDependencyInfo[]): Promise<string[]> {
     const realPathsSet = new Set<string>()
-    const uassetAssets = assets.filter((asset) => asset.classKey === 'uasset')
+    // 按文件扩展名认虚幻包，不能看 classKey：资产库记录里的 classKey 是分类（blueprint、
+    // animblueprint……），只有现场解析出来的才是 'uasset'。以前只认 'uasset'，导入到工程时
+    // 主资产（取自库记录）的依赖一条都不解析，整个蓝图只拷过去它自己；关卡（'umap'）同理。
+    const uassetAssets = assets.filter((asset) =>
+      /\.(uasset|umap)$/i.test(asset.originPath || asset.realPath || '')
+    )
 
     // 提取所有softPath并去重
     const softPathSet = new Set(uassetAssets.map((asset) => asset.softPath))
