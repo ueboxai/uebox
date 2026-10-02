@@ -135,7 +135,7 @@
     "mammoth": "^1.12.3",
     "markdown-it": "^15.0.2",
     "marked": "^18.0.14",
-    "mermaid": "^11.17.2",
+    "mermaid": "^12.0.0",
     "morphdom": "^2.7.8",
     "multer": "^2.4.0",
     "photoswipe": "^5.4.4",
