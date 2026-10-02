@@ -173,6 +173,7 @@ import {
   TRAY_TAKE_PENDING_CHANNEL
 } from '../../shared/trayActions'
 import { LAUNCH_TTL_MS } from './launchTracker'
+import { requestGuardedQuit } from './quitGuard'
 import { startTrayMenuController } from './trayController'
 
 const s = mocks.state
@@ -922,6 +923,69 @@ describe('trayController', () => {
 
       confirmFromUi()
       expect(mocks.appQuit).not.toHaveBeenCalled()
+    })
+
+    describe('托盘以外的退出（requestGuardedQuit）', () => {
+      it('没有会话操作：当场走发起方给的路，不问', async () => {
+        await darwinMenu()
+        const proceed = vi.fn()
+        requestGuardedQuit(proceed, 'update')
+
+        expect(proceed).toHaveBeenCalledTimes(1)
+        expect(mocks.showMainWindow).not.toHaveBeenCalled()
+        expect(mocks.appQuit).not.toHaveBeenCalled()
+      })
+
+      it('安装更新撞上会话操作：同一条确认动作，带 update；确认后装包而不是 app.quit', async () => {
+        mocks.countActiveOperations.mockReturnValue(2)
+        await darwinMenu()
+        const proceed = vi.fn()
+        requestGuardedQuit(proceed, 'update')
+
+        expect(proceed).not.toHaveBeenCalled()
+        expect(takePending()).toEqual({ type: 'confirm-quit', count: 2, reason: 'update' })
+        confirmFromUi()
+        expect(proceed).toHaveBeenCalledTimes(1)
+        expect(mocks.appQuit).not.toHaveBeenCalled()
+      })
+
+      it('app-quit 撞上会话操作：动作和托盘一模一样', async () => {
+        mocks.countActiveOperations.mockReturnValue(1)
+        await darwinMenu()
+        const proceed = vi.fn()
+        requestGuardedQuit(proceed)
+
+        expect(takePending()).toEqual({ type: 'confirm-quit', count: 1 })
+        confirmFromUi()
+        expect(proceed).toHaveBeenCalledTimes(1)
+      })
+
+      it('界面接不住：原生框按钮换成重启安装，确认后走发起方的路', async () => {
+        mocks.countActiveOperations.mockReturnValue(1)
+        mocks.dialogShow.mockResolvedValue({ response: 0 })
+        await darwinMenu()
+        const proceed = vi.fn()
+        requestGuardedQuit(proceed, 'update')
+        await vi.advanceTimersByTimeAsync(8_000)
+        await flush()
+
+        const [options] = mocks.dialogShow.mock.calls[0] as [{ buttons: string[] }]
+        expect(options.buttons).toEqual(['tray.updateConfirmOk', 'tray.quitConfirmCancel'])
+        expect(proceed).toHaveBeenCalledTimes(1)
+        expect(mocks.appQuit).not.toHaveBeenCalled()
+      })
+
+      it('更新的确认被托盘「退出」顶掉：确认的是后来那条', async () => {
+        mocks.countActiveOperations.mockReturnValue(1)
+        const items = await darwinMenu()
+        const proceed = vi.fn()
+        requestGuardedQuit(proceed, 'update')
+        quitItem(items).click!()
+        confirmFromUi()
+
+        expect(mocks.appQuit).toHaveBeenCalledTimes(1)
+        expect(proceed).not.toHaveBeenCalled()
+      })
     })
 
     it('win32 右键现建的菜单里点退出：有会话操作同样交给界面问', async () => {

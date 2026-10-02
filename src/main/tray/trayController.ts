@@ -64,7 +64,7 @@ import {
   type TrayProjectCandidate
 } from './recentProjects'
 import { sanitizeTrayRecentSessions } from './recentSessions'
-import { confirmTrayQuit } from './quitGuard'
+import { confirmTrayQuit, setQuitGuard, type GuardedQuitReason } from './quitGuard'
 import { buildTrayMenuTemplate, type TrayRecentProject } from './trayMenu'
 import { createTtlCache } from './ttlCache'
 
@@ -329,11 +329,18 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
   /*
    * 退出确认：先交给界面弹应用里统一的确认框（确认了回 `tray:confirm-quit`）。
    * 到点还没被取走就说明界面接不住，退回系统原生框。界面那边自己防叠框；
-   * 原生框这边也只留一个
+   * 原生框这边也只留一个。
+   *
+   * 托盘以外的退出（安装更新、`app-quit`）经 `requestGuardedQuit` 也落到这里，
+   * 确认之后该怎么退由发起方给（`proceed`）。只记最近一次 —— 框开着时又来一条，
+   * 界面不叠框，确认的就是后来那条；两条反正都是退出
    */
   let nativeQuitDialogOpen = false
-  function askQuitConfirm(count: number): void {
-    const action: TrayAction = { type: 'confirm-quit', count }
+  let confirmedQuit: () => void = () => quit()
+  function askQuitConfirm(count: number, reason: GuardedQuitReason, proceed: () => void): void {
+    confirmedQuit = proceed
+    const action: TrayAction =
+      reason === 'update' ? { type: 'confirm-quit', count, reason } : { type: 'confirm-quit', count }
     sendTrayAction(action)
     setTimeout(() => {
       if (stopped || nativeQuitDialogOpen || !pendingSlot.discard(action)) return
@@ -343,25 +350,42 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
         .showMessageBox({
           type: 'warning',
           message: mt('tray.quitConfirm', { count }),
-          buttons: [mt('tray.quitConfirmOk'), mt('tray.quitConfirmCancel')],
+          buttons: [
+            mt(reason === 'update' ? 'tray.updateConfirmOk' : 'tray.quitConfirmOk'),
+            mt('tray.quitConfirmCancel')
+          ],
           // 「仍然退出」是 0 号，但默认和取消都指到 1 号 —— 拍空格、按 Esc 都是取消
           defaultId: 1,
           cancelId: 1,
           noLink: true
         })
         .then(({ response }) => {
-          if (response === 0) quit()
+          if (response === 0 && !stopped) proceed()
         })
         .catch((error: unknown) => {
           // 框防的是「顺手退出」；框都弹不出来时把用户明确的退出也拦下更糟
           logger.warn('[托盘] 退出确认框弹不出来，按用户意图直接退出:', error)
-          quit()
+          if (!stopped) proceed()
         })
         .finally(() => {
           nativeQuitDialogOpen = false
         })
     }, QUIT_CONFIRM_PICKUP_MS)
   }
+
+  /** 要不要问、怎么问：托盘自己的「退出」和 `requestGuardedQuit` 进来的共用 */
+  function guardQuit(proceed: () => void, reason: GuardedQuitReason): void {
+    try {
+      confirmTrayQuit({
+        countActiveOperations: deps.countActiveOperations,
+        askConfirm: (count) => askQuitConfirm(count, reason, proceed),
+        quit: proceed
+      })
+    } catch (error) {
+      logger.warn('[托盘] 退出确认失败:', error)
+    }
+  }
+  setQuitGuard(guardQuit)
 
   // __forceQuit__ 不用在这里置：app.quit() 先触发 before-quit，index.ts 在那里设上
   const quit = (): void => {
@@ -378,17 +402,7 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
       if (stopped) return
       void openTrayProject(project).catch((error) => logger.warn('[托盘] 打开最近工程失败:', error))
     },
-    quit: () => {
-      try {
-        confirmTrayQuit({
-          countActiveOperations: deps.countActiveOperations,
-          askConfirm: askQuitConfirm,
-          quit
-        })
-      } catch (error) {
-        logger.warn('[托盘] 退出确认失败:', error)
-      }
-    }
+    quit: () => guardQuit(quit, 'quit')
   }
 
   const buildMenu = async (): Promise<Menu> =>
@@ -444,6 +458,7 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
 
   app.once('will-quit', () => {
     stopped = true
+    setQuitGuard(null)
     if (rebuildTimer) clearTimeout(rebuildTimer)
     if (launchRevertTimer) clearTimeout(launchRevertTimer)
     unsubscribeLibraryChanged()
@@ -463,9 +478,9 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
    */
   ipcMain.handle(TRAY_TAKE_PENDING_CHANNEL, () => pendingSlot.take())
 
-  // 界面的确认框里选了「仍然退出」
+  // 界面的确认框里选了「仍然退出」：按发起方给的路退（托盘是 app.quit，更新是装包重启）
   ipcMain.handle(TRAY_CONFIRM_QUIT_CHANNEL, () => {
-    quit()
+    if (!stopped) confirmedQuit()
     return { success: true }
   })
 }

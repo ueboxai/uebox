@@ -334,6 +334,32 @@ describe('托盘桥', () => {
     ;(confirmDialog.mock.calls[1][0] as { afterClose: () => void }).afterClose()
   })
 
+  it('confirm-quit 带 update：同一个框，只换标题和确认按钮；确认照样回主进程', async () => {
+    mountHost()
+    pendingAction = { type: 'confirm-quit', count: 1, reason: 'update' }
+    firePoke()
+    await nextTick()
+    await nextTick()
+
+    expect(confirmDialog).toHaveBeenCalledTimes(1)
+    const options = confirmDialog.mock.calls[0][0] as {
+      title: string
+      content: string
+      okText: string
+      focusCancel: boolean
+      onOk: () => unknown
+      afterClose: () => void
+    }
+    expect(options.title).toBe('layout.updateQuitTitle')
+    expect(options.okText).toBe('layout.updateQuitOk')
+    expect(options.content).toBe('layout.trayQuitContent:{"count":1}')
+    expect(options.focusCancel).toBe(true)
+
+    await options.onOk()
+    expect(confirmQuit).toHaveBeenCalledTimes(1)
+    options.afterClose()
+  })
+
   it('open-failed：用应用内的错误框把原因弹出来', async () => {
     mountHost()
     pendingAction = { type: 'open-failed', title: '打不开项目', body: 'Demo：NO_ASSOC' }

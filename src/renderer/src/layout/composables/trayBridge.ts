@@ -36,17 +36,22 @@ import {
   type TrayRecentSession
 } from '@core/shared/trayActions'
 
-/** 退出确认框开着时再点托盘「退出」不叠第二个 */
+/** 退出确认框开着时再点托盘「退出」（或再点一次安装更新）不叠第二个 */
 let quitDialogOpen = false
 
-function confirmTrayQuit(count: number): void {
+/**
+ * 托盘「退出」、`app-quit`、安装更新撞上会话操作没收摊时都弹这一个框；
+ * 安装更新只换标题和确认按钮。确认后主进程按发起的那条路退
+ */
+function confirmTrayQuit(count: number, reason?: 'update'): void {
   if (quitDialogOpen) return
   quitDialogOpen = true
   const { t } = i18n.global
+  const isUpdate = reason === 'update'
   confirmDialog({
-    title: t('layout.trayQuitTitle'),
+    title: t(isUpdate ? 'layout.updateQuitTitle' : 'layout.trayQuitTitle'),
     content: t('layout.trayQuitContent', { count }),
-    okText: t('layout.trayQuitOk'),
+    okText: t(isUpdate ? 'layout.updateQuitOk' : 'layout.trayQuitOk'),
     cancelText: t('common.cancel'),
     danger: true,
     centered: true,
@@ -112,7 +117,7 @@ export function useTrayBridge(): void {
     }
 
     if (action.type === 'confirm-quit') {
-      confirmTrayQuit(action.count)
+      confirmTrayQuit(action.count, action.reason)
       return
     }
 

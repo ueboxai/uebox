@@ -54,6 +54,8 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // 但不是全部后台任务 —— 别让用户以为连导入也算
     'tray.quitConfirm': '有 {count} 项会话操作尚未完成，退出会中断它们。',
     'tray.quitConfirmOk': '仍然退出',
+    // 安装更新撞上会话操作没收摊：同一个框，按钮说清楚是重启装包
+    'tray.updateConfirmOk': '仍然重启安装',
     'tray.quitConfirmCancel': '取消',
     'tray.openFailedTitle': '打不开项目',
     'tray.openFailedBody': '{name}：{error}',
@@ -107,6 +109,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     'tray.quitConfirm':
       '{count} session operation(s) are still unfinished — quitting will interrupt them.',
     'tray.quitConfirmOk': 'Quit anyway',
+    'tray.updateConfirmOk': 'Restart and install anyway',
     'tray.quitConfirmCancel': 'Cancel',
     'tray.openFailedTitle': 'Could not open project',
     'tray.openFailedBody': '{name}: {error}',

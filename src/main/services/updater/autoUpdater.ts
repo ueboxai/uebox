@@ -4,6 +4,7 @@
  */
 import type { AppUpdater, UpdateInfo } from 'electron-updater'
 import { app, BrowserWindow } from 'electron'
+import { requestGuardedQuit } from '../../tray/quitGuard'
 import { logger } from '../logger'
 import { describeUpdateFeed, readAppMetadata, resolveUpdateFeed } from './updateFeed'
 
@@ -303,6 +304,11 @@ export class AutoUpdaterService {
    * 而 IPC 那层照样回 `{ success: true }` —— 于是渲染进程那句
    * `if (!result.success) message.error(...)` 永远跑不到。用户点「立即重启」，
    * 弹窗关掉，应用不重启，一个字的提示都没有，再点一次还是这样。
+   *
+   * 重启装包也是退出：还有会话操作没收摊时，和托盘「退出」问同一个框
+   * （`requestGuardedQuit`），不问就重启的话 agent 改到一半的工程就撂在编辑器里了。
+   * 要问的时候这里先回 `{ success: true }` —— 框已经弹给用户了，不是失败；
+   * 用户确认后才真正装包，那时再装不上就只能走 `update-error` 报（见 `installNow`）。
    */
   quitAndInstall(): { success: boolean; error?: string } {
     if (!this.status.updateDownloaded) {
@@ -310,6 +316,25 @@ export class AutoUpdaterService {
       return { success: false, error: '更新尚未下载完成' }
     }
 
+    // 不用问的时候 requestGuardedQuit 当场就调回来，结果原样回给 IPC
+    const call: { answered: boolean; result?: { success: boolean; error?: string } } = {
+      answered: false
+    }
+    requestGuardedQuit(() => {
+      const result = this.installNow()
+      if (!call.answered) {
+        call.result = result
+      } else if (!result.success) {
+        // 确认框之后才装：IPC 早就回过了，失败只剩事件这一条路能让用户看见
+        this.handleUpdateError(new Error(result.error))
+      }
+    }, 'update')
+    call.answered = true
+    return call.result ?? { success: true }
+  }
+
+  /** 真正交给 electron-updater 退出装包。会话操作那一关已经在 `quitAndInstall` 过了 */
+  private installNow(): { success: boolean; error?: string } {
     /*
      * 和 downloadUpdate 一样要改写成手动、非静默。
      *
@@ -317,6 +342,8 @@ export class AutoUpdaterService {
      * `error` 事件报的，不是抛异常；而 handleUpdateError 按「最近一次检查」的
      * silent 决定要不要通知渲染进程。后台每 4 小时那次检查把 silent 置成了 true，
      * 这里不改回来的话，安装失败会被整条咽掉 —— 而这正是最常见的失败场景。
+     * 放在这里而不是 quitAndInstall 开头：用户在确认框前犹豫的那几个小时里
+     * 后台检查可能又跑过一次
      */
     this.currentCheckOptions = { source: 'manual', silent: false }
     this.errorHandledByUpdaterEvent = false

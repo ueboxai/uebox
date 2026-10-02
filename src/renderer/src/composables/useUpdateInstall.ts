@@ -23,6 +23,10 @@ import { useUpdateStore, formatUpdateVersion } from '@renderer/store/modules/upd
  * 而且 `quitAndInstall` 的失败**不走** `update-error` 事件 —— App.vue 那条
  * 「错误统一报一次」的路子覆盖的是下载，不覆盖安装。不在这儿报就没人报：
  * 用户点「立即重启」，弹窗关掉，应用不重启，什么提示都没有，再点一次还是这样。
+ *
+ * 例外：还有会话操作没收摊时，主进程先回 `{ success: true }`，再弹托盘那个
+ * 退出确认框（`layout/composables/trayBridge.ts`）；用户确认后才装，那时
+ * 装不上走 `update-error`。
  */
 export function useUpdateInstall(): { confirmInstall: () => void } {
   const { t } = useI18n()

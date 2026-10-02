@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
 import { findMainWindow, getAppWindows } from '../appWindows'
+import { requestGuardedQuit } from '../tray/quitGuard'
 
 /**
  * 注册窗口控制相关的IPC处理函数
@@ -33,9 +34,9 @@ export function registerWindowIPC(): void {
     }
   })
 
-  // 完全退出应用（包括托盘）
+  // 完全退出应用（包括托盘）。和托盘「退出」过同一道关：还有会话操作没收摊就先问
   ipcMain.on('app-quit', () => {
-    app.quit()
+    requestGuardedQuit(() => app.quit())
   })
 
   // 切换开发者工具

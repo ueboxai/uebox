@@ -1646,7 +1646,10 @@ export default {
     // 托盘「退出」时还有会话操作没收摊。数的是会话操作，不是全部后台任务
     trayQuitTitle: '退出虚幻盒子？',
     trayQuitContent: '有 {count} 项会话操作尚未完成，退出会中断它们。',
-    trayQuitOk: '仍然退出'
+    trayQuitOk: '仍然退出',
+    // 同一个框，安装更新时换标题和按钮
+    updateQuitTitle: '重启安装更新？',
+    updateQuitOk: '仍然重启安装'
   },
   update: {
     newVersionAvailable: '新版本',

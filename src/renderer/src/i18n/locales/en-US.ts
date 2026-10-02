@@ -1688,7 +1688,9 @@ export default {
     trayQuitTitle: 'Quit Unreal Box?',
     trayQuitContent:
       '{count} session operation(s) are still unfinished — quitting will interrupt them.',
-    trayQuitOk: 'Quit anyway'
+    trayQuitOk: 'Quit anyway',
+    updateQuitTitle: 'Restart to install the update?',
+    updateQuitOk: 'Restart and install anyway'
   },
   update: {
     newVersionAvailable: 'New Version',
