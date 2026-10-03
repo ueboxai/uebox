@@ -16,6 +16,7 @@ import { message } from '@renderer/utils/messageManager'
 // 菜单里几个条目的视觉重量才对得齐（Ant Design 的 inbox/folder 是宽扁的，pencil/trash 是高窄的，混在一列里一眼就歪）
 import {
   PhArchive,
+  PhArrowSquareOut,
   PhCheck,
   // 模板里一直在用它渲染「正在运行」，但从来没导入过 —— 那个转圈其实没渲染出来
   PhCircleNotch,
@@ -39,6 +40,8 @@ import { useChatMessagesStore } from '@renderer/store/modules/chatMessages'
 import { useAgentStreamStore } from '@renderer/store/modules/agentStream'
 import { useTabsStore } from '@renderer/store/modules/tabs'
 import { deleteChatSessions } from '@renderer/composables/deleteChatSession'
+import { detachChatSession, isDraggedOutOf } from '@renderer/composables/detachChatSession'
+import { useRouter } from 'vue-router'
 import { applySessionClick, pruneSelection } from '../composables/chatSessionSelection'
 import { retitleSession } from '@renderer/composables/sessionRetitle'
 import {
@@ -451,6 +454,34 @@ function openChat(id: string): void {
   emit('open', id)
 }
 
+// ==================== 拖出去成独立窗口 ====================
+// 和标签栏那个是同一件事（见 TabsHeader 的 handleDragEnd）：把一条对话从侧边栏
+// 拖到右边内容区或窗口外松手，它就单独开一个窗口。
+const router = useRouter()
+const listRef = ref<HTMLElement | null>(null)
+/** 拖动用的数据类型。不用 text/plain：拖到输入框上松手会把 id 当文字插进去 */
+const SESSION_DRAG_MIME = 'application/x-uebox-chat-session'
+let draggingSessionId = ''
+
+function handleSessionDragStart(sessionId: string, event: DragEvent): void {
+  draggingSessionId = sessionId
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData(SESSION_DRAG_MIME, sessionId)
+}
+
+function handleSessionDragEnd(event: DragEvent): void {
+  const sessionId = draggingSessionId
+  draggingSessionId = ''
+  const area = listRef.value?.getBoundingClientRect()
+  if (!sessionId || !area || !isDraggedOutOf(area, event)) return
+  void detachChatSession(router, sessionId, { screenX: event.screenX, screenY: event.screenY })
+}
+
+function openInNewWindow(sessionId: string): void {
+  void detachChatSession(router, sessionId)
+}
+
 function startNewChat(projectName?: string): void {
   emit('new-chat', projectName)
 }
@@ -768,6 +799,7 @@ function getChatInitial(title: string): string {
 <template>
   <!-- Esc 是多选的标准退出键；capture 挂在根上，焦点在列表里任何一行都能收到 -->
   <div
+    ref="listRef"
     class="chat-session-list"
     :class="{ collapsed: props.collapsed }"
     @keydown.esc.capture="clearSessionSelection"
@@ -1049,6 +1081,9 @@ function getChatInitial(title: string): string {
               :title="entry.session.title"
               role="button"
               tabindex="0"
+              draggable="true"
+              @dragstart="handleSessionDragStart(entry.session.id, $event)"
+              @dragend="handleSessionDragEnd"
               @click="handleItemClick(entry.session, $event)"
               @dblclick="openChat(entry.session.id)"
               @contextmenu.stop.prevent="openSessionContextMenu(entry.session.id, $event)"
@@ -1107,6 +1142,18 @@ function getChatInitial(title: string): string {
 
             <template #overlay>
               <AppMenu>
+                <AppMenuItem
+                  :key="`window-${entry.session.id}`"
+                  :item-key="`window-${entry.session.id}`"
+                  @click="openInNewWindow(entry.session.id)"
+                >
+                  <span class="chat-session-context-menu-entry">
+                    <PhArrowSquareOut />
+                    <span class="chat-session-context-menu-label">
+                      {{ t('tabs.openInNewWindow') }}
+                    </span>
+                  </span>
+                </AppMenuItem>
                 <AppMenuItem
                   :key="`rename-${entry.session.id}`"
                   :item-key="`rename-${entry.session.id}`"

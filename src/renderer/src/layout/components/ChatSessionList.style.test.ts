@@ -16,8 +16,8 @@ describe('ChatSessionList row actions', () => {
     expect(source).toMatch(
       /\.chat-session-context-menu-entry :deep\(svg\)\s*\{[^}]*flex:\s*0 0 18px;[^}]*width:\s*18px;[^}]*height:\s*18px;[^}]*margin-inline-end:\s*0;[^}]*font-size:\s*18px;/s
     )
-    // 三个弹窗共用同一格图标槽：整理/排序 5 条 + 工程分组 5 条 + 会话右键 4 条
-    expect(source.match(/<span class="chat-session-context-menu-entry">/g)).toHaveLength(14)
+    // 三个弹窗共用同一格图标槽：整理/排序 5 条 + 工程分组 5 条 + 会话右键 5 条（含「在新窗口打开」）
+    expect(source.match(/<span class="chat-session-context-menu-entry">/g)).toHaveLength(15)
   })
 
   // Ant Design 的 inbox/folder 是宽扁的、pencil/trash 是高窄的，同一列里视觉大小对不齐；
