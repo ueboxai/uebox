@@ -217,7 +217,12 @@ interface ScreenshotResponse {
  * 自动曝光下这张图的明暗没有基准：截图、视口、游戏各自收敛到不同亮度，
  * 压暗的场景还会被拉回来。2026-09-26 科幻塔防里关卡美术不知道这一点，
  * 调了四轮灯，最后把发白归给「截图偏差」收工。插件现在回这一帧用的是哪种曝光，
- * 自动的就当场说；锁住的说一句明暗可信。老插件不回就一个字不加。
+ * 自动的就当场说；锁住的只报来历，老插件不回就一个字不加。
+ *
+ * 锁住时**只说事实，不替画面背书**。原来写的是「曝光已锁，这张图的明暗就是玩家看到的」，
+ * 2026-10-03 平台跳跃里截回一张纯黑的图，模型读到这句就回「画面层次出来了」交付了 ——
+ * 一句「可信」被当成了「没问题」。画面好不好由看图的人判断，这里只说曝光从哪来、
+ * 图上的明暗和游戏里是不是同一个，偏暗偏亮两个方向都点到。
  */
 function describeExposure(response: ScreenshotResponse): string {
   if (response.exposure === 'manual' && response.exposure_source === 'viewport') {
@@ -228,7 +233,11 @@ function describeExposure(response: ScreenshotResponse): string {
     )
   }
   if (response.exposure === 'manual') {
-    return '\n曝光已锁（手动），这张图的明暗就是玩家看到的。'
+    const from = response.exposure_source ? `，来源 ${response.exposure_source}` : ''
+    return (
+      `\n曝光：手动${from}。截图、视口和游戏是同一个亮度 —— 图上偏暗、偏亮，` +
+      `就是场景本身偏暗、偏亮，不是截图造成的。`
+    )
   }
   if (response.exposure !== 'auto') return ''
   return (
@@ -603,7 +612,7 @@ Print String 的屏幕字都不在画面里，哪怕正显示在用户屏幕上�
 【⚠️ 曝光：先看场景锁没锁】**自动曝光**下（没有 Metering Mode = Manual 的
 PostProcessVolume），截图、视口、游戏各自收敛到不同亮度，还会把压暗的场景拉回来。
 锁成手动曝光（无边界 PostProcessVolume：Manual、关 Apply Physical Camera Exposure、
-调 Exposure Compensation）后三者同一个亮度，图上的明暗就是玩家看到的。
+调 Exposure Compensation）后三者同一个亮度：图上偏暗偏亮，就是场景本身偏暗偏亮。
 画面发白、太暗时**别归给截图偏差然后收工**：没锁就先锁再调，锁了就是场景的问题。
 物体、位置、材质颜色、灯亮没亮、阴影方向、构图任何时候都准；界面层任何时候都不在图里。
 

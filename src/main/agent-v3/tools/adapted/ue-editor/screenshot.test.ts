@@ -614,14 +614,18 @@ describe('曝光锁没锁', () => {
     expect(String(result.message)).toMatch(/自动曝光[\s\S]*Metering Mode = Manual/)
   })
 
-  it('锁住了：说一句明暗可信', async () => {
+  // 只报来历，不背书：2026-10-03 一句「明暗就是玩家看到的」被模型读成「画面没问题」，
+  // 对着一张纯黑的图交付了
+  it('锁住了：报曝光来历，不替画面背书', async () => {
     callRequest.mockResolvedValue({
       ...EDITOR_SHOT,
       exposure: 'manual',
       exposure_source: 'post_process_volume'
     })
     const result = await run({})
-    expect(String(result.message)).toContain('曝光已锁')
+    expect(String(result.message)).toContain('曝光：手动，来源 post_process_volume')
+    expect(String(result.message)).toContain('偏暗、偏亮')
+    expect(String(result.message)).not.toMatch(/可信|就是玩家看到的/)
     expect(String(result.message)).not.toContain('自动曝光')
   })
 
