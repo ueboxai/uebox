@@ -3734,7 +3734,6 @@ const handleOpenDependencyGraph = () => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin: 24px 20px;
   padding: 16px;
   background: var(--color-bg-surface-hover);
   border-radius: var(--radius-sm);
