@@ -81,6 +81,7 @@ describe('project import screenshot regressions', () => {
         ['describeBlockedAssets', 'askVersionConflict', 'doFolderImport'],
         {
           summarizeBlockedAssets,
+          promptEnableMissingPlugins: vi.fn(),
           h,
           AppButton: 'button',
           checkImportCompatibility: async () => ({
@@ -256,6 +257,7 @@ describe('project import screenshot regressions', () => {
       ['describeBlockedAssets', 'askVersionConflict', 'doFolderImport'],
       {
         summarizeBlockedAssets,
+        promptEnableMissingPlugins: vi.fn(),
         h,
         AppButton: 'button',
         checkImportCompatibility: async () => ({
