@@ -1359,10 +1359,12 @@ function extractFinalText(messages: AgentMessage[], seedCount: number): string {
 export function buildSystemPrompt(
   ctx: SessionContext,
   skills: SkillMetadata[] = [],
-  // 只用到 providerId / modelId 两个字段，所以按结构收而不是收整个
+  // 只用到身份两个字段和「能不能看图」，所以按结构收而不是收整个
   // PiModelSelection —— 测试里造一个身份不必连带造出一个 pi Model。
-  model?: { providerId: string; modelId: string }
+  model?: { providerId: string; modelId: string; model?: { input?: readonly string[] } }
 ): string {
+  // 不知道（没给模型）就按能看走，和原来一样；只有明确是纯文本模型才换说法
+  const seesImages = model?.model?.input ? model.model.input.includes('image') : true
   const lines = [
     'You are the AI assistant inside Unreal Box, helping users work on Unreal Engine projects and their local asset library.',
     '',
@@ -1471,7 +1473,12 @@ export function buildSystemPrompt(
     // 还得说清楚**为什么没有**和**该改用什么**，否则模型只会原地绕。
     ctx.editorScreenshotEnabled === false
       ? '- You cannot capture the editor viewport: the user turned off "allow editor screenshots" in Unreal Box\'s privacy settings, so no such tool is in your list. Do not look for a way around it — not through Python, not through the shell. Confirm visible changes by reading the scene back instead (`ue_get_actor`, `ue_get_selection`, `ue_content_describe`, `blueprint_get_graph`, `material_get_graph`), and when seeing the picture is genuinely the only way, say so and ask the user to look or to send you a screenshot. They can re-enable it under Settings → AI → Privacy. Offscreen asset previews such as `widget_preview` are unaffected and still work.'
-      : '- Tools can hand back screenshots and preview images, and you see them directly. After changing anything with a visible result, capture one and confirm before you report.',
+      : // 纯文本模型：工具照样回图，但 pi 发请求前会把它换成「(image omitted …)」。
+        // 这里还说「你直接看得到」，模型就只能对着工具那段文字去编画面。
+        // 工具不摘：图照样显示在用户的对话里，那是人能核对的凭据
+        !seesImages
+        ? '- The model you are running on cannot see images. Screenshot and preview tools still work and the user sees their images in the conversation, but to you each image arrives only as "(image omitted)". Never describe what an image shows or call a visual result correct on the strength of one. Confirm visible changes by reading the scene back (`ue_get_actor`, `ue_get_selection`, `ue_content_describe`, `blueprint_get_graph`, `material_get_graph`), and for anything only the picture can settle, say plainly that you could not see it and ask the user to look. They can pick a vision-capable model in Unreal Box\'s settings.'
+        : '- Tools can hand back screenshots and preview images, and you see them directly. After changing anything with a visible result, capture one and confirm before you report.',
     '- After modifying the visual asset under discussion, include one permitted screenshot or offscreen preview and current numeric evidence in your closing reply. For body animation use anim_measure and anim_preview at matching frames; unmeasurable is not a pass. Never invent a measurement or bypass screenshot privacy settings. For explicit cross-project aesthetic preferences, use the existing skill-learning workflow rather than creating another preference store.',
     ...(ctx.isSubAgent
       ? []

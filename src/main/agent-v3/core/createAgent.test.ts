@@ -762,6 +762,28 @@ describe('buildSystemPrompt', () => {
     )
   })
 
+  /**
+   * 纯文本模型手里的截图会被 pi 换成「(image omitted …)」，提示词却说「你直接看得到」，
+   * 模型就只能顺着工具那段文字编画面。这一句必须跟着模型能不能看图走。
+   */
+  it('纯文本模型：不说「你看得到图」，改说看不到、该怎么确认', () => {
+    const blind = buildSystemPrompt(base, [], {
+      providerId: 'p',
+      modelId: 'm',
+      model: { input: ['text'] }
+    })
+    expect(blind).not.toContain('you see them directly')
+    expect(blind).toContain('cannot see images')
+    expect(blind).toContain('ue_get_actor')
+
+    const sighted = buildSystemPrompt(base, [], {
+      providerId: 'p',
+      modelId: 'm',
+      model: { input: ['text', 'image'] }
+    })
+    expect(sighted).toContain('you see them directly')
+  })
+
   it('检索能力任何会话都写 —— 它不需要审批通道', () => {
     expect(buildSystemPrompt(base)).toContain('web_search')
     expect(buildSystemPrompt({ ...base, mode: 'ask' })).toContain('web_read')
