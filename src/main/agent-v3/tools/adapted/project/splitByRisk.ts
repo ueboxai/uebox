@@ -140,7 +140,7 @@ function withWriteActionsOnly(inner: AnyTool): unknown {
       .describe(
         '【必填】create_project 建工程 / open_project 开工程 / import_assets 导资产 / ' +
           'import_assets_to_scene 导入并放进关卡 / setup_level_sequence 建定序器 / ' +
-          'enable_plugins 给没开着的工程开插件。' +
+          'enable_plugins 给工程开插件。' +
           '列模板、列工程用 project_list'
       )
   })
@@ -159,8 +159,8 @@ export function createProjectWriteTool(): V2Tool {
 - import_assets：把素材库资产导入工程（需要 assetKeys，来自 search_assets 的结果）
 - import_assets_to_scene：导入并直接放进当前关卡
 - setup_level_sequence：建定序器，可选绑定角色和动画
-- enable_plugins：给**没开着**的工程开插件（pluginNames + projectKey/projectPath），
-  直接写 .uproject。导入结果说缺插件、用户同意后用它；工程开着的话用 ue_manage_plugin
+- enable_plugins：给工程开插件（pluginNames + projectKey/projectPath）。导入结果说缺插件、
+  用户同意后用它；工程开着时会通过那个工程自己的编辑器去开，不要改用 ue_manage_plugin
 
 【导 .uasset 不用先开工程】import_assets 对 .uasset/.umap 是把文件拷进
 <工程>/Content/ 并解析依赖，不经过引擎。用 projectKey（project_list 的

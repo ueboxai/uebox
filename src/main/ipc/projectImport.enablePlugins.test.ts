@@ -76,6 +76,16 @@ describe('弹窗里点「开启插件」', () => {
     ])
   })
 
+  it('编辑器把错误包在回包里（ok:false）也算没接住，如实告诉界面', async () => {
+    liveProjects.push({ connectionId: 'c1', projectPath: dir })
+    callRequest.mockResolvedValue({ ok: false, error: 'descriptor save failed' })
+
+    const result = await enablePluginsForImport(uproject, ['PoseSearch'])
+    expect(result.success).toBe(true)
+    expect(result.editorFailed).toEqual(['PoseSearch'])
+    expect(await pluginsOnDisk()).toEqual([{ Name: 'PoseSearch', Enabled: true }])
+  })
+
   it('老插件包只改内存不落盘、或者编辑器那边出错：盒子补写文件', async () => {
     liveProjects.push({ connectionId: 'c1', projectPath: dir })
     callRequest

@@ -1763,7 +1763,13 @@ declare global {
       enablePlugins: (
         project: ProjectRecord,
         names: string[]
-      ) => Promise<{ success: boolean; enabled?: string[]; error?: string }>
+      ) => Promise<{
+        success: boolean
+        enabled?: string[]
+        /** 编辑器开着却没接住的：只写进了文件，在编辑器里改插件之前要先重启 */
+        editorFailed?: string[]
+        error?: string
+      }>
       /** 中止一批正在跑的导入；正在拷的那个文件会写完 */
       cancelImportUAssetsBatch: (requestId: string) => Promise<{ success: boolean; found: boolean }>
       /** 订阅批量导入进度，返回取消订阅函数 */

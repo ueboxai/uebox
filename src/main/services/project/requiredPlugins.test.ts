@@ -77,6 +77,19 @@ describe('findMissingPlugins', () => {
     expect(missing.map((p) => p.name)).toEqual(['EnhancedInput'])
   })
 
+  it('.uproject 里的插件名大小写不一样也认（引擎不区分大小写）', () => {
+    const missing = findMissingPlugins({
+      modules: ['PoseSearch', 'MotionWarping'],
+      uprojectPlugins: [
+        { Name: 'posesearch', Enabled: true },
+        { Name: 'motionwarping', Enabled: true }
+      ],
+      enginePlugins: engine,
+      projectPlugins: []
+    })
+    expect(missing).toEqual([])
+  })
+
   it('废弃插件不报：类型已经并进引擎，旧引用靠重定向', () => {
     const missing = findMissingPlugins({
       modules: ['StructUtils'],
@@ -228,7 +241,7 @@ describe('磁盘上的插件和 .uproject', () => {
     expect(found[0].modules).toEqual(['PoseSearch'])
   })
 
-  it('写 .uproject：没有的追加，关着的打开，开着的不动', async () => {
+  it('写 .uproject：没有的追加，关着的打开（大小写不同也是同一条），开着的不动', async () => {
     const uproject = path.join(root, 'Game.uproject')
     await writeFile(
       uproject,
@@ -236,7 +249,7 @@ describe('磁盘上的插件和 .uproject', () => {
         FileVersion: 3,
         EngineAssociation: '5.7',
         Plugins: [
-          { Name: 'Chooser', Enabled: false },
+          { Name: 'chooser', Enabled: false },
           { Name: 'UnrealAgentLink', Enabled: true }
         ]
       })
@@ -252,7 +265,7 @@ describe('磁盘上的插件和 .uproject', () => {
     const written = JSON.parse(await readFile(uproject, 'utf-8'))
     expect(written.EngineAssociation).toBe('5.7')
     expect(written.Plugins).toEqual([
-      { Name: 'Chooser', Enabled: true },
+      { Name: 'chooser', Enabled: true },
       { Name: 'UnrealAgentLink', Enabled: true },
       { Name: 'PoseSearch', Enabled: true }
     ])

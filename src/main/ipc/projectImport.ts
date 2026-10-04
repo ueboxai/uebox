@@ -2004,9 +2004,16 @@ ipcMain.handle(
 export async function enablePluginsForImport(
   projectFile: string,
   names: string[]
-): Promise<{ success: boolean; enabled?: string[]; error?: string }> {
+): Promise<{
+  success: boolean
+  enabled?: string[]
+  /** 编辑器开着、但它没接住的插件：只写进了文件，用户在编辑器里改插件之前得先重启 */
+  editorFailed?: string[]
+  error?: string
+}> {
   const wanted = Array.from(new Set(names.map((n) => String(n || '').trim()).filter(Boolean)))
   if (wanted.length === 0) return { success: true, enabled: [] }
+  const editorFailed: string[] = []
 
   const live = projectManager
     .getInteractiveProjects()
@@ -2015,15 +2022,20 @@ export async function enablePluginsForImport(
     const ws = serviceManager.getWebSocketService()
     for (const name of wanted) {
       try {
-        await ws.callRequest(
+        const response = (await ws.callRequest(
           'system.manage_plugin',
           { plugin_name: name, action: 'Enable' },
           live.connectionId,
           30000
-        )
+        )) as { ok?: boolean; success?: boolean; error?: string; message?: string } | null
+        // 插件把错误包在回包里而不是抛出来（见 managePlugin.ts 的同一段判断）
+        if (!response || response.ok === false || response.success === false) {
+          throw new Error(response?.error || response?.message || '编辑器没有返回结果')
+        }
       } catch (error) {
         // 编辑器没开成就靠下面写文件；只是用户下次在编辑器里改插件前得先重启
         console.warn(`[project:enablePlugins] 编辑器开启 ${name} 失败，改为直接写文件:`, error)
+        editorFailed.push(name)
       }
     }
   }
@@ -2033,13 +2045,18 @@ export async function enablePluginsForImport(
   const written = await readUeJsonFile<{ Plugins?: UprojectPluginRef[] }>(projectFile)
   const plugins = Array.isArray(written?.Plugins) ? written.Plugins : []
   const notWritten = wanted.filter(
-    (name) => !plugins.some((p) => p?.Name === name && p.Enabled === true)
+    (name) =>
+      !plugins.some((p) => p?.Name?.toLowerCase() === name.toLowerCase() && p.Enabled === true)
   )
   if (notWritten.length > 0) {
     return { success: false, error: `写完回读，这些插件仍不是开启状态：${notWritten.join('、')}` }
   }
   // 编辑器那边已经写过的，盒子这里就没再改 —— 对用户来说都是「这次开的」
-  return { success: true, enabled: live ? wanted : enabled }
+  return {
+    success: true,
+    enabled: live ? wanted : enabled,
+    ...(editorFailed.length > 0 ? { editorFailed } : {})
+  }
 }
 
 ipcMain.handle(
@@ -2048,7 +2065,7 @@ ipcMain.handle(
     _,
     project: ProjectImportProjectRecord,
     names: string[]
-  ): Promise<{ success: boolean; enabled?: string[]; error?: string }> => {
+  ): Promise<{ success: boolean; enabled?: string[]; editorFailed?: string[]; error?: string }> => {
     void _
     const projectFile = await resolveProjectFilePath(project)
     if (!projectFile) return { success: false, error: '工程路径无效' }

@@ -5929,6 +5929,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       later: 'Not now',
       done: 'Enabled {count} plugins. Restart the Unreal Editor to apply.',
       failed: 'Could not update .uproject: {error}',
+      editorFailed: 'The open editor did not apply {plugins}; only the file was updated. Restart the editor before changing plugins there, or the change will be overwritten.',
       unavailableTitle: '{count} items are not on this machine',
       unavailableDesc: 'The box cannot enable these for you. Related Blueprints will not open until they are installed:',
       fromProject: 'from "{project}"',

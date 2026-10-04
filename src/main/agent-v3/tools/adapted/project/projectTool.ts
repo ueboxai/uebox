@@ -31,16 +31,13 @@ import {
 } from '../../../../services/project/engineTemplates'
 import UnrealPathManagerUtil from '../../../../utils/UnrealPathManager'
 import {
+  enablePluginsForImport,
   importExternalFilesToProject,
   importUAssetsBatchToProject,
   type ProjectImportProjectRecord
 } from '../../../../ipc/projectImport'
 import { resolveProjectFilePath } from '../../../../ipc/projectImportPath'
-import {
-  checkPluginsInstalled,
-  enablePluginsInUproject
-} from '../../../../services/project/requiredPlugins'
-import { pluginStateIn } from '../ue-system/managePlugin'
+import { checkPluginsInstalled } from '../../../../services/project/requiredPlugins'
 import type {
   ImportFailureReason,
   MissingDependencyState
@@ -1561,11 +1558,11 @@ function findLiveConnection(projectPath: string | null | undefined): string | un
 }
 
 /**
- * 给没开着的工程开插件：直接写 `.uproject`。
+ * 给工程开插件。
  *
- * 工程开着时不碰文件 —— 编辑器启动时把插件清单读进了内存，用户之后在编辑器里改任何插件，
- * 它都按内存那份整个写回去，这里加的几条就没了。那种情况走 ue_manage_plugin，
- * 让编辑器自己改自己的清单。
+ * 工程开着时不能只改文件 —— 编辑器启动时把插件清单读进了内存，用户之后在编辑器里改任何
+ * 插件，它都按内存那份整个写回去，这里加的几条就没了。所以开着的工程先让**它自己的**
+ * 编辑器开（见 enablePluginsForImport），再写文件兜底。
  *
  * 只写本机有的插件：写一个没装的进去，编辑器启动报「找不到插件」，工程直接打不开。
  */
@@ -1582,15 +1579,9 @@ export async function enablePluginsForProject(
   if (!resolved.target) {
     return { success: false, error: resolved.error ?? '无法确定是哪个工程' }
   }
+  // 工程开着也走这里：enablePluginsForImport 按工程路径找到**它自己的**编辑器连接去开，
+  // 不能交给 ue_manage_plugin —— 那个只认这条对话绑定的编辑器，可能是另一个工程
   const { record, connected } = resolved.target
-  if (connected) {
-    return {
-      success: false,
-      error:
-        `「${record.projectName}」正开着编辑器，不能直接改 .uproject（编辑器下次改插件时会把它冲掉）。` +
-        `改用 ue_manage_plugin(action="Enable") 逐个开：${names.join('、')}，开完提醒用户重启编辑器。`
-    }
-  }
 
   const projectFile = await resolveProjectFilePath(record)
   if (!projectFile) {
@@ -1615,27 +1606,28 @@ export async function enablePluginsForProject(
     }
   }
 
-  const { enabled } = await enablePluginsInUproject(projectFile, check.installed)
-
-  // 回读：没有回读的「成功」等于没有成功（见 managePlugin.ts 开头那次事故）
-  const written = await readUeJsonFile<{ Plugins?: Array<{ Name?: string; Enabled?: boolean }> }>(
-    projectFile
-  )
-  const notWritten = check.installed.filter((n) => pluginStateIn(written, n) !== 'enabled')
-  if (notWritten.length > 0) {
-    return {
-      success: false,
-      uproject_path: projectFile,
-      error: `写完回读 ${projectFile}，这些插件仍不是开启状态：${notWritten.join('、')}`
-    }
+  // 开着的工程先让它的编辑器自己开，再写文件兜底；最后回读（没有回读的「成功」等于没有成功）
+  const result = await enablePluginsForImport(projectFile, check.installed)
+  if (!result.success) {
+    return { success: false, uproject_path: projectFile, error: `${projectFile}：${result.error}` }
   }
 
+  const details = [
+    connected
+      ? `已开启并回读确认。「${record.projectName}」正开着，重启编辑器后生效。`
+      : `已写进 .uproject 并回读确认。下次打开「${record.projectName}」时生效。`
+  ]
+  if (result.editorFailed?.length) {
+    details.push(
+      `开着的编辑器没接住 ${result.editorFailed.join('、')}，只写进了文件：` +
+        '告诉用户先重启编辑器，再在里面改插件，不然会被冲掉。'
+    )
+  }
   return {
     success: true,
     uproject_path: projectFile,
-    enabled,
-    already_enabled: check.installed.filter((n) => !enabled.includes(n)),
-    details: [`已写进 .uproject 并回读确认。下次打开「${record.projectName}」时生效。`]
+    enabled: result.enabled,
+    details
   }
 }
 
@@ -2258,10 +2250,9 @@ async function importAssetsToProject(
         details.push(
           `⚠️ 「${projectRecord.projectName}」还没开这些资产用到的引擎插件：` +
             `${batchResult.missingPlugins.map((p) => p.name).join('、')}。` +
-            '不开的话蓝图编译会报无效类型、找不到函数。先问用户要不要开；同意了再开：' +
-            (connected
-              ? '工程正开着，用 ue_manage_plugin(action="Enable") 逐个开，开完要重启编辑器。'
-              : `工程没开着，用 project_manage(action="enable_plugins", pluginNames=[...], projectPath="${projectRecord.originPath || projectRecord.projectPath}") 一次开完，下次打开工程生效。`)
+            '不开的话蓝图编译会报无效类型、找不到函数。先问用户要不要开；同意了用 ' +
+            `project_manage(action="enable_plugins", pluginNames=[...], projectPath="${projectRecord.originPath || projectRecord.projectPath}") 一次开完` +
+            (connected ? '，开完要重启编辑器。' : '，下次打开工程生效。')
         )
       }
       // 本机根本没有的：只能告诉用户缺什么、去哪装
@@ -2511,11 +2502,11 @@ export function createProjectTool(): V2Tool {
   - 外部文件（FBX/PNG/OBJ 等）会自动经过 UE 导入 API，再尝试放入场景
   - 仅 StaticMesh / SkeletalMesh / Blueprint 类资产会尝试放入场景；贴图、材质、音频等会保留为已导入资产
  - setup_level_sequence: 在当前项目中创建或复用 Level Sequence，并可选生成角色 Actor、绑定到 Sequencer、添加动画轨
-- enable_plugins: 给**没开着**的工程开插件（需要 pluginNames，用 projectKey / projectPath 点名工程）
-  - import_assets 的 details 说「还没开这些插件」、**用户同意后**再用；直接写 .uproject，下次打开工程生效
+- enable_plugins: 给工程开插件（需要 pluginNames，用 projectKey / projectPath 点名工程）
+  - import_assets 的 details 说「还没开这些插件」、**用户同意后**再用
   - 只开本机有的插件（引擎自带或工程 Plugins 目录里的），写完会回读确认
-  - 工程正开着时会拒绝，改用 ue_manage_plugin(action="Enable") 逐个开 —— 编辑器手里有一份插件清单，
-    它下次自己改插件时会整个写回去，直接改文件的那几条会被冲掉
+  - 工程开着时会通过**那个工程自己的**编辑器去开（不是这条对话绑定的那个），重启编辑器生效；
+    没开着就直接写 .uproject，下次打开生效。给别的工程开插件别用 ue_manage_plugin，它只认绑定的编辑器
 
 示例调用：
 1. 列出模板: { "action": "list_templates" }
@@ -2540,7 +2531,7 @@ export function createProjectTool(): V2Tool {
           'enable_plugins'
         ])
         .describe(
-          '【必填】操作类型：list_templates（列出模板）、create_project（创建项目）、list_projects（列出项目）、open_project（打开项目）、import_assets（导入资产到 UE 项目）、import_assets_to_scene（导入并放入场景）、setup_level_sequence（创建定序器并可选绑定角色和动画）、enable_plugins（给没开着的工程开插件）'
+          '【必填】操作类型：list_templates（列出模板）、create_project（创建项目）、list_projects（列出项目）、open_project（打开项目）、import_assets（导入资产到 UE 项目）、import_assets_to_scene（导入并放入场景）、setup_level_sequence（创建定序器并可选绑定角色和动画）、enable_plugins（给工程开插件）'
         ),
       templateName: z
         .string()

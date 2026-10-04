@@ -234,9 +234,10 @@ export const findMissingPlugins = (params: {
   const ownerOfModule = new Map<string, string>()
   for (const p of byName.values()) for (const m of p.modules) ownerOfModule.set(m, p.name)
 
+  // 插件名引擎按不区分大小写认，手改过的 .uproject 里大小写什么样都有
   const explicit = new Map<string, boolean>()
   for (const ref of params.uprojectPlugins) {
-    if (ref?.Name) explicit.set(ref.Name, ref.Enabled !== false)
+    if (ref?.Name) explicit.set(ref.Name.toLowerCase(), ref.Enabled !== false)
   }
 
   const closureOf = (roots: Iterable<string>): Set<string> => {
@@ -253,7 +254,7 @@ export const findMissingPlugins = (params: {
 
   const directlyEnabled: string[] = []
   for (const p of byName.values()) {
-    const flag = explicit.get(p.name)
+    const flag = explicit.get(p.name.toLowerCase())
     if (flag === true) directlyEnabled.push(p.name)
     else if (flag === undefined) {
       const defaultOn = projectPluginNames.has(p.name)
@@ -318,7 +319,8 @@ export const enablePluginsInUproject = async (
   const plugins = Array.isArray(data.Plugins) ? data.Plugins : []
   const enabled: string[] = []
   for (const name of new Set(names.filter(Boolean))) {
-    const existing = plugins.find((p) => p?.Name === name)
+    // 不区分大小写：已有 "posesearch" 就改它，别再追加一条 "PoseSearch"
+    const existing = plugins.find((p) => p?.Name?.toLowerCase() === name.toLowerCase())
     if (existing) {
       if (existing.Enabled === true) continue
       existing.Enabled = true

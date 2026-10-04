@@ -87,16 +87,19 @@ describe('project_manage 的 enable_plugins', () => {
     expect(await pluginsOnDisk()).toEqual([{ Name: 'UnrealAgentLink', Enabled: true }])
   })
 
-  it('工程开着就不碰文件，指给 ue_manage_plugin', async () => {
+  it('工程开着：通过它自己的编辑器连接开，不交给绑定在别的工程上的 ue_manage_plugin', async () => {
     vi.spyOn(projectManager, 'getInteractiveProjects').mockReturnValue([
-      { connectionId: 'c1', projectPath: dir } as ReturnType<
+      { connectionId: 'c-target', projectPath: dir } as ReturnType<
         typeof projectManager.getInteractiveProjects
       >[number]
     ])
     const result = await enablePluginsForProject(['PoseSearch'], { projectPath: dir })
-    expect(result.success).toBe(false)
-    expect(String(result.error)).toContain('ue_manage_plugin')
-    expect(await pluginsOnDisk()).toEqual([{ Name: 'UnrealAgentLink', Enabled: true }])
+    expect(result.success).toBe(true)
+    expect(String((result.details as string[])[0])).toContain('重启编辑器')
+    expect(await pluginsOnDisk()).toEqual([
+      { Name: 'UnrealAgentLink', Enabled: true },
+      { Name: 'PoseSearch', Enabled: true }
+    ])
   })
 
   it('没给插件名直接拒', async () => {

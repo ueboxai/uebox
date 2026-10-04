@@ -66,12 +66,18 @@ export const promptEnableMissingPlugins = (
 
   const unavailableSection = absent.length
     ? [
+        // 和上面的「要开的插件」同在一个弹窗时，小标题单独一行，免得拼句子时把标点写死
+        plugins.length > 0
+          ? h(
+              'p',
+              { style: 'margin:12px 0 4px;font-weight:600' },
+              t('importToProjectModal.missingPlugins.unavailableTitle', { count: absent.length })
+            )
+          : null,
         h(
           'p',
-          { style: 'margin:12px 0 8px' },
-          plugins.length > 0
-            ? `${t('importToProjectModal.missingPlugins.unavailableTitle', { count: absent.length })}。${t('importToProjectModal.missingPlugins.unavailableDesc')}`
-            : t('importToProjectModal.missingPlugins.unavailableDesc')
+          { style: plugins.length > 0 ? 'margin:0 0 8px' : 'margin:12px 0 8px' },
+          t('importToProjectModal.missingPlugins.unavailableDesc')
         ),
         h('ul', { style: 'margin:0 0 8px;padding-left:20px' }, absent.map(describeUnavailable)),
         h(
@@ -133,6 +139,13 @@ export const promptEnableMissingPlugins = (
             count: result.enabled?.length ?? plugins.length
           })
         )
+        if (result.editorFailed?.length) {
+          message.warning(
+            t('importToProjectModal.missingPlugins.editorFailed', {
+              plugins: result.editorFailed.join(', ')
+            })
+          )
+        }
       } else {
         message.error(
           t('importToProjectModal.missingPlugins.failed', { error: result?.error || '' })
