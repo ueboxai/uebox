@@ -118,6 +118,8 @@ export interface ResponseMetadata {
   changes?: ResponseMetadataChange[]
   /** 本轮真实计费用量，来自厂商回包（见 shared/agentUsage.ts），不是渲染层估的 */
   usage?: AgentTurnUsage
+  /** 本轮用时：用户发出（消息的 startTime）到这条回复收尾，毫秒 */
+  durationMs?: number
 }
 
 export interface ChatMessage {

@@ -384,12 +384,17 @@ export function createAgentCompletionHandlers(
     const usedSkills = buildUsedSkillsMetadata(toolResults)
     // 本轮改动：从过程日志里挑出真的动了东西的调用，风险表来自主进程注册表
     const changes = summarizeChanges(finalAgentProcess || [], await loadToolRiskTable())
+    // 本轮用时：startTime 是用户发出那一刻（pushAssistantTyping 从用户消息上取的）
+    const durationMs = lastAssistant.startTime
+      ? Math.max(0, Date.now() - lastAssistant.startTime)
+      : undefined
     const responseMetadata: ResponseMetadata | undefined =
-      usedSkills.length > 0 || changes.length > 0 || turnUsage
+      usedSkills.length > 0 || changes.length > 0 || turnUsage || durationMs !== undefined
         ? {
             ...(usedSkills.length > 0 ? { usedSkills } : {}),
             ...(changes.length > 0 ? { changes } : {}),
-            ...(turnUsage ? { usage: turnUsage } : {})
+            ...(turnUsage ? { usage: turnUsage } : {}),
+            ...(durationMs !== undefined ? { durationMs } : {})
           }
         : undefined
 

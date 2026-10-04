@@ -523,6 +523,10 @@
           <PhSpeakerHigh v-else />
         </AppButton>
       </AppTooltip>
+      <!-- 本轮用时：用户发出到回复完成 -->
+      <span v-if="status === 'done' && turnDurationLabel" class="token-usage">
+        {{ turnDurationLabel }}
+      </span>
       <!-- 本轮 token 用量。跟在操作图标后面，不抢正文的位置 -->
       <AppTooltip v-if="status === 'done' && tokenUsage" placement="top">
         <template #title>
@@ -649,6 +653,7 @@ import {
   formatTokenCount,
   formatUsageCost
 } from '../composables/tokenUsageFormat'
+import { formatDuration } from '@renderer/views/System/Preferences/panels/Usage/usageStats'
 
 const { t } = useI18n()
 
@@ -1190,6 +1195,12 @@ function emitSuggest(text: string): void {
 function emitSourceClick(source: any): void {
   emit('source-click', source)
 }
+
+// ==================== 本轮用时 ====================
+const turnDurationLabel = computed(() => {
+  const ms = props.responseMetadata?.durationMs
+  return ms === undefined ? '' : formatDuration(ms)
+})
 
 // ==================== 本轮 token 用量 ====================
 const tokenUsage = computed(() => {
