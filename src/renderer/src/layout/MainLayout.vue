@@ -180,7 +180,8 @@ const handleImportRetry = async (): Promise<void> => {
     const result = await window.api.projectImport.importUAssetsBatch(retry.project, retry.sources, {
       requestId
     })
-    if (!result?.cancelled) promptEnableMissingPlugins(retry.project, result?.missingPlugins, result?.unavailablePlugins)
+    if (!result?.cancelled)
+      promptEnableMissingPlugins(retry.project, result?.missingPlugins, result?.unavailablePlugins)
     if (result?.success && !result.cancelled) {
       message.success(t('importResultModal.retrySucceeded'))
       /*

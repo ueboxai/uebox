@@ -340,7 +340,9 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
   function askQuitConfirm(count: number, reason: GuardedQuitReason, proceed: () => void): void {
     confirmedQuit = proceed
     const action: TrayAction =
-      reason === 'update' ? { type: 'confirm-quit', count, reason } : { type: 'confirm-quit', count }
+      reason === 'update'
+        ? { type: 'confirm-quit', count, reason }
+        : { type: 'confirm-quit', count }
     sendTrayAction(action)
     setTimeout(() => {
       if (stopped || nativeQuitDialogOpen || !pendingSlot.discard(action)) return

@@ -1664,7 +1664,8 @@ const doFolderImport = async (
       // 这时候 stats.error 是 0，不额外记一笔就会显示成「全部成功」
       filesFailed += Number(r?.filesFailed || 0)
       // 文件拷全了、插件没开，蓝图照样编译不过。取消了就不问，没导完的那批算不准
-      if (!r?.cancelled) promptEnableMissingPlugins(payloadProject, r?.missingPlugins, r?.unavailablePlugins)
+      if (!r?.cancelled)
+        promptEnableMissingPlugins(payloadProject, r?.missingPlugins, r?.unavailablePlugins)
     } catch (e: any) {
       warnings.push(String(e?.message || e))
       stats.error += unrealAssets.length

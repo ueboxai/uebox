@@ -82,7 +82,10 @@ function mirrorsOf(sessionId: string, ownerId: number): WebContents[] {
  *
  * 独立窗口刚打开时用：拖出去那一刻主窗口那边可能正弹着确认框，新窗口要看到同一个。
  */
-export function resendPendingApprovalsTo(target: WebContents, sessionIds: readonly string[]): number {
+export function resendPendingApprovalsTo(
+  target: WebContents,
+  sessionIds: readonly string[]
+): number {
   if (target.isDestroyed() || sessionIds.length === 0) return 0
   const wanted = new Set(sessionIds)
   let sent = 0
