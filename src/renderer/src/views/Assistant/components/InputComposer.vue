@@ -1434,7 +1434,10 @@ const contextUsageLabel = computed(() => {
   return `${contextUsagePercent.value}%`
 })
 
-const compacting = ref(false)
+/** 记在 store 里按会话分开，切走标签页再回来还能看到「正在压」，见 `setCompacting` */
+const compacting = computed(() =>
+  props.chatSid ? chatSessionsStore.isCompacting(props.chatSid) : false
+)
 
 /** 圆环半径 8 的周长（2πr）。dasharray/dashoffset 都按它算 */
 const RING_CIRCUMFERENCE = Number((2 * Math.PI * 8).toFixed(2))
@@ -1457,14 +1460,17 @@ const ringOffset = computed(() => {
  * 接下来换个方向，早期那堆试错留着只是占地方还让模型分心。
  */
 async function handleCompact(): Promise<void> {
-  if (!props.chatSid || compacting.value) return
-  const sessionId = chatSessionsStore.getAgentSessionId(props.chatSid)
+  // 先把会话定下来：压缩期间用户可能切到别的会话，await 回来再读 props.chatSid
+  // 就会把新用量写到别人头上
+  const chatSid = props.chatSid
+  if (!chatSid || compacting.value) return
+  const sessionId = chatSessionsStore.getAgentSessionId(chatSid)
   if (!sessionId) {
     message.warning(t('assistantInputComposer.compactNoSession'))
     return
   }
 
-  compacting.value = true
+  chatSessionsStore.setCompacting(chatSid, true)
   try {
     const result = await window.api.agentV3.compact({ sessionId })
     if (!result.success) {
@@ -1483,7 +1489,7 @@ async function handleCompact(): Promise<void> {
     // 压完立刻把指示器刷新到新值 —— 否则用户点了「压缩」，数字纹丝不动，
     // 只能怀疑是不是没生效（下一轮对话才会重新上报）
     if (result.tokensAfter !== undefined && result.contextWindow) {
-      chatSessionsStore.setContextUsage(props.chatSid, {
+      chatSessionsStore.setContextUsage(chatSid, {
         tokens: result.tokensAfter,
         contextWindow: result.contextWindow
       })
@@ -1497,7 +1503,7 @@ async function handleCompact(): Promise<void> {
   } catch (error) {
     message.error(error instanceof Error ? error.message : String(error))
   } finally {
-    compacting.value = false
+    chatSessionsStore.setCompacting(chatSid, false)
   }
 }
 

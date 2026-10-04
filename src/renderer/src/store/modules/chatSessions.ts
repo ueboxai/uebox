@@ -124,6 +124,24 @@ export const useChatSessionsStore = defineStore(
      */
     const permissionModeById = ref<Record<string, ChatPermissionMode>>({})
 
+    /**
+     * 正在手动压缩上下文的会话。
+     *
+     * 放 store 不放输入框组件里：压缩要跑好一会儿，用户中途切走标签页再切回来，
+     * 输入框是重新挂载的，局部状态归零 —— 圆环不转了、按钮又能点，看着像压完了，
+     * 实际主进程还在压。不存盘：重开应用时没有哪次压缩还在跑。
+     */
+    const compactingById = ref<Record<string, boolean>>({})
+
+    function isCompacting(id: string): boolean {
+      return compactingById.value[id] === true
+    }
+
+    function setCompacting(id: string, compacting: boolean): void {
+      if (compacting) compactingById.value[id] = true
+      else delete compactingById.value[id]
+    }
+
     function sessionById(id: string): ChatSession | null {
       return sessions.value.find((session) => session.id === id) || null
     }
@@ -719,6 +737,8 @@ export const useChatSessionsStore = defineStore(
       getContextUsage,
       setContextUsage,
       clearContextUsage,
+      isCompacting,
+      setCompacting,
       getModel,
       setModel,
       getAgentHistory,
