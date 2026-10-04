@@ -5763,7 +5763,8 @@ export default {
       later: '先不开',
       done: '已开启 {count} 个插件，重启虚幻编辑器后生效',
       failed: '没写进 .uproject：{error}',
-      editorFailed: '开着的编辑器没接住 {plugins}，只写进了文件。先重启编辑器，再在里面改插件，不然会被冲掉',
+      editorFailed:
+        '开着的编辑器没接住 {plugins}，只写进了文件。先重启编辑器，再在里面改插件，不然会被冲掉',
       unavailableTitle: '有 {count} 项本机没有',
       unavailableDesc: '这些盒子没法替你开，相关蓝图在装好之前打不开：',
       fromProject: '来自「{project}」',
