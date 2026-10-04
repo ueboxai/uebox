@@ -455,6 +455,17 @@ export const agentV3API = {
     return window.api.agentV3.reviewChanges({ targets })
   },
 
+  /** 这条会话的目标。没有、或者查不到时给 null */
+  async goalState(sessionId: string): Promise<{ objective: string; settled: boolean } | null> {
+    const result = await window.api.agentV3.goalState({ sessionId })
+    return result?.goal ?? null
+  },
+
+  /** 取消目标。不走 `unwrapResult()`，理由同 `teamEnd`：失败要在那一行就地说 */
+  goalEnd(sessionId: string): Promise<{ success: boolean; error?: string; errorKey?: 'running' }> {
+    return window.api.agentV3.goalEnd({ sessionId })
+  },
+
   /** 工作室模式的任务板。不是工作室的会话、或者查不到时给 null */
   async teamState(sessionId: string): Promise<TeamStateView | null> {
     const result = await window.api.agentV3.teamState({ sessionId })

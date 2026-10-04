@@ -3285,6 +3285,14 @@ declare global {
       }>
       /** 全部强制解锁 —— 逃生口。锁卡死时用户唯一的出路 */
       releaseAllLocks: () => Promise<{ success: boolean; released: number }>
+      /** 目标模式（`/goal`）这条会话的目标。没有时 goal 为 null；settled = 这一轮复核已有结论 */
+      goalState: (args: {
+        sessionId: string
+      }) => Promise<{ success: boolean; goal: { objective: string; settled: boolean } | null }>
+      /** 取消这条会话的目标。正在跑的时候不行（errorKey 'running'） */
+      goalEnd: (args: {
+        sessionId: string
+      }) => Promise<{ success: boolean; error?: string; errorKey?: 'running' }>
       /** 工作室模式（`/team`）的任务板面板。不是工作室的会话 team 为 null */
       teamState: (args: {
         sessionId: string

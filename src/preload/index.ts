@@ -108,6 +108,8 @@ const GENERIC_EVENT_CHANNELS = new Set([
   // （agentStream 的 markSteerApplied 对不上就忽略），不走这条通道说一声的话，
   // 用户看到的是模型莫名其妙又干起来了
   'agent-v3:goal',
+  // 目标模式的目标定下了 / 收齐了 / 取消了。只带 sessionId，输入框上方那行自己去重读
+  'agent-v3:goal-state',
   // 工作室模式的名册、任务板、留言变了。只带 sessionId，面板自己去重读 ——
   // 任务板在两轮之间也要活着，所以不挂在按运行订阅的那套事件上
   'agent-v3:team-board',
@@ -1530,6 +1532,9 @@ const api = {
     stop: (args: { sessionId: string }) => ipcRenderer.invoke('agent-v3:stop', args),
     /** 当前被 agent 独占的资产。界面上那个「AI 锁定了 N 个资产」读它 */
     locks: () => ipcRenderer.invoke('agent-v3:locks'),
+    /** 目标模式（`/goal`）还没收齐的目标，输入框上方那一行 */
+    goalState: (args: { sessionId: string }) => ipcRenderer.invoke('agent-v3:goal-state', args),
+    goalEnd: (args: { sessionId: string }) => ipcRenderer.invoke('agent-v3:goal-end', args),
     /** 工作室模式（`/team`）的任务板面板：名册、任务、留言、验收结论 */
     teamState: (args: { sessionId: string }) => ipcRenderer.invoke('agent-v3:team-state', args),
     teamTaskReopen: (args: { sessionId: string; taskId: string }) =>

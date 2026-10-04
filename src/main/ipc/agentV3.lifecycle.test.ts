@@ -359,6 +359,54 @@ describe('Agent V3 真实 IPC 生命周期', () => {
     )
   })
 
+  it('普通消息不冲掉目标：沿用原目标，复核进度清零重来', async () => {
+    mock.loadOptions.mockResolvedValue({
+      mode: 'agent',
+      goal: {
+        objective: '完成目标',
+        rounds: 5,
+        lastFailReason: '旧',
+        mutations: ['x'],
+        settled: true
+      }
+    })
+    await invoke('execute', { sessionId: 'goal-carry', prompt: '顺便把灯调亮', mode: 'agent' })
+    expect(mock.saveOptions).toHaveBeenCalledWith(
+      'goal-carry',
+      expect.objectContaining({
+        goal: {
+          objective: '完成目标',
+          rounds: 0,
+          lastFailReason: '',
+          mutations: [],
+          settled: false
+        }
+      })
+    )
+  })
+
+  it('取消目标：删掉落盘的目标并通知界面；正在跑时不让取消', async () => {
+    mock.loadOptions.mockResolvedValue({
+      mode: 'agent',
+      goal: { objective: '完成目标', rounds: 1, lastFailReason: '', mutations: [], settled: false }
+    })
+    expect(await invoke('goal-end', { sessionId: 'goal-cancel' })).toEqual({ success: true })
+    expect(mock.saveOptions).toHaveBeenCalledWith('goal-cancel', { mode: 'agent' })
+    expect(event.sender.send).toHaveBeenCalledWith('agent-v3:goal-state', {
+      sessionId: 'goal-cancel'
+    })
+
+    const preparation = deferred<typeof manager>()
+    mock.prepare.mockReturnValueOnce(preparation.promise)
+    const running = invoke('execute', { sessionId: 'goal-busy', prompt: 'work', mode: 'agent' })
+    expect(await invoke('goal-end', { sessionId: 'goal-busy' })).toMatchObject({
+      success: false,
+      errorKey: 'running'
+    })
+    preparation.resolve(manager)
+    await running
+  })
+
   it('只有复核中断时继续先复核，不重复请求 worker', async () => {
     mock.loadOptions.mockResolvedValue({
       mode: 'agent',

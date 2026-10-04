@@ -488,6 +488,8 @@ function attachGoalLoop(
     onStateChange: async (state) => {
       options.goal = { objective: goal.objective, ...state }
       await saveExecutionOptions(ctx.sessionId, options)
+      // 收齐了界面上那行目标要跟着变
+      emit('agent-v3:goal-state', { sessionId: ctx.sessionId })
     },
     mutatingTools: new Set(
       tools.filter((tool) => tool.unrealBox.risk !== 'safe').map((tool) => tool.name)
@@ -1571,6 +1573,33 @@ export function registerAgentV3IPC(): void {
 
   ipcMain.handle('agent-v3:locks', async () => ({ success: true, locks: listLocks() }))
 
+  /** 输入框上方那行「当前目标」。这条会话没有目标给 null */
+  ipcMain.handle('agent-v3:goal-state', async (_event, args: { sessionId?: string }) => {
+    if (typeof args?.sessionId !== 'string' || !args.sessionId) return { success: true, goal: null }
+    const goal = (await loadExecutionOptions(args.sessionId).catch(() => undefined))?.goal
+    return {
+      success: true,
+      goal: goal ? { objective: goal.objective, settled: goal.settled } : null
+    }
+  })
+
+  /**
+   * 用户在那一行点掉目标。之后普通消息不再复核。
+   * 正在跑的时候不让取消：这一轮手上拿着目标状态，复核每走一步都会把它写回去，等于没取消。
+   */
+  ipcMain.handle('agent-v3:goal-end', async (event, args: { sessionId?: string }) => {
+    const sessionId = args?.sessionId
+    if (typeof sessionId !== 'string' || !sessionId)
+      return { success: false, error: '缺 sessionId' }
+    if (activeAgents.has(sessionId)) return { success: false, errorKey: 'running' }
+    const options = await loadExecutionOptions(sessionId)
+    if (!options?.goal) return { success: true }
+    delete options.goal
+    await saveExecutionOptions(sessionId, options)
+    event.sender.send('agent-v3:goal-state', { sessionId })
+    return { success: true }
+  })
+
   /** 工作室模式的任务板面板：名册、任务、留言、验收结论。不是工作室的会话给 null */
   ipcMain.handle('agent-v3:team-state', async (_event, args: { sessionId?: string }) => {
     if (typeof args?.sessionId !== 'string' || !args.sessionId) return { success: true, team: null }
@@ -2003,6 +2032,15 @@ export function registerAgentV3IPC(): void {
        * 工作室是**跨轮**的：`/team` 开过之后，用户后面随口插的每一句都还在团队里。
        * 交付闸的提醒次数按真人消息清零 —— 用户说了新话，就该重新给制作人两次机会。
        */
+      /*
+       * 目标也是**跨轮**的：`/goal` 定下之后一直挂在这条会话上，直到用户在输入框上方
+       * 那一行点掉（`agent-v3:goal-end`）。用户再说一句就是新的一轮，复核重新武装 ——
+       * 上一轮「停下来交给你」也好、复核通过也好，用户开口了就该按目标再验一遍。
+       */
+      const goalSource = goalObjective ?? previousOptions?.goal?.objective
+      const goal = goalSource
+        ? { objective: goalSource, rounds: 0, lastFailReason: '', mutations: [], settled: false }
+        : undefined
       const team = teamObjective
         ? startTeamRound(newTeamState(teamObjective))
         : previousOptions?.team
@@ -2049,23 +2087,15 @@ export function registerAgentV3IPC(): void {
               }
             }
           : {}),
-        ...(goalObjective
-          ? {
-              goal: {
-                objective: goalObjective,
-                rounds: 0,
-                lastFailReason: '',
-                mutations: [],
-                settled: false
-              }
-            }
-          : {}),
+        ...(goal ? { goal } : {}),
         ...(team ? { team } : {})
       }
       await saveExecutionOptions(sessionId, options)
       // 新的一轮换了 roundStartedAt：界面据它把上一轮的「卡住 / 进行中」灰掉，
       // 不推一下的话要等制作人改任务板、或者这一轮结束才刷新（2026-09-30 真机）
       if (team) emit('agent-v3:team-board', { sessionId })
+      // 输入框上方那行「当前目标」：新会话第一轮时渲染层还查不到，落盘后推一下
+      emit('agent-v3:goal-state', { sessionId })
       await prepareTeam(ctx, options, emit)
       run.controller.signal.throwIfAborted()
       const { agent, selection, tools, allTools } = await createUnrealAgent(ctx)

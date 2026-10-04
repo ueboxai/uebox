@@ -66,6 +66,10 @@ const optionsSchema = z.object({
     })
     .nullable()
     .optional(),
+  /**
+   * 目标模式（`/goal`）。跨轮：定下之后一直在，用户在界面上点掉才删。
+   * 每条新的真人消息把复核进度清零重来，见 `agent-v3:execute`。
+   */
   goal: z
     .object({
       objective: z.string().min(1),
@@ -76,7 +80,7 @@ const optionsSchema = z.object({
     })
     .optional(),
   /**
-   * 工作室模式（`/team`）。和 `goal` 不同，它**跨轮**：用户在团队干活途中插一句
+   * 工作室模式（`/team`）。和 `goal` 一样**跨轮**：用户在团队干活途中插一句
    * 「主角换成猫」，这条会话还是工作室，不能一句普通消息就把团队解散了。
    * 见 `core/team/teamSession.ts`。
    */

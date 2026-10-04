@@ -317,7 +317,7 @@ export function buildContinuationPrompt(objective: string, reason: string, round
 /**
  * 造一个目标循环监听器，直接塞进 `agent.subscribe()`。
  *
- * 宿主保存复核进度，continue 时恢复；新 execute 从新目标开始。
+ * 宿主保存复核进度，continue 时恢复；新 execute 沿用目标、复核进度清零。
  */
 export function createGoalLoop(
   deps: GoalLoopDeps

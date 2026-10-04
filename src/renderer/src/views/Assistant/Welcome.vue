@@ -201,6 +201,23 @@
             />
           </button>
         </div>
+        <!-- 目标模式（/goal）的目标，一行，悬停看全文。跨轮挂着，点 × 才取消 -->
+        <div v-if="sessionGoal.objective.value" class="session-goal">
+          <PhTarget class="session-goal-icon" />
+          <span class="session-goal-label">{{ t('assistant.composer.currentGoal') }}</span>
+          <span class="session-goal-text" :title="sessionGoal.objective.value">
+            {{ sessionGoal.objective.value }}
+          </span>
+          <button
+            type="button"
+            class="session-goal-cancel"
+            :title="t('assistant.composer.cancelGoal')"
+            :aria-label="t('assistant.composer.cancelGoal')"
+            @click="sessionGoal.cancel"
+          >
+            <PhX :size="12" />
+          </button>
+        </div>
         <!-- 工作室模式（/team）的任务板。只有工作室会话才有，默认收成一行 -->
         <TeamBoardPanel
           v-if="teamBoard.team.value"
@@ -323,6 +340,7 @@ import { useSessionBrowser } from './composables/useSessionBrowser'
 import { useChatSessionsStore, type BoundNotebook } from '../../store/modules/chatSessions'
 import TeamBoardPanel from './components/TeamBoardPanel.vue'
 import { useTeamBoard } from './composables/useTeamBoard'
+import { useSessionGoal } from './composables/useSessionGoal'
 import { useTabsStore } from '../../store/modules/tabs'
 import {
   useChatMessagesStore,
@@ -332,7 +350,7 @@ import {
 import { useVaultStore } from '../../store/modules/vaultStore'
 import { message } from '@renderer/utils/messageManager'
 import { confirmDialog } from '@renderer/utils/dialog'
-import { PhCaretCircleDown } from '@phosphor-icons/vue'
+import { PhCaretCircleDown, PhTarget, PhX } from '@phosphor-icons/vue'
 import { useGreeting } from './composables/useGreeting'
 import { useContextChips } from './composables/useContextChips'
 import { useAgentMode } from './composables/useAgentMode'
@@ -502,6 +520,8 @@ provide(
 )
 /** 工作室模式的任务板。不是工作室的会话 team 为 null，面板不出现 */
 const teamBoard = useTeamBoard(sid)
+/** 目标模式的目标。没有就是 null，那一行不出现 */
+const sessionGoal = useSessionGoal(sid)
 const {
   review: fileReview,
   select: selectFileReview,
@@ -2609,6 +2629,60 @@ const {
 </script>
 
 <style scoped lang="less">
+.session-goal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-bg);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.session-goal-icon,
+.session-goal-label {
+  flex-shrink: 0;
+  color: var(--color-accent-text);
+}
+
+.session-goal-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.session-goal-cancel {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-bg-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+  }
+}
+
 .assistant-shell {
   display: flex;
   align-items: stretch;
