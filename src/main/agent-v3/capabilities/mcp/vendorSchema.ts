@@ -152,6 +152,12 @@ function flatten(node: unknown, root: Schema, depth: number): Schema {
       continue
     }
 
+    // Gemini 不认 `const`，换成等价的单值 enum
+    if (key === 'const') {
+      out.enum = [value]
+      continue
+    }
+
     out[key] = value
   }
   return out

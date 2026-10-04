@@ -113,7 +113,15 @@ export function toToolSchema(schema: z.ZodTypeAny): TSchema {
     io: 'input',
     // 厂商对 JSON Schema 的支持参差不齐，遇到表达不了的结构降级成宽松对象，
     // 而不是整个工具注册失败。
-    unrepresentable: 'any'
+    unrepresentable: 'any',
+    // `z.literal` 会出 `const`，Gemini 不认这个关键字、整个请求 400。
+    // 换成等价的单值 `enum`，各家都收
+    override: ({ jsonSchema }) => {
+      if (jsonSchema.const !== undefined) {
+        jsonSchema.enum = [jsonSchema.const]
+        delete jsonSchema.const
+      }
+    }
   }) as unknown as TSchema
 }
 
