@@ -50,6 +50,8 @@
 
 // Rendering (for Preview)
 #include "Slate/WidgetRenderer.h"
+#include "RenderingThread.h"
+#include "UObject/Package.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "IImageWrapperModule.h"
 #include "IImageWrapper.h"
@@ -1039,33 +1041,34 @@ void FUAL_WidgetCommands::Handle_Preview(const TSharedPtr<FJsonObject>& Payload,
 		return;
 	}
 	
-	// 创建临时 Widget 实例
-	UWorld* PreviewWorld = GEditor->GetEditorWorldContext().World();
-	if (!PreviewWorld)
-	{
-		UAL_CommandUtils::SendError(RequestId, 500, TEXT("No editor world available for preview"));
-		return;
-	}
-	
-	UUserWidget* TempWidget = CreateWidget<UUserWidget>(PreviewWorld, WidgetClass);
+	// 创建临时 Widget 实例。
+	// Outer 必须是 TransientPackage，不能挂在编辑器关卡下：挂在关卡下的实例在 GC 前一直活着，
+	// 之后蓝图改了 ubergraph 重编译时会被重实例化，UE 5.7 上会 ensure 帧 key 不匹配后崩溃。
+	// 用设计器模式（同引擎自带的 Widget 缩略图渲染），不跑 Construct 里的游戏逻辑。
+	UUserWidget* TempWidget = NewObject<UUserWidget>(GetTransientPackage(), WidgetClass, NAME_None, RF_Transient);
 	if (!TempWidget)
 	{
 		UAL_CommandUtils::SendError(RequestId, 500, TEXT("Failed to create widget instance for preview"));
 		return;
 	}
-	
+	TempWidget->SetDesignerFlags(EWidgetDesignFlags::Designing | EWidgetDesignFlags::ExecutePreConstruct);
+	TempWidget->Initialize();
+
 	// 强制布局计算
 	TempWidget->ForceLayoutPrepass();
-	
-	// 使用 FWidgetRenderer 渲染到 RenderTarget
-	FWidgetRenderer WidgetRenderer(true);
-	
-	UTextureRenderTarget2D* RenderTarget = NewObject<UTextureRenderTarget2D>();
+
+	UTextureRenderTarget2D* RenderTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
 	RenderTarget->InitAutoFormat(Width, Height);
 	RenderTarget->UpdateResourceImmediate();
-	
-	WidgetRenderer.DrawWidget(RenderTarget, TempWidget->TakeWidget(), FVector2D(Width, Height), 0.0f);
-	
+
+	// 使用 FWidgetRenderer 渲染到 RenderTarget；渲染器和 Slate 控件限定在块内，画完即释放
+	{
+		FWidgetRenderer WidgetRenderer(true);
+		TSharedRef<SWidget> SlateWidget = TempWidget->TakeWidget();
+		WidgetRenderer.DrawWidget(RenderTarget, SlateWidget, FVector2D(Width, Height), 0.0f);
+		FlushRenderingCommands();
+	}
+
 	// 保存到文件
 	FString OutputDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots/UAL"));
 	IFileManager::Get().MakeDirectory(*OutputDir, true);
@@ -1093,9 +1096,14 @@ void FUAL_WidgetCommands::Handle_Preview(const TSharedPtr<FJsonObject>& Payload,
 		}
 	}
 	
-	// 清理临时实例
+	// 清理临时实例：释放 Slate 资源后交给 GC。
+	// 不要手动 ConditionalBeginDestroy——那会把仍可达的对象改名为 None、拆掉 ubergraph 帧，
+	// 留到下次编译重实例化时就是野指针。
 	TempWidget->RemoveFromParent();
-	TempWidget->ConditionalBeginDestroy();
+	TempWidget->ReleaseSlateResources(true);
+	TempWidget->MarkAsGarbage();
+	RenderTarget->ReleaseResource();
+	RenderTarget->MarkAsGarbage();
 	
 	// 返回结果
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();

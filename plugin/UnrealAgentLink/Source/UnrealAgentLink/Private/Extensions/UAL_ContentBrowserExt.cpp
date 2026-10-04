@@ -218,7 +218,10 @@ namespace
 		int32 Width = ImageWidth;
 		int32 Height = ImageHeight;
 		
-		const TArray<uint8>& SourceData = ThumbnailToUse->AccessImageData();
+		// 必须用 GetUncompressedImageData：从包文件读出来的缩略图只有压缩数据，
+		// AccessImageData 不解压、拿到的是空数组 —— 原来贴图/网格/动画/音频这些
+		// 走第 2 条路的资产全部「无法获取缩略图原始数据」，只有内存里现成的才成功。
+		const TArray<uint8>& SourceData = ThumbnailToUse->GetUncompressedImageData();
 		IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>("ImageWrapper");
 		EImageFormat DetectedFormat = ImageWrapperModule.DetectImageFormat(SourceData.GetData(), SourceData.Num());
 		
