@@ -192,25 +192,29 @@ const sections = computed<SidebarSection[]>(() => {
     })
   }
 
-  // 「项目」区固定显示：一个工程都没有时也留着，右上角的「+」才有落点
-  const projectEntries: SectionEntry[] = []
-  for (const group of visibleProjectGroups.value) {
-    projectEntries.push({ type: 'group', key: group.key, group })
-    if (sidebarStore.isGroupCollapsed(group.key)) continue
-    for (const session of group.sessions) {
-      projectEntries.push({
-        type: 'session',
-        key: session.id,
-        session,
-        indent: true
-      })
+  // 「项目」区在按工程整理时固定显示：一个工程都没有时也留着，右上角的「+」才有落点。
+  // 「在一个列表中」时所有会话都进了「对话」区，再留个空的「项目」区只会显示「暂无项目」，
+  // 看着像工程丢了 —— 直接不出这个区，切回去的入口在「对话」标题的 ⋯ 里。
+  if (sidebarStore.groupMode !== 'flat') {
+    const projectEntries: SectionEntry[] = []
+    for (const group of visibleProjectGroups.value) {
+      projectEntries.push({ type: 'group', key: group.key, group })
+      if (sidebarStore.isGroupCollapsed(group.key)) continue
+      for (const session of group.sessions) {
+        projectEntries.push({
+          type: 'session',
+          key: session.id,
+          session,
+          indent: true
+        })
+      }
     }
+    result.push({
+      key: SECTION_PROJECTS_KEY,
+      label: t('chatSidebar.projects'),
+      entries: projectEntries
+    })
   }
-  result.push({
-    key: SECTION_PROJECTS_KEY,
-    label: t('chatSidebar.projects'),
-    entries: projectEntries
-  })
 
   result.push({
     key: SECTION_PLAIN_KEY,
@@ -444,6 +448,8 @@ function closeProjectRename(): void {
 
 function setGroupMode(mode: ChatGroupMode): void {
   sidebarStore.setGroupMode(mode)
+  // 摊平后会话全在「对话」区，它要是折着，看上去就是什么都没了
+  if (mode === 'flat') sidebarStore.expandGroup(SECTION_PLAIN_KEY)
 }
 
 function setSortMode(mode: ChatSortMode): void {
