@@ -47,7 +47,7 @@ interface ThemeState {
 function buildTokens(c: RuntimeThemeRoles): ThemeConfig['token'] {
   return {
     // 字体
-    fontFamily: "'Segoe UI Variable', 'Segoe UI', sans-serif",
+    fontFamily: "'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif",
     fontSize: 14,
     fontSizeLG: 18,
     fontSizeSM: 12,

@@ -13,18 +13,27 @@
         全折进顶部一个框、把所有解说挤成一坨挂在最底下。
       -->
       <template v-if="shouldShowAgentProcessLog">
-        <template v-for="block in timelineBlocks" :key="block.key">
-          <AgentProcessLog
-            v-if="block.kind === 'process'"
-            :items="block.items"
-            :is-thinking="block.key === liveProcessBlockKey"
+        <!--
+          整轮做完之后，过程收成一行「用时 · 步数」，下面只留最后那段交付。
+          中间的解说和步骤点开还在，一个字都不删。
+        -->
+        <button
+          v-if="runFold"
+          type="button"
+          class="run-fold"
+          :aria-expanded="runExpanded"
+          @click="toggleRunFold"
+        >
+          <PhCaretRight class="run-fold-caret" :class="{ open: runExpanded }" />
+          <span>{{ runFold.label }}</span>
+        </button>
+        <template v-for="block in visibleBlocks" :key="block.key">
+          <!-- 相邻的推理和工具调用并成一组：默认只有一行摘要 -->
+          <AgentStepGroup
+            v-if="block.kind === 'steps'"
+            :parts="block.parts"
+            :live="block.key === liveBlockKey"
             :start-time="blockStartTime(block)"
-          />
-          <!-- 一轮推理一个框，显示在它发生的那一步 -->
-          <ThinkingProcess
-            v-else-if="block.kind === 'thinking'"
-            :content="block.text"
-            :is-thinking="block.key === liveBlockKey"
           />
           <!--
             用户在跑的途中插的那句话，就显示在它发生的位置。
@@ -99,6 +108,12 @@
             @resize="emit('resize')"
           />
         </template>
+        <!-- 收起的那些步骤里产出的图和视频不能跟着藏起来，挂在交付下面 -->
+        <StepMediaStrip
+          v-if="runFold && !runExpanded"
+          :images="runFold.images"
+          :videos="runFold.videos"
+        />
       </template>
       <MarkdownRenderer
         v-if="showTrailingContent"
@@ -585,7 +600,8 @@ import {
 import { computed, watch, onMounted, onBeforeUnmount, nextTick, ref, shallowRef, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
-import AgentProcessLog from './AgentProcessLog.vue'
+import AgentStepGroup from './AgentStepGroup.vue'
+import StepMediaStrip from './StepMediaStrip.vue'
 import AskUserCard from './AskUserCard.vue'
 import AttachmentCard from './AttachmentCard.vue'
 import type { AgentProcessItem } from './AgentProcessLog.types'
@@ -637,13 +653,17 @@ import { answerAgentQuestion, cancelUserSteer } from '../composables/agentEventD
 import { agentV3API } from '@renderer/api/agentV3'
 import { basenameOf, shortDirOf, useFilePathMenu } from '@renderer/composables/useFilePathMenu'
 import {
+  groupTimelineSteps,
   joinTimelineText,
   reconcileAgentTimeline,
   hasTimelineThinking,
   resolveTrailingContent,
+  type AgentDisplayBlock,
   type AgentTimelineBlock,
   type AgentTimelineSteerBlock
 } from '../composables/agentTimeline'
+import { buildStepGroup } from './agentSteps'
+import { formatStepDuration } from './agentStepLabels'
 import { message } from '@renderer/utils/messageManager'
 import { finalReplyText } from '../composables/finalReplyText'
 import { isTypingPlaceholder } from '@renderer/utils/typingPlaceholder'
@@ -730,11 +750,14 @@ const shouldShowAgentProcessLog = computed(() => props.agentProcess !== undefine
 
 // ==================== 过程 / 正文交替时间线 ====================
 const timelineBlocks = shallowRef<AgentTimelineBlock[]>([])
+/** 画在界面上的块：相邻的推理和工具调用并成了步骤组 */
+const displayBlocks = shallowRef<AgentDisplayBlock[]>([])
 
 watch(
   () => [props.agentProcess, props.thinking] as const,
   ([items, thinking]) => {
     timelineBlocks.value = reconcileAgentTimeline(timelineBlocks.value, items || [], thinking)
+    displayBlocks.value = groupTimelineSteps(timelineBlocks.value, displayBlocks.value)
   },
   { immediate: true }
 )
@@ -752,20 +775,15 @@ const timelineHasThinking = computed(() => hasTimelineThinking(props.agentProces
  */
 const liveBlockKey = computed<string | null>(() => {
   if (props.status !== 'typing') return null
-  for (let i = timelineBlocks.value.length - 1; i >= 0; i--) {
-    const block = timelineBlocks.value[i]
+  for (let i = displayBlocks.value.length - 1; i >= 0; i--) {
+    const block = displayBlocks.value[i]
     // 提问卡片和插话一样跳过：agent 这会儿正阻塞在「等你回答」上，它确实还在跑，
     // 转圈停掉会让人以为出问题了
     if (block.kind === 'steer' || block.kind === 'question') continue
-    return block.kind === 'process' || block.kind === 'thinking' ? block.key : null
+    return block.kind === 'steps' ? block.key : null
   }
   return null
 })
-
-/** 正在想的时候转圈的是那一轮推理框，过程框这时已经跑完了 */
-const liveProcessBlockKey = computed(() =>
-  liveBlockKey.value?.startsWith('process:') ? liveBlockKey.value : null
-)
 
 /**
  * 每段过程的计时起点。
@@ -773,10 +791,71 @@ const liveProcessBlockKey = computed(() =>
  * 第一段从用户发消息算起（用户关心的是「等了多久」），后面几段从这一段
  * 自己的第一条事件算起 —— 否则第三段会显示成包含前两段的总时长。
  */
-function blockStartTime(block: AgentTimelineBlock): number | undefined {
-  if (block.kind !== 'process') return undefined
-  if (timelineBlocks.value[0]?.key === block.key) return props.startTime
-  return block.items[0]?.timestamp
+function blockStartTime(block: AgentDisplayBlock): number | undefined {
+  if (block.kind !== 'steps') return undefined
+  if (displayBlocks.value[0]?.key === block.key) return props.startTime
+  return undefined
+}
+
+// ==================== 整轮收起 ====================
+/**
+ * 整轮做完之后，最后那段正文之前的东西收成一行。
+ *
+ * 用户回头看一条做完的消息，要的是「交付了什么」；中间那几十步怎么走过来的，
+ * 想查时点开就在。一轮只有一两块的不收 —— 收成一行和原样摆着差不多长。
+ * 还有没答的提问时也不收：那是要用户动手的东西，藏起来就没人答了。
+ */
+const runExpanded = ref(false)
+
+const runFold = computed(() => {
+  if (props.status !== 'done') return null
+  const blocks = displayBlocks.value
+  let finalText = -1
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i].kind === 'text') {
+      finalText = i
+      break
+    }
+  }
+  if (finalText < 2) return null
+
+  const hidden = blocks.slice(0, finalText)
+  if (hidden.some((block) => block.kind === 'question' && !block.question.action)) return null
+  const groups = hidden.flatMap((block) =>
+    block.kind === 'steps' ? [buildStepGroup(block.parts)] : []
+  )
+  if (groups.length === 0) return null
+
+  const items = props.agentProcess ?? []
+  const start = props.startTime ?? items[0]?.timestamp
+  const end = items[items.length - 1]?.timestamp
+  const count = groups.reduce((sum, group) => sum + group.toolCount, 0)
+  const label = [
+    start !== undefined && end !== undefined
+      ? t('assistant.agentProcess.steps.runTook', { duration: formatStepDuration(end - start, t) })
+      : '',
+    count > 0 ? t('assistant.agentProcess.steps.runSteps', { count }) : ''
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return {
+    hiddenCount: finalText,
+    label: label || t('assistant.agentProcess.processFinished'),
+    images: groups.flatMap((group) => group.deliverableImages),
+    videos: groups.flatMap((group) => group.videos)
+  }
+})
+
+const visibleBlocks = computed(() =>
+  runFold.value && !runExpanded.value
+    ? displayBlocks.value.slice(runFold.value.hiddenCount)
+    : displayBlocks.value
+)
+
+function toggleRunFold(): void {
+  runExpanded.value = !runExpanded.value
+  void nextTick(() => emit('resize'))
 }
 
 /**
@@ -1862,9 +1941,58 @@ function toggleChanges(): void {
 
 // 交替时间线里的正文段：和上下两侧的过程框留出一点距离，
 // 免得读起来像是过程框自己的一部分
-.timeline-text {
+// 模型说的话：正常字重、行距放松一点，字色比纯白收半档 ——
+// 深色底上纯白的中文看着像加粗，一屏下来很压人。
+// 只管 .content 的直接子级：步骤组里展开的推理也是 Markdown，它有自己的灰
+.content > :deep(.markdown-body) {
+  color: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-bg-page));
+  line-height: var(--line-height-relaxed);
+}
+
+// 交替时间线里的正文段：和下面那行步骤摘要拉开一点
+.content > :deep(.timeline-text) {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-2);
+}
+
+// 整轮收起后的那一行，和步骤组的摘要行一个样子
+.run-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin: 0 0 var(--space-4) calc(-1 * var(--space-1));
+  padding: 2px var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--easing-standard),
+    background var(--motion-fast) var(--easing-standard);
+
+  &:hover {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+  }
+}
+
+.run-fold-caret {
+  flex: none;
+  font-size: 10px;
+  transition: transform var(--motion-fast) var(--easing-standard);
+
+  &.open {
+    transform: rotate(90deg);
+  }
 }
 
 // 时间线里的插话：靠右显示成用户气泡，底下一行小字说它到底生效没有

@@ -31,6 +31,8 @@ export interface AgentTimelineThinkingBlock {
   kind: 'thinking'
   key: string
   text: string
+  /** 这一轮推理开始的时刻。步骤组拿它算整段用了多久 */
+  at?: number
 }
 
 /**
@@ -137,7 +139,12 @@ export function splitAgentTimeline(items: AgentProcessItem[], thinking = ''): Ag
     if (item.type === 'thinking') {
       const text = readTimelineThinking(item, thinking)
       if (!/\S/.test(text)) continue
-      blocks.push({ kind: 'thinking', key: `thinking:${item.timestamp}:${blocks.length}`, text })
+      blocks.push({
+        kind: 'thinking',
+        key: `thinking:${item.timestamp}:${blocks.length}`,
+        text,
+        at: item.timestamp
+      })
       continue
     }
 
@@ -302,4 +309,61 @@ export function resolveTrailingContent(content: string, timelineText: string): s
   if (body.startsWith(timeline)) return body.slice(timeline.length)
   if (body.endsWith(timeline)) return body.slice(0, -timeline.length)
   return content
+}
+
+/**
+ * 主聊天页上的一段「步骤」：相邻的几轮推理和工具调用并成一组。
+ *
+ * 推理原来一轮一个框、工具调用一段一个框，两种框在时间线上交替出现 ——
+ * 一屏十来个带底色的条，正文被夹在中间透不过气。并成一组之后，
+ * 两段正文之间只剩一行摘要，推理成了组里的一行「思考过程」。
+ */
+export interface AgentTimelineStepsBlock {
+  kind: 'steps'
+  key: string
+  parts: Array<AgentTimelineProcessBlock | AgentTimelineThinkingBlock>
+}
+
+export type AgentDisplayBlock =
+  | AgentTimelineStepsBlock
+  | AgentTimelineTextBlock
+  | AgentTimelineSteerBlock
+  | AgentTimelineQuestionBlock
+
+/**
+ * 把相邻的推理块和过程块并成步骤组。
+ *
+ * 传入上一次的结果是为了保住引用：组里每一段都还是上次那几个对象时，
+ * 原样返回上次那个组 —— 流式期间只有最后一组在变，前面的组件不用重算。
+ */
+export function groupTimelineSteps(
+  blocks: readonly AgentTimelineBlock[],
+  previous: readonly AgentDisplayBlock[] = []
+): AgentDisplayBlock[] {
+  const previousByKey = new Map(previous.map((block) => [block.key, block]))
+  const grouped: AgentDisplayBlock[] = []
+  let parts: AgentTimelineStepsBlock['parts'] = []
+
+  const flush = (): void => {
+    if (parts.length === 0) return
+    const key = `steps:${parts[0].key}`
+    const prior = previousByKey.get(key)
+    const same =
+      prior?.kind === 'steps' &&
+      prior.parts.length === parts.length &&
+      prior.parts.every((part, index) => part === parts[index])
+    grouped.push(same ? prior : { kind: 'steps', key, parts })
+    parts = []
+  }
+
+  for (const block of blocks) {
+    if (block.kind === 'process' || block.kind === 'thinking') {
+      parts.push(block)
+      continue
+    }
+    flush()
+    grouped.push(block)
+  }
+  flush()
+  return grouped
 }

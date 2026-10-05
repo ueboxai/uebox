@@ -35,10 +35,12 @@ function mountBubble(props: Record<string, unknown>): ReturnType<typeof mount> {
           props: ['content'],
           template: '<div class="md" :data-content="content" />'
         },
-        AgentProcessLog: {
-          props: ['items', 'isThinking'],
-          template: '<div class="proc" :data-count="items.length" :data-live="isThinking" />'
+        AgentStepGroup: {
+          props: ['parts', 'live'],
+          template: '<div class="proc" :data-count="parts.length" :data-live="live" />'
         },
+        StepMediaStrip: true,
+        AskUserCard: true,
         ThinkingProcess: true,
         ChatModelViewer: true,
         AssetList: true,
@@ -74,13 +76,13 @@ describe('AIBubble 过程与正文交替', () => {
   const content = '工程是空的，先建输入资产。增强输入建好了，接着映射按键。'
 
   it('按发生顺序交替渲染，而不是过程全在上、正文全在下', () => {
-    const wrapper = mountBubble({ content, agentProcess })
+    const wrapper = mountBubble({ content, agentProcess, status: 'typing' })
     expect(blockOrder(wrapper)).toEqual(['process', 'text', 'process', 'text'])
   })
 
   // 正文已经逐段显示过了，末尾再整段渲染一遍就是重影
   it('正文不重复渲染', () => {
-    const wrapper = mountBubble({ content, agentProcess })
+    const wrapper = mountBubble({ content, agentProcess, status: 'typing' })
     const rendered = wrapper.findAll('.md').map((node) => node.attributes('data-content'))
 
     expect(rendered).toEqual(['工程是空的，先建输入资产。', '增强输入建好了，接着映射按键。'])
@@ -137,11 +139,70 @@ describe('AIBubble 过程与正文交替', () => {
     expect(wrapper.findAll('.proc').map((node) => node.attributes('data-live'))).toEqual(['false'])
   })
 
-  it('回复结束后没有一段在转圈', () => {
+  it('回复结束后没有一段在转圈', async () => {
     const wrapper = mountBubble({ content, agentProcess })
+    await wrapper.find('.run-fold').trigger('click')
     const live = wrapper.findAll('.proc').map((node) => node.attributes('data-live'))
 
     expect(live).toEqual(['false', 'false'])
+  })
+
+  /**
+   * 推理原来一轮一个框、工具调用一段一个框，两种框交替着把正文夹在中间。
+   * 相邻的并成一组之后，两段正文之间只剩一行。
+   */
+  it('相邻的推理和工具调用并成一组', () => {
+    const wrapper = mountBubble({
+      content: '',
+      status: 'typing' as const,
+      thinking: '先看看',
+      agentProcess: [
+        { type: 'thinking', data: { start: 0, end: 3 }, timestamp: 1 },
+        toolCallItem('ue_content_search', 2),
+        textItem('工程是空的。', 3)
+      ]
+    })
+
+    expect(blockOrder(wrapper)).toEqual(['process', 'text'])
+    expect(wrapper.find('.proc').attributes('data-count')).toBe('2')
+  })
+
+  /**
+   * 做完的一轮，回头看要的是交付了什么。最后那段正文之前的东西收成一行，
+   * 点开还在，一个字不删。
+   */
+  it('整轮做完后，最后一段正文之前的过程收成一行', async () => {
+    const wrapper = mountBubble({ content, agentProcess })
+
+    expect(blockOrder(wrapper)).toEqual(['text'])
+    expect(wrapper.find('.md').attributes('data-content')).toBe('增强输入建好了，接着映射按键。')
+
+    await wrapper.find('.run-fold').trigger('click')
+    expect(blockOrder(wrapper)).toEqual(['process', 'text', 'process', 'text'])
+  })
+
+  it('还在跑的时候不收', () => {
+    const wrapper = mountBubble({ content, agentProcess, status: 'typing' })
+    expect(wrapper.find('.run-fold').exists()).toBe(false)
+  })
+
+  // 收起来就没人答了
+  it('有没答的提问时不收', () => {
+    const wrapper = mountBubble({
+      content,
+      agentProcess: [
+        toolCallItem('ue_content_search', 1),
+        {
+          type: 'question',
+          data: { toolCallId: 'q1', questions: [] },
+          timestamp: 2
+        },
+        textItem('工程是空的，先建输入资产。', 3),
+        toolCallItem('ue_run_python_script', 4),
+        textItem('增强输入建好了，接着映射按键。', 5)
+      ]
+    })
+    expect(wrapper.find('.run-fold').exists()).toBe(false)
   })
 
   // 历史消息是在时间线记正文之前存下的，它们只有工具调用，正文还得整段显示

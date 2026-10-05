@@ -11,8 +11,12 @@
  */
 :root {
   /* 字体系统 - Typography */
+  /* 必须用 Variable 版本才有那个味道。
+     中文要点名 Microsoft YaHei UI：只写 Segoe UI Variable 时，Chromium 给中文回退到的是
+     一套偏粗的字形 —— 计算字重明明是 400，深色底上整屏中文看着像加粗，一屏下来很压人。
+     点名之后中文才是常规字重。PingFang SC 给 macOS。 */
   --font-family-base:
-    'Segoe UI Variable', 'Segoe UI', sans-serif; /* 必须用 Variable 版本才有那个味道 */
+    'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
   --font-family-primary: var(--font-family-base);
   --font-family-mono:
     'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import {
+  groupTimelineSteps,
   joinTimelineText,
   reconcileAgentTimeline,
   resolveTrailingContent,
@@ -476,5 +477,59 @@ describe('splitAgentTimeline 推理块', () => {
       'thinking'
     ])
     expect(splitAgentTimeline(items).map((b) => b.kind)).toEqual(['text'])
+  })
+})
+
+describe('groupTimelineSteps', () => {
+  const thinkingItem = (start: number, end: number, timestamp: number): AgentProcessItem => ({
+    type: 'thinking',
+    data: { start, end },
+    timestamp
+  })
+
+  /**
+   * 推理一轮一个框、工具一段一个框，两种框交替出现把正文夹在中间。
+   * 相邻的并成一组之后，两段正文之间只剩一行。
+   */
+  it('相邻的推理和过程并成一组，正文和插话把组隔开', () => {
+    const blocks = splitAgentTimeline(
+      [
+        thinkingItem(0, 2, 1),
+        toolCall('a', 2),
+        thinkingItem(2, 4, 3),
+        text('好', 4),
+        toolCall('b', 5),
+        steer('等一下', 6),
+        toolCall('c', 7)
+      ],
+      '先看再改'
+    )
+    const grouped = groupTimelineSteps(blocks)
+
+    expect(grouped.map((b) => b.kind)).toEqual(['steps', 'text', 'steps', 'steer', 'steps'])
+    const first = grouped[0]
+    expect(first.kind === 'steps' && first.parts.map((part) => part.kind)).toEqual([
+      'thinking',
+      'process',
+      'thinking'
+    ])
+  })
+
+  it('推理块带上它开始的时刻', () => {
+    const [block] = splitAgentTimeline([thinkingItem(0, 2, 9)], '先看')
+    expect(block).toMatchObject({ kind: 'thinking', at: 9 })
+  })
+
+  // 流式期间只有最后一组在变，前面的组保住引用，组件就不用重算
+  it('组里每一段都没变时复用上一次的组', () => {
+    const items = [toolCall('a', 1), text('好', 2), toolCall('b', 3)]
+    const blocks = reconcileAgentTimeline([], items)
+    const first = groupTimelineSteps(blocks)
+
+    const grownBlocks = reconcileAgentTimeline(blocks, [...items, toolCall('c', 4)])
+    const second = groupTimelineSteps(grownBlocks, first)
+
+    expect(second[0]).toBe(first[0])
+    expect(second[2]).not.toBe(first[2])
   })
 })
