@@ -59,7 +59,7 @@ describe('aiAPI.generateSessionTitle', () => {
     expect(args.role).toBe('summary')
     const userMessage = args.messages.at(-1)
     expect(userMessage.content).toHaveLength(500)
-    expect(userMessage.content.startsWith('帮我看这段日志 日日日')).toBe(true)
+    expect(userMessage.content.startsWith('帮我看这段日志\n日日日')).toBe(true)
   })
 
   it('空消息不发起调用', async () => {

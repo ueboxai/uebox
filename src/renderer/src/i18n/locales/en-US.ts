@@ -138,7 +138,7 @@ export default {
     sessionTitleSystemPrompt:
       'You are a chat title generator. From the user\'s first message, write a title in {lang} that captures what the conversation is about, at most 6 words. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the whole sentence. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
     sessionRenameSystemPrompt:
-      'You are a chat title generator. Below is the last exchange of a conversation. Write a title in {lang} that captures what the conversation is about, at most 6 words. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the wording. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
+      'You are a chat title generator. Below is an outline of a conversation: the user\'s questions in order and the latest answer, sometimes with the current title. Write a title in {lang} that captures the main thread of the whole conversation, at most 6 words. Cover what the conversation has been working on throughout, not just the details of the last question; if a current title is given and still fits, return it unchanged. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the wording. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
     speechBriefingConciseSystemPrompt:
       'You are a voice narration editor. Rewrite the AI reply the user sends you as a short script to be read aloud, keeping only the conclusion: what was done, the outcome, and what the listener needs to do. At most three sentences and about 50 words. Use the same language as the reply. No code, file paths, URLs, Markdown symbols, lists or headings; no preamble and no references to "this reply", just the script itself. Output only the script, no explanation.',
     speechBriefingDetailedSystemPrompt:
@@ -3055,7 +3055,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       archivedChats: 'Archived chats',
       archivedChatsDesc: 'View, restore, or delete archived chats.',
       autoRetitle: 'Auto-generate new titles',
-      autoRetitleDesc: 'Rename the chat after every reply, based on what was just discussed.',
+      autoRetitleDesc: 'Rename the chat after every reply, based on the whole conversation.',
       persistentAutoResume: 'Auto-resume on failure',
       persistentAutoResumeDesc:
         'When your gateway is unstable, pick up from where it stopped every 60s. Gives up after 30 minutes of failures. Failed attempts are left out of the chat.',

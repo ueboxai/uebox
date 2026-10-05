@@ -520,7 +520,12 @@ async function requestSessionTitle(
   maxChars: number,
   systemPromptKey: string
 ): Promise<string> {
-  const excerpt = (text || '').replace(/\s+/g, ' ').trim().slice(0, maxChars)
+  // 换行留着：梗概是一行一个提问，压成一行模型就分不清哪句是哪次问的
+  const excerpt = (text || '')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim()
+    .slice(0, maxChars)
   if (!excerpt) return ''
 
   const lang = i18n.global.locale.value === 'zh-CN' ? '中文' : 'English'
@@ -924,14 +929,14 @@ export const aiAPI = {
   },
 
   /**
-   * 按一段对话节选重新起名。用在重命名弹窗的「智能命名」上。
+   * 按整段对话的梗概重新起名。用在「智能命名」和「自动生成新标题」上。
    *
-   * 和 {@link generateSessionTitle} 的差别只有两处：喂的是**最后一轮问答**而不是
-   * 第一条消息（会话聊到后面，主题常常已经不是开头那件事了），额度给到 1000 字
-   * （一轮问答有两个人的话要装）。模型、参数、解析全是同一套。
+   * 和 {@link generateSessionTitle} 的差别只有两处：喂的是**整段对话的梗概**
+   * （历次提问 + 最后一条回答，见 `composables/sessionRetitle.ts`）而不是第一条
+   * 消息，额度给到 1500 字。模型、参数、解析全是同一套。
    */
   async generateSessionTitleFromExcerpt(params: { excerpt: string }): Promise<string> {
-    return requestSessionTitle(params.excerpt, 1000, 'ai.sessionRenameSystemPrompt')
+    return requestSessionTitle(params.excerpt, 1500, 'ai.sessionRenameSystemPrompt')
   },
 
   /**

@@ -516,7 +516,7 @@ export function createAgentCompletionHandlers(
         })
       }
     } else if (aiConfigStore.autoRetitleEnabled) {
-      // 「自动生成新标题」：每轮结束按刚聊完的这一轮重起名。
+      // 「自动生成新标题」：每轮结束按整段对话重起名，主线没变就沿用原名。
       //
       // 只走 else 分支 —— 上面那条路本来就在给一条还没名字的会话取名，两边一起
       // 发就是同一轮对话打两次模型，还会互相盖。不 await：标题晚几秒到没关系，
@@ -531,7 +531,8 @@ export function createAgentCompletionHandlers(
           }
         },
         // 后台起名要几秒，这期间用户手动改了名就别盖掉
-        () => chatStore.sessionById(targetChatSid)?.title
+        () => chatStore.sessionById(targetChatSid)?.title,
+        { keepCurrentTitle: true }
       )
     }
 
