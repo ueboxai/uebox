@@ -38,7 +38,7 @@ function mountMessage(message: Partial<ChatMessage>): ReturnType<typeof mount> {
       stubs: {
         MarkdownRenderer: true,
         ThinkingProcess: true,
-        AgentProcessLog: true,
+        AgentStepGroup: true,
         MessageSources: true,
         AskUserCard: true,
         UserBubble: true,

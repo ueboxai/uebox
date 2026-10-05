@@ -23,7 +23,7 @@ function mountMessage(message: Partial<ChatMessage>): ReturnType<typeof mount> {
       stubs: {
         MarkdownRenderer: true,
         ThinkingProcess: true,
-        AgentProcessLog: true,
+        AgentStepGroup: true,
         MessageSources: true,
         AskUserCard: true,
         UserBubble: true,
@@ -39,31 +39,32 @@ describe('MiniMessage 运行中的重复指示', () => {
       agentProcess: [{ type: 'notify-users', data: { notifyType: 'thinking' }, timestamp: 1 }]
     } as Partial<ChatMessage>)
 
-    expect(wrapper.find('agent-process-log-stub').exists()).toBe(true)
-    expect(wrapper.find('.assistant-card').exists()).toBe(false)
+    expect(wrapper.find('agent-step-group-stub').exists()).toBe(true)
+    expect(wrapper.find('.assistant-text').exists()).toBe(false)
   })
 
   it('思考框已经在了，同样不补占位卡片', () => {
     const wrapper = mountMessage({ thinking: '先拆解需求' })
 
     expect(wrapper.find('thinking-process-stub').exists()).toBe(true)
-    expect(wrapper.find('.assistant-card').exists()).toBe(false)
+    expect(wrapper.find('.assistant-text').exists()).toBe(false)
   })
 
   it('什么指示都没有时，占位符仍然要有地方显示', () => {
     const wrapper = mountMessage({})
 
-    expect(wrapper.find('.assistant-card').exists()).toBe(true)
+    expect(wrapper.find('.assistant-text').exists()).toBe(true)
   })
 
-  it('运行中把推理正文折进过程条，不再单开一个思考框', () => {
+  it('运行中把推理正文折进那一组步骤，不再单开一个思考框', () => {
     const wrapper = mountMessage({
       thinking: '先拆解需求',
       agentProcess: [{ type: 'notify-users', data: { notifyType: 'thinking' }, timestamp: 1 }]
     } as Partial<ChatMessage>)
 
     expect(wrapper.find('thinking-process-stub').exists()).toBe(false)
-    expect(wrapper.find('agent-process-log-stub').attributes('thinking')).toBe('先拆解需求')
+    const parts = wrapper.findComponent({ name: 'AgentStepGroup' }).props('parts')
+    expect(parts[0]).toMatchObject({ kind: 'thinking', text: '先拆解需求' })
   })
 
   it('跑完之后思考框变回独立的一块', () => {
@@ -75,7 +76,8 @@ describe('MiniMessage 运行中的重复指示', () => {
     } as Partial<ChatMessage>)
 
     expect(wrapper.find('thinking-process-stub').exists()).toBe(true)
-    expect(wrapper.find('agent-process-log-stub').attributes('thinking')).toBeUndefined()
+    const parts = wrapper.findComponent({ name: 'AgentStepGroup' }).props('parts')
+    expect(parts.some((part: { kind: string }) => part.kind === 'thinking')).toBe(false)
   })
 
   it('正文来了就正常显示', () => {
@@ -84,6 +86,6 @@ describe('MiniMessage 运行中的重复指示', () => {
       agentProcess: [{ type: 'notify-users', data: { notifyType: 'thinking' }, timestamp: 1 }]
     } as Partial<ChatMessage>)
 
-    expect(wrapper.find('.assistant-card').exists()).toBe(true)
+    expect(wrapper.find('.assistant-text').exists()).toBe(true)
   })
 })

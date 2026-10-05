@@ -17,16 +17,12 @@
           整轮做完之后，过程收成一行「用时 · 步数」，下面只留最后那段交付。
           中间的解说和步骤点开还在，一个字都不删。
         -->
-        <button
+        <RunFoldButton
           v-if="runFold"
-          type="button"
-          class="run-fold"
-          :aria-expanded="runExpanded"
-          @click="toggleRunFold"
-        >
-          <PhCaretRight class="run-fold-caret" :class="{ open: runExpanded }" />
-          <span>{{ runFold.label }}</span>
-        </button>
+          :label="runFold.label"
+          :expanded="runExpanded"
+          @toggle="onToggleRunFold"
+        />
         <template v-for="block in visibleBlocks" :key="block.key">
           <!-- 相邻的推理和工具调用并成一组：默认只有一行摘要 -->
           <AgentStepGroup
@@ -602,6 +598,7 @@ import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import AgentStepGroup from './AgentStepGroup.vue'
 import StepMediaStrip from './StepMediaStrip.vue'
+import RunFoldButton from './RunFoldButton.vue'
 import AskUserCard from './AskUserCard.vue'
 import AttachmentCard from './AttachmentCard.vue'
 import type { AgentProcessItem } from './AgentProcessLog.types'
@@ -662,8 +659,7 @@ import {
   type AgentTimelineBlock,
   type AgentTimelineSteerBlock
 } from '../composables/agentTimeline'
-import { buildStepGroup } from './agentSteps'
-import { formatStepDuration } from './agentStepLabels'
+import { useRunFold } from '../composables/useRunFold'
 import { message } from '@renderer/utils/messageManager'
 import { finalReplyText } from '../composables/finalReplyText'
 import { isTypingPlaceholder } from '@renderer/utils/typingPlaceholder'
@@ -798,63 +794,15 @@ function blockStartTime(block: AgentDisplayBlock): number | undefined {
 }
 
 // ==================== 整轮收起 ====================
-/**
- * 整轮做完之后，最后那段正文之前的东西收成一行。
- *
- * 用户回头看一条做完的消息，要的是「交付了什么」；中间那几十步怎么走过来的，
- * 想查时点开就在。一轮只有一两块的不收 —— 收成一行和原样摆着差不多长。
- * 还有没答的提问时也不收：那是要用户动手的东西，藏起来就没人答了。
- */
-const runExpanded = ref(false)
-
-const runFold = computed(() => {
-  if (props.status !== 'done') return null
-  const blocks = displayBlocks.value
-  let finalText = -1
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    if (blocks[i].kind === 'text') {
-      finalText = i
-      break
-    }
-  }
-  if (finalText < 2) return null
-
-  const hidden = blocks.slice(0, finalText)
-  if (hidden.some((block) => block.kind === 'question' && !block.question.action)) return null
-  const groups = hidden.flatMap((block) =>
-    block.kind === 'steps' ? [buildStepGroup(block.parts)] : []
-  )
-  if (groups.length === 0) return null
-
-  const items = props.agentProcess ?? []
-  const start = props.startTime ?? items[0]?.timestamp
-  const end = items[items.length - 1]?.timestamp
-  const count = groups.reduce((sum, group) => sum + group.toolCount, 0)
-  const label = [
-    start !== undefined && end !== undefined
-      ? t('assistant.agentProcess.steps.runTook', { duration: formatStepDuration(end - start, t) })
-      : '',
-    count > 0 ? t('assistant.agentProcess.steps.runSteps', { count }) : ''
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
-  return {
-    hiddenCount: finalText,
-    label: label || t('assistant.agentProcess.processFinished'),
-    images: groups.flatMap((group) => group.deliverableImages),
-    videos: groups.flatMap((group) => group.videos)
-  }
+const { runFold, runExpanded, visibleBlocks, toggleRunFold } = useRunFold({
+  blocks: displayBlocks,
+  done: () => props.status === 'done',
+  items: () => props.agentProcess,
+  startTime: () => props.startTime
 })
 
-const visibleBlocks = computed(() =>
-  runFold.value && !runExpanded.value
-    ? displayBlocks.value.slice(runFold.value.hiddenCount)
-    : displayBlocks.value
-)
-
-function toggleRunFold(): void {
-  runExpanded.value = !runExpanded.value
+function onToggleRunFold(): void {
+  toggleRunFold()
   void nextTick(() => emit('resize'))
 }
 
@@ -1953,46 +1901,6 @@ function toggleChanges(): void {
 .content > :deep(.timeline-text) {
   display: block;
   margin-bottom: var(--space-2);
-}
-
-// 整轮收起后的那一行，和步骤组的摘要行一个样子
-.run-fold {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  max-width: 100%;
-  margin: 0 0 var(--space-4) calc(-1 * var(--space-1));
-  padding: 2px var(--space-1);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition:
-    color var(--motion-fast) var(--easing-standard),
-    background var(--motion-fast) var(--easing-standard);
-
-  &:hover {
-    color: var(--color-text-secondary);
-    background: var(--color-bg-surface-hover);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-border-focus);
-    outline-offset: 1px;
-  }
-}
-
-.run-fold-caret {
-  flex: none;
-  font-size: 10px;
-  transition: transform var(--motion-fast) var(--easing-standard);
-
-  &.open {
-    transform: rotate(90deg);
-  }
 }
 
 // 时间线里的插话：靠右显示成用户气泡，底下一行小字说它到底生效没有

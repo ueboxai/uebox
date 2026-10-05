@@ -10,8 +10,8 @@
 
     <div v-else class="assistant-shell">
       <!--
-        运行中只留一条单行状态：推理正文这时折进过程条里，不再单开一个框。
-        跑完之后它变回独立的「思考过程」，回头翻记录时两样东西分得开。
+        没在时间线上记推理位置的老消息：推理整段一个框。运行中它折进那一组步骤里，
+        小窗一屏只留一行状态；跑完之后变回独立的「思考过程」。
       -->
       <ThinkingProcess
         v-if="message.thinking && !foldThinkingIntoProcess && !timelineHasThinking"
@@ -19,28 +19,23 @@
         :content="message.thinking"
         :is-thinking="message.status === 'typing' && !textContent.trim()"
       />
-      <!-- 过程与正文按发生顺序交替，和主聊天页同一套排法 -->
+      <!--
+        过程与正文按发生顺序交替，和主聊天页同一套排法：相邻的推理和工具调用并成一组，
+        默认一行摘要；整轮做完之后，最后一段正文之前的东西收成「用时 · 步数」一行。
+      -->
       <template v-if="message.agentProcess !== undefined">
-        <template v-for="block in timelineBlocks" :key="block.key">
-          <AgentProcessLog
-            v-if="block.kind === 'process'"
-            class="agent-process"
-            compact
-            :items="block.items"
-            :is-thinking="block.key === liveProcessBlockKey"
+        <RunFoldButton
+          v-if="runFold"
+          :label="runFold.label"
+          :expanded="runExpanded"
+          @toggle="toggleRunFold"
+        />
+        <template v-for="block in visibleBlocks" :key="block.key">
+          <AgentStepGroup
+            v-if="block.kind === 'steps'"
+            :parts="stepParts(block)"
+            :live="block.key === liveStepsKey"
             :start-time="blockStartTime(block)"
-            :thinking="
-              foldThinkingIntoProcess && block.key === liveProcessBlockKey
-                ? message.thinking
-                : undefined
-            "
-          />
-          <!-- 一轮推理一个框，显示在它发生的那一步 -->
-          <ThinkingProcess
-            v-else-if="block.kind === 'thinking'"
-            class="thinking-block"
-            :content="block.text"
-            :is-thinking="block.key === liveThinkingBlockKey"
           />
           <!-- agent 反问用户。和主聊天页同一张卡片，答完就地变只读 -->
           <AskUserCard
@@ -48,12 +43,17 @@
             :question="block.question"
             @answer="(action, answers) => onQuestionAnswer(block.question, action, answers)"
           />
-          <div v-else class="assistant-card">
+          <div v-else-if="block.kind === 'text'" class="assistant-text">
             <MarkdownRenderer :content="block.text" :streaming="message.status === 'typing'" />
           </div>
         </template>
+        <StepMediaStrip
+          v-if="runFold && !runExpanded"
+          :images="runFold.images"
+          :videos="runFold.videos"
+        />
       </template>
-      <div v-if="showTrailingCard" class="assistant-card">
+      <div v-if="showTrailingCard" class="assistant-text">
         <MarkdownRenderer
           v-if="showMarkdown"
           :content="trailingContent"
@@ -102,13 +102,16 @@
  * Mini Chat 消息气泡组件
  * 复用主聊天页的用户气泡与 Agent 思考展示，但保留更紧凑的小窗布局
  */
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { PhArrowClockwise, PhCheck, PhCopy, PhSpeakerHigh, PhStop } from '@phosphor-icons/vue'
 import AppButton from '@renderer/components/AppButton.vue'
 import AppTooltip from '@renderer/components/AppTooltip.vue'
 import MarkdownRenderer from '@renderer/views/Assistant/components/MarkdownRenderer.vue'
 import ThinkingProcess from '@renderer/views/Assistant/components/ThinkingProcess.vue'
-import AgentProcessLog from '@renderer/views/Assistant/components/AgentProcessLog.vue'
+import AgentStepGroup from '@renderer/views/Assistant/components/AgentStepGroup.vue'
+import RunFoldButton from '@renderer/views/Assistant/components/RunFoldButton.vue'
+import StepMediaStrip from '@renderer/views/Assistant/components/StepMediaStrip.vue'
+import type { StepPart } from '@renderer/views/Assistant/components/agentSteps'
 import MessageSources from '@renderer/views/Assistant/components/MessageSources.vue'
 import UserBubble from '@renderer/views/Assistant/components/UserBubble.vue'
 import AskUserCard from '@renderer/views/Assistant/components/AskUserCard.vue'
@@ -119,12 +122,16 @@ import { useReadAloud } from '@renderer/views/Assistant/composables/useReadAloud
 import { readVoiceBriefingStyle } from '../composables/miniVoiceAutoPlay'
 import type { AgentQuestionItem } from '@core/shared/agentQuestion'
 import {
+  groupTimelineSteps,
   joinTimelineText,
+  reconcileAgentTimeline,
   resolveTrailingContent,
-  splitAgentTimeline,
   hasTimelineThinking,
-  type AgentTimelineBlock
+  type AgentDisplayBlock,
+  type AgentTimelineBlock,
+  type AgentTimelineStepsBlock
 } from '@renderer/views/Assistant/composables/agentTimeline'
+import { useRunFold } from '@renderer/views/Assistant/composables/useRunFold'
 import type { ChatMessage, ChatMessageContent } from '@renderer/store/modules/chatMessages'
 import { isTypingPlaceholder } from '@renderer/utils/typingPlaceholder'
 
@@ -164,39 +171,58 @@ const isThinkingPlaceholder = computed(() => {
 })
 
 // ==================== 过程 / 正文交替时间线 ====================
-const timelineBlocks = computed(() =>
-  splitAgentTimeline(props.message.agentProcess || [], props.message.thinking)
+const timelineBlocks = shallowRef<AgentTimelineBlock[]>([])
+/** 画在界面上的块：相邻的推理和工具调用并成了步骤组 */
+const displayBlocks = shallowRef<AgentDisplayBlock[]>([])
+
+watch(
+  () => [props.message.agentProcess, props.message.thinking] as const,
+  ([items, thinking]) => {
+    timelineBlocks.value = reconcileAgentTimeline(timelineBlocks.value, items || [], thinking)
+    displayBlocks.value = groupTimelineSteps(timelineBlocks.value, displayBlocks.value)
+  },
+  { immediate: true }
 )
 
 const timelineHasThinking = computed(() => hasTimelineThinking(props.message.agentProcess))
 
-/** 最后一块是推理、而且还在跑，就是它在转圈 */
-const liveThinkingBlockKey = computed<string | null>(() => {
+/** 只有最后一组还在跑。末尾是插话或提问卡片时，前面那组照样算在跑 */
+const liveStepsKey = computed<string | null>(() => {
   if (props.message.status !== 'typing') return null
-  const last = timelineBlocks.value[timelineBlocks.value.length - 1]
-  return last && last.kind === 'thinking' ? last.key : null
+  for (let i = displayBlocks.value.length - 1; i >= 0; i--) {
+    const block = displayBlocks.value[i]
+    if (block.kind === 'steer' || block.kind === 'question') continue
+    return block.kind === 'steps' ? block.key : null
+  }
+  return null
 })
 
-/** 只有最后一段过程还在跑，前面那些已经结束了 */
-const liveProcessBlockKey = computed<string | null>(() => {
-  if (props.message.status !== 'typing') return null
-  const last = timelineBlocks.value[timelineBlocks.value.length - 1]
-  return last && last.kind === 'process' ? last.key : null
-})
-
-/** 运行中：推理正文折进那条活着的过程条，小窗一屏只留一行状态 */
+/** 老消息运行中：推理正文折进那一组还在跑的步骤，小窗一屏只留一行状态 */
 const foldThinkingIntoProcess = computed(
-  () =>
-    Boolean(props.message.thinking) &&
-    !timelineHasThinking.value &&
-    liveProcessBlockKey.value !== null
+  () => Boolean(props.message.thinking) && !timelineHasThinking.value && liveStepsKey.value !== null
 )
 
-function blockStartTime(block: AgentTimelineBlock): number | undefined {
-  if (block.kind !== 'process') return undefined
-  if (timelineBlocks.value[0]?.key === block.key) return props.message.startTime
-  return block.items[0]?.timestamp
+function stepParts(block: AgentTimelineStepsBlock): StepPart[] {
+  if (!foldThinkingIntoProcess.value || block.key !== liveStepsKey.value) return block.parts
+  return [
+    { kind: 'thinking', key: 'legacy-thinking', text: props.message.thinking ?? '' },
+    ...block.parts
+  ]
 }
+
+/** 第一组从用户发消息算起，后面几组从各自第一条事件算起 */
+function blockStartTime(block: AgentDisplayBlock): number | undefined {
+  if (block.kind !== 'steps') return undefined
+  if (displayBlocks.value[0]?.key === block.key) return props.message.startTime
+  return undefined
+}
+
+const { runFold, runExpanded, visibleBlocks, toggleRunFold } = useRunFold({
+  blocks: displayBlocks,
+  done: () => props.message.status === 'done',
+  items: () => props.message.agentProcess,
+  startTime: () => props.message.startTime
+})
 
 /** 用户答完提问卡片。逻辑与主聊天页一致，见 `AIBubble.vue` 里同名函数 */
 function onQuestionAnswer(
@@ -223,7 +249,7 @@ const trailingContent = computed(() =>
  * 小窗一列只有三百多像素宽，多一个框就是多一屏。
  */
 const hasLiveIndicator = computed(
-  () => Boolean(props.message.thinking) || timelineBlocks.value.length > 0
+  () => Boolean(props.message.thinking) || displayBlocks.value.length > 0
 )
 
 /** 正文已经逐段显示过了就不再补一张空卡片 */
@@ -300,24 +326,31 @@ function handleAssistantCopy(): void {
   max-width: 100%;
 }
 
-.agent-process,
 .thinking-block,
-.assistant-card,
 .sources {
   margin-bottom: 8px;
 }
 
-.assistant-card {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--color-bg-surface-hover);
-  border: 1px solid var(--color-border-subtle);
-  color: var(--color-text-primary);
+// 模型说的话不再套卡片：和主聊天页一样直接铺在底上，层次靠字色深浅而不是框
+.assistant-text {
+  margin-bottom: var(--space-2);
 
   :deep(.markdown-body) {
     font-size: 13px;
-    line-height: 1.6;
+    line-height: var(--line-height-relaxed);
+    color: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-bg-page));
   }
+}
+
+// 小窗只有三百多像素宽：步骤组和收起行贴得紧一点
+.assistant-shell :deep(.step-group),
+.assistant-shell :deep(.run-fold) {
+  margin-bottom: var(--space-2);
+}
+
+// 主聊天页 96px 高的缩略图在这里一行只放得下两张，四张就叠成一大块
+.assistant-shell :deep(.step-thumb:not(.small)) {
+  height: 64px;
 }
 
 .assistant-tools {

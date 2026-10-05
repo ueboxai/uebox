@@ -1,5 +1,6 @@
 <template>
-  <div class="step-group" :class="{ live }">
+  <!-- 一步都读不出来的组（只有被滤掉的状态通知）跑完就不占位 -->
+  <div v-if="live || view.rows.length > 0" class="step-group" :class="{ live }">
     <!--
       默认只有这一行。两段正文之间原来夹着好几个带底色的框（推理一个、工具一段一个），
       现在只剩一行灰字：做完了是摘要，正在做是它此刻在干什么。点开才看每一步。

@@ -5,7 +5,7 @@ import { useChatMessagesStore } from '@renderer/store/modules/chatMessages'
 import FileChangeCard from './FileChangeCard.vue'
 import FileDiffView from './FileDiffView.vue'
 import { fileReviewKey } from '../composables/useFileReview'
-import AgentProcessLog from './AgentProcessLog.vue'
+import AgentStepGroup from './AgentStepGroup.vue'
 import AIBubble from './AIBubble.vue'
 import type { AgentProcessItem } from './AgentProcessLog.types'
 
@@ -51,7 +51,7 @@ describe('file change cards', () => {
       },
       global: {
         provide: { [fileReviewKey as symbol]: openReview },
-        stubs: { AgentProcessLog: true, MarkdownRenderer: true }
+        stubs: { AgentStepGroup: true, MarkdownRenderer: true }
       }
     })
     await wrapper.find('.response-changes-header').trigger('click')
@@ -132,10 +132,13 @@ describe('file change cards', () => {
     const persisted = JSON.parse(JSON.stringify(store.exportChatMessagesPersistence()))
     store.hydrateChatMessagesPersistence(persisted)
     const restored = store.getMessages('diff')[0].agentProcess!
-    const wrapper = mount(AgentProcessLog, {
-      props: { items: restored, isThinking: false },
+    const wrapper = mount(AgentStepGroup, {
+      props: { parts: [{ kind: 'process', key: 'p', items: restored }] },
       global: { provide: { [fileReviewKey as symbol]: openReview } }
     })
+    // 改动收在那一步的展开区里：点开摘要，再点开两步
+    await wrapper.find('.step-summary').trigger('click')
+    for (const head of wrapper.findAll('.step-row-head')) await head.trigger('click')
     expect(wrapper.findAllComponents(FileChangeCard)).toHaveLength(2)
     await wrapper.find('.change-toggle').trigger('click')
     expect(openReview).toHaveBeenCalledWith([change], 'x.cpp')

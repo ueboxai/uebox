@@ -318,7 +318,7 @@ function summarize(response: PlaytestResponse): string {
  *
  * ## 为什么必须存
  *
- * 界面上那个工具卡片显示的是**磁盘上的文件**（`AgentProcessLog.vue` 的
+ * 界面上那个工具卡片显示的是**磁盘上的文件**（`agentToolMedia.ts` 的
  * `findResultImageUrls`），不是进模型上下文那份 base64 —— base64 会随聊天记录
  * 写进 localStorage 把配额撑满，所以根本不发到渲染层。
  *
