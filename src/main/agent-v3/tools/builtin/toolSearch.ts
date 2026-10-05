@@ -378,6 +378,8 @@ export function toolSearchGroup(tool: GroupedTool): string {
   if (tool.name === 'ue_screenshot' || tool.name === 'ue_focus_viewport') return 'ue.actor'
   // 实验性、说明又长（约 5 KB），不跟 ue.editor 整组常驻，要用时 search_tools 按名加载
   if (tool.name === 'ue_autoplay') return 'ue.editor.autoplay'
+  // 只在导入了带「资产指南」的资产、或编辑器弹「缺失项目设置」时才用；导入回执会点名让模型加载
+  if (tool.name === 'ue_asset_guidelines') return 'ue.editor.guidelines'
   if (tool.unrealBox.namespace === 'ue.content' && Object.hasOwn(UE_CONTENT_SUBGROUPS, tool.name))
     return UE_CONTENT_SUBGROUPS[tool.name]
   return tool.unrealBox.namespace

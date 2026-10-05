@@ -23,6 +23,7 @@
 #include "UAL_ComponentInspectCommands.h"
 #include "UAL_UndoCommands.h"
 #include "UAL_WidgetCommands.h"
+#include "UAL_AssetGuidelineCommands.h"
 #include "UAL_AssetLockState.h"
 #include "UAL_CommandScope.h"
 
@@ -165,6 +166,8 @@ void FUAL_CommandHandler::RegisterCommands()
 	FUAL_ComponentInspectCommands::RegisterCommands(CommandMap);
 	FUAL_UndoCommands::RegisterCommands(CommandMap);
 	FUAL_WidgetCommands::RegisterCommands(CommandMap);
+	// 资产指南（UAssetGuideline）：「缺失项目设置！」那几个弹框背后的要求，查 + 改
+	FUAL_AssetGuidelineCommands::RegisterCommands(CommandMap);
 	// PCG 是可选插件，命令始终注册 —— PCG 没启用时由 pcg.status 如实汇报，
 	// 而不是让命令整个消失（那样调用方只会拿到「未知方法」，看不出原因）
 	FUAL_PCGCommands::RegisterCommands(CommandMap);

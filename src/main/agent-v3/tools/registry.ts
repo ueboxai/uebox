@@ -71,6 +71,7 @@ import { meshTools } from './ue-mesh'
 import { landscapeTools } from './ue-landscape'
 import { animationTools } from './ue-animation'
 import { contentOrganizeTools } from './ue-content'
+import { assetGuidelinesTool } from './adapted/ue-editor/assetGuidelines'
 import { pcgTools } from './ue-pcg'
 import { sequencerTools } from './ue-sequencer'
 import { inspectTools } from './ue-inspect'
@@ -1163,6 +1164,8 @@ export function listToolRisks(): Record<string, ToolRisk> {
     table[tool.name] = tool.unrealBox.risk
   }
 
+  table[assetGuidelinesTool.name] = assetGuidelinesTool.unrealBox.risk
+
   for (const tool of engineTools) {
     table[tool.name] = tool.unrealBox.risk
   }
@@ -1329,6 +1332,8 @@ export function buildAllTools(deps: BuildToolsDeps = {}): UnrealAgentTool<never>
     // 内容浏览器整理（content.naming_audit / batch_move / dependencies / migrate）。
     // 同样走 C++；ue_content_move 从 REGISTRATIONS 里的单资产适配件换成了这里的批量版
     ...contentOrganizeTools(),
+    // 资产自带的「资产指南」（CitySample 那几个「缺失项目设置」弹框）：查 + 一次改好
+    assetGuidelinesTool as unknown as UnrealAgentTool<never>,
     // C++ 工作流（cpp.*）。目前只有两个只读工具：探测编译能力、列模块。
     ...cppTools(),
     // 引擎清单是盒子的本地能力（扫安装记录、查进程），不依赖引擎连接，

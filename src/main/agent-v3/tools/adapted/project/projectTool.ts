@@ -54,6 +54,11 @@ import { resolveFolder } from '../asset/folderLookup'
 import { explainVaultMiss, explainVaultMissBatch } from '../asset/vaultScope'
 // 拷完 .uasset 之后要让引擎重扫注册表，走的是插件的 content.registry_scan
 import { callUe } from '../../defineUeTool'
+import {
+  checkAssetGuidelines,
+  describeGuidelinesForImport,
+  guidelineScanRoots
+} from '../ue-editor/assetGuidelines'
 
 import {
   getSessionProjectPath,
@@ -2406,6 +2411,37 @@ async function importAssetsToProject(
               '按路径直接用（ue_content_describe / 生成 Actor）是可以的，' +
               '要走搜索就等编辑器自己扫到，或者重启编辑器。'
           )
+        }
+      }
+    }
+
+    /*
+     * 资产自带的「资产指南」：CitySample 这类包要求工程开虚拟纹理、蒙皮缓存……
+     * 不查的话，用户下次打开工程会撞上一排「缺失项目设置！」，模型却以为导入一切正常。
+     * 查出来的要求连同判断依据写进 details，由模型跟用户商量要不要改（改是 ue_asset_guidelines）。
+     *
+     * 查不了不算导入失败：老插件没有这条命令就不提；别的错误说一句。
+     */
+    if (connected && importedAssets.length > 0) {
+      const roots = guidelineScanRoots(
+        importedAssets.map((item) => (typeof item.uePath === 'string' ? item.uePath : ''))
+      )
+      if (roots.length > 0) {
+        try {
+          const check = await runWithTargetConnectionId(
+            { connectionId, projectPath: projectRecord.projectPath ?? undefined },
+            () => checkAssetGuidelines(roots)
+          )
+          const line = describeGuidelinesForImport(check)
+          if (line) details.push(line)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          if (!message.includes('插件太旧')) {
+            details.push(
+              `⚠️ 没能检查这批资产自带的「资产指南」（${message}）。` +
+                '用户打开工程时如果弹「缺失项目设置」，用 ue_asset_guidelines(action="check") 查（先 search_tools 按名加载）。'
+            )
+          }
         }
       }
     }

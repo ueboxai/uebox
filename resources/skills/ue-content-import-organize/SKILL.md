@@ -168,6 +168,30 @@ What to do instead: use the assets **by path** (describe, spawn, apply) — that
 of the registry — and verify what landed on disk with `find_local_files` over the project's
 `Content/` folder. Tell the user the search index is catching up, not that assets are missing.
 
+## Packs that demand project settings ("缺失项目设置！")
+
+Some packs — CitySample vehicles and crowd are the common ones — carry an **asset guideline**:
+a note saying "this project needs virtual textures / 16-bit bone indices / skin cache …". The
+editor checks it every time it loads such an asset and pops "缺失项目设置！" / "Missing Project
+Settings" for each one it is unhappy with. Clicking 忽略 only silences it until the next launch.
+
+After a library import into an open project, the reply now lists any guideline the project does
+not meet (`⚠️ 导入的资产自带「资产指南」…`). When the user says those popups appeared on their own,
+run `ue_asset_guidelines` with `action: "check"` — pass the pack's top folder in `paths` if its
+assets have not been opened yet.
+
+How to handle it:
+
+- These are **project-wide** settings that only take effect after an editor restart, and some
+  make the next start recompile shaders. Tell the user which assets want them, what happens if
+  they skip it (those assets may render wrong, the popups keep coming), and what it costs — then
+  recommend fixing, since they imported the pack to use it.
+- Once they agree, `action: "apply"` writes exactly what the guideline asks for and reads it back
+  from disk; then `ue_restart_editor`. A `pending_restart` status means "written, waiting for the
+  restart", not a failure.
+- Never steer the user to the popup's 移除指南 button: it edits their asset files to hide the
+  warning while the setting stays wrong.
+
 ## Path formats — the one thing that bites
 
 `ue_content_search` returns a **package path**: `/Game/Art/Textures/wood_normal`.
