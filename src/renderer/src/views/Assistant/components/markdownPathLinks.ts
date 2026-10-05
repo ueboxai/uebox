@@ -14,8 +14,35 @@ import type { StateCore, Token } from 'markdown-it'
  * `\\` 当成转义吃掉一个反斜杠，轮到这条规则时前缀已经不成立了。
  */
 
-/** 正文里扫路径：不含空格，空格要靠反引号包起来才认 */
-const PATH_IN_TEXT = /(?:[A-Za-z]:[\\/]|\\\\[^\\/\s]+[\\/])[^\s"'`<>|*?]*/g
+/**
+ * 正文里扫路径的起点：到第一个空白为止，带空格的部分由 `extendAcrossSpaces` 接上。
+ * 也停在中文的逗号句号这类断句标点上：「I:/UE/Saved，打开看看」后半句不是路径。
+ */
+const PATH_IN_TEXT = /(?:[A-Za-z]:[\\/]|\\\\[^\\/\s]+[\\/])[^\s"'`<>|*?，。；！？、]*/g
+
+/** 空格后面紧跟的那个词 */
+const NEXT_WORD = /^ ([^\s"'`<>|*?，。；！？、]+)/
+
+/**
+ * 路径里带空格时往后接。
+ *
+ * UE 的工程目录常带空格（`I:\UEBox Project\Claude\UEBox_Test_TASK_1`），只扫到空格为止的话，
+ * 链接只剩 `I:\UEBox`，点开是个不存在的目录。
+ *
+ * 只在空格后那个词里还有**同一种**分隔符时才接：`Project\Claude\...` 一看就还在路径里；
+ * 而「复制 C:\a\b 到 D:\c」里的「到」、句末的「Project.」这种后面没有分隔符的词，
+ * 分不清是目录名还是正文，宁可不接 —— 接错了是把正文吞进链接，比短一截更难看。
+ * 后者想整条认出来，就得写在反引号里。
+ */
+function extendAcrossSpaces(source: string, start: number, path: string): string {
+  const separator = path.startsWith('\\\\') ? '\\' : path[2]
+  let extended = path
+  for (;;) {
+    const word = NEXT_WORD.exec(source.slice(start + extended.length))?.[1]
+    if (!word || !word.includes(separator)) return extended
+    extended += ` ${word}`
+  }
+}
 
 /** 反引号里整段就是一条路径时，允许带空格 */
 const WHOLE_PATH = /^(?:[A-Za-z]:[\\/]|\\\\[^\\/\s]+[\\/])[^"'`<>|*?]*$/
@@ -69,7 +96,7 @@ export function splitTextByPath(text: string): { text: string; path?: string }[]
   let match: RegExpExecArray | null
 
   while ((match = PATH_IN_TEXT.exec(source)) !== null) {
-    const path = match[0].replace(TRAILING_PUNCT, '')
+    const path = extendAcrossSpaces(source, match.index, match[0]).replace(TRAILING_PUNCT, '')
     if (path.length < MIN_LENGTH) continue
 
     if (match.index > cursor) parts.push({ text: source.slice(cursor, match.index) })
