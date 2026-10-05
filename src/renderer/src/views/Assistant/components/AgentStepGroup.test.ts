@@ -68,13 +68,35 @@ describe('AgentStepGroup', () => {
     expect(wrapper.find('.step-summary-text').text()).toBe('思考过程')
   })
 
+  // 再套一行「思考过程」等于让人点两次看同一个东西
+  it('只有推理的组点开就是正文，不再有一行「思考过程」', async () => {
+    const wrapper = mountGroup([{ kind: 'thinking', key: 't', text: '想一想' }])
+    await wrapper.find('.step-summary').trigger('click')
+
+    expect(wrapper.find('.step-row-head').exists()).toBe(false)
+    expect(wrapper.find('.step-thinking').exists()).toBe(true)
+  })
+
+  // 一列里隔一行就是一样的四个字，什么也没说
+  it('推理那一行后面带着它的第一句，点开后收掉', async () => {
+    const wrapper = mountGroup([
+      { kind: 'thinking', key: 't', text: '## 先看目录\n\n- **再**决定改名方式' },
+      { kind: 'process', key: 'p', items: [call('list_local_dir', { path: 'I:/a' }, 1, 'a')] }
+    ])
+    await wrapper.find('.step-summary').trigger('click')
+
+    expect(wrapper.find('.step-preview').text()).toBe('先看目录')
+    await wrapper.find('.step-row-head').trigger('click')
+    expect(wrapper.find('.step-preview').exists()).toBe(false)
+  })
+
   it('点开是一列步骤，推理和工具按顺序排', async () => {
     const wrapper = mountGroup(searchTwice)
     await wrapper.find('.step-summary').trigger('click')
 
     const rows = wrapper.findAll('.step-row-head').map((node) => node.text())
     expect(rows).toEqual([
-      '思考过程',
+      '思考过程先看看资产库',
       '搜索资产/Game/Blueprints— 没有这个文件夹',
       '资产库概况AI',
       '搜索资产CBP— 共 12 项'

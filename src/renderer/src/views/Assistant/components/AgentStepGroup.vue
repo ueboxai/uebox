@@ -17,7 +17,16 @@
       <span v-for="stat in stats" :key="stat" class="step-stat">{{ stat }}</span>
     </button>
 
-    <div v-if="expanded" class="step-rows">
+    <!--
+      整组只有推理时，点开就是推理正文：再套一行「思考过程」等于让人点两次看同一个东西
+    -->
+    <div v-if="expanded && onlyThinking" class="step-rows">
+      <div v-for="row in view.rows" :key="row.key" class="step-thinking">
+        <MarkdownRenderer v-if="row.kind === 'thinking'" :content="row.text" :streaming="live" />
+      </div>
+    </div>
+
+    <div v-else-if="expanded" class="step-rows">
       <template v-for="row in view.rows" :key="row.key">
         <div v-if="row.kind === 'tool'" class="step-row" :class="`is-${row.status}`">
           <button
@@ -55,6 +64,10 @@
             @click="toggleRow(row.key)"
           >
             <span class="step-verb">{{ t('assistant.agentProcess.steps.thinking') }}</span>
+            <!-- 只写「思考过程」四个字的话，一列里隔一行就是一样的字，什么也没说 -->
+            <span v-if="!openRows.has(row.key)" class="step-preview">{{
+              thinkingPreview(row.text)
+            }}</span>
           </button>
           <!-- 收着时不挂 Markdown：流式推理每来一段都要重新解析一遍 -->
           <div v-if="openRows.has(row.key)" class="step-thinking">
@@ -140,6 +153,20 @@ function rowOutcome(row: ToolStepRow): string {
 
 function rawText(row: ToolStepRow): string {
   return [row.argsText, row.resultText].filter(Boolean).join('\n\n')
+}
+
+const onlyThinking = computed(
+  () => view.value.rows.length > 0 && view.value.rows.every((row) => row.kind === 'thinking')
+)
+
+/** 推理的第一句，去掉 Markdown 记号。行宽放不下由 CSS 截断，这里只防一整段塞进 DOM */
+function thinkingPreview(text: string): string {
+  const line =
+    text
+      .split('\n')
+      .map((part) => part.replace(/^[#>*\-+\d.\s]+/, '').trim())
+      .find(Boolean) ?? ''
+  return line.replace(/[*_`]/g, '').slice(0, 160)
 }
 
 // ── 计时 ──
@@ -264,7 +291,7 @@ const liveText = computed(() => {
   max-width: 100%;
   min-width: 0;
   margin-left: calc(-1 * var(--space-1));
-  padding: 2px var(--space-1);
+  padding: 3px var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -384,6 +411,16 @@ const liveText = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+// 推理那一行后面跟的第一句：比工具行再淡一档，扫过去分得出「想」和「做」
+.step-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+  opacity: 0.75;
 }
 
 .step-spin {
