@@ -8,7 +8,8 @@
  *
  * ## 分工：创作归模型，领域知识归工具
  *
- * 硬边界只剩一条：**不做渲染出片**（不可逆的资源消耗，交付责任必须在人）。
+ * 渲染出片（`sequence_render`）原来是硬边界：不可逆的资源消耗，交付责任必须在人。
+ * 现在做了，拍板仍然在人 —— 每一次渲染都要用户当场批准，见 `render.ts` 文件头。
  *
  * 原来还有一条「不替用户做主观创作判断」，去掉了。创作判断本来就是模型该做的事；
  * 工具和 skill 负责的是它不可能自己知道的那半边 —— 引擎会怎么反应、什么不可逆、
@@ -25,6 +26,7 @@
  *   - `sequence_diff`         —— 两条序列逐绑定对比：受保护资产改没改、风格迁移覆盖全没全
  *   - `sequence_camera_keys`  —— 写相机关键帧，任意运镜都走这里
  *   - `sequence_camera_cuts`  —— 给已有序列补相机切轨
+ *   - `sequence_render`       —— 用 MRQ 渲成序列帧或视频，每次都要用户当场批准
  *
  * `sequence_orbit` 已删除（2026-08-30）。它的参数是「转几圈、俯角多少、半径倍数」，
  * 等于把「镜头只能是圆」这个创作限制烧进工具：用户要 8 字、要手持晃、要先升后俯，
@@ -53,6 +55,7 @@ import { createSequenceCameraCutsTool } from './cameraCuts'
 import { createSequenceCameraKeysTool } from './cameraKeys'
 import { createSequenceDescribeTool } from './describe'
 import { createSequenceDiffTool } from './diff'
+import { createSequenceRenderTool } from './render'
 import type { UnrealAgentTool } from '../defineTool'
 
 export function sequencerTools(): UnrealAgentTool<never>[] {
@@ -62,7 +65,8 @@ export function sequencerTools(): UnrealAgentTool<never>[] {
     createSequenceAuditTool(),
     createSequenceDiffTool(),
     createSequenceCameraKeysTool(),
-    createSequenceCameraCutsTool()
+    createSequenceCameraCutsTool(),
+    createSequenceRenderTool()
   ] as unknown as UnrealAgentTool<never>[]
 }
 
@@ -71,4 +75,5 @@ export { createSequenceCameraCutsTool } from './cameraCuts'
 export { createSequenceCameraKeysTool } from './cameraKeys'
 export { createSequenceDescribeTool } from './describe'
 export { createSequenceDiffTool } from './diff'
+export { createSequenceRenderTool } from './render'
 export * from './findings'

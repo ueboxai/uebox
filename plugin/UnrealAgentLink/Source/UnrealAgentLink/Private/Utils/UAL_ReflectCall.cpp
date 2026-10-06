@@ -432,6 +432,20 @@ namespace UALReflect
 		return *this;
 	}
 
+	FCall& FCall::SoftPath(const TCHAR* ParamName, const FSoftObjectPath& Value)
+	{
+		FStructProperty* Prop = CastField<FStructProperty>(FindParam(ParamName));
+		if (Prop && Prop->Struct == TBaseStructure<FSoftObjectPath>::Get())
+		{
+			*Prop->ContainerPtrToValuePtr<FSoftObjectPath>(Buffer.GetData()) = Value;
+		}
+		else if (Function)
+		{
+			UE_LOG(LogUALReflect, Warning, TEXT("%s: no FSoftObjectPath param '%s'"), *Function->GetName(), ParamName);
+		}
+		return *this;
+	}
+
 	FCall& FCall::StructFrom(const TCHAR* ParamName, const FStructProperty* SrcProp, const void* SrcValueAddr)
 	{
 		FStructProperty* Dst = CastField<FStructProperty>(FindParam(ParamName));
@@ -494,6 +508,38 @@ namespace UALReflect
 			return DefaultValue;
 		}
 		return Prop->GetPropertyValue(Prop->ContainerPtrToValuePtr<void>(Buffer.GetData()));
+	}
+
+	int32 FCall::OutInt(const TCHAR* ParamName, int32 DefaultValue) const
+	{
+		if (!bInvoked)
+		{
+			return DefaultValue;
+		}
+		const FIntProperty* Prop = CastField<FIntProperty>(FindParam(ParamName));
+		if (!Prop)
+		{
+			return DefaultValue;
+		}
+		return Prop->GetPropertyValue(Prop->ContainerPtrToValuePtr<void>(Buffer.GetData()));
+	}
+
+	double FCall::OutFloat(const TCHAR* ParamName, double DefaultValue) const
+	{
+		if (!bInvoked)
+		{
+			return DefaultValue;
+		}
+		const FProperty* Param = FindParam(ParamName);
+		if (const FDoubleProperty* AsDouble = CastField<FDoubleProperty>(Param))
+		{
+			return AsDouble->GetPropertyValue(AsDouble->ContainerPtrToValuePtr<void>(Buffer.GetData()));
+		}
+		if (const FFloatProperty* AsFloat = CastField<FFloatProperty>(Param))
+		{
+			return AsFloat->GetPropertyValue(AsFloat->ContainerPtrToValuePtr<void>(Buffer.GetData()));
+		}
+		return DefaultValue;
 	}
 
 	bool FCall::OutStruct(const TCHAR* ParamName, const FStructProperty*& OutProp, const void*& OutAddr) const

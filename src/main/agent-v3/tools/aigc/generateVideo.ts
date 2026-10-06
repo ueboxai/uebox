@@ -18,7 +18,7 @@
  * ## 边界
  *
  * 出的是**模型重新生成的一段视频**，不是引擎渲染。用户要 Movie Render Queue、
- * 要序列帧、要带 Alpha 的成片，那是另一回事，这个工具顶不上 —— 与 generate_image
+ * 要序列帧、要带 Alpha 的成片，那是 `sequence_render` 的事，这个工具顶不上 —— 与 generate_image
  * 那条「AI 图 ≠ 引擎渲染」是同一个坑，而视频这边更容易被混淆。
  */
 
@@ -378,7 +378,7 @@ export function createGenerateVideoTool(): UnrealAgentTool<GeneratedVideoDetails
 
 【它出的不是引擎渲染】出来的是模型重新生成的一段画面，里面没有一样东西
 对应工程里的资产。用户说「出片」「渲染序列」「Movie Render Queue」「MRQ」
-「带 Alpha」「EXR」时要的是引擎渲染 —— 那个**没有工具**，如实说，
+「带 Alpha」「EXR」时要的是引擎渲染 —— 那是 \`sequence_render\`（Movie Render Queue），
 不要拿 AI 视频顶上。说得两边都通就先问一句。
 
 【什么时候用】：概念片、氛围片、分镜演示、给客户看的动态效果参考。

@@ -1,6 +1,6 @@
 ---
 name: ue-sequencer
-description: Author any camera move in a Level Sequence by writing keyframes the model computes itself — orbit, dolly, follow, figure-of-eight, handheld shake, crane — plus diagnose why a sequence renders black, read what is inside one, compare two sequences (what changed, whether a protected original was touched, whether a migrated character kept every animated state), and repair a missing Camera Cuts track. Use when the user says "绕着它转一圈"、"给我个运镜"、"镜头推近一点"、"甩起来那种"、"渲出来是黑的"、"按播放没反应"、"轨道变红了"、"绑定丢了"、"原版动没动"、"迁过去的齐不齐", asks what is inside a sequence, or asks whether a sequence is ready to render. Also read this skill's engine-disconnect rule whenever any Unreal tool reports no connected project. Do not use for running the render itself — rendering is always the user's own decision — nor for focal-length animation, retiming, or rebinding a possessable, none of which are implemented yet.
+description: Author any camera move in a Level Sequence by writing keyframes the model computes itself — orbit, dolly, follow, figure-of-eight, handheld shake, crane — plus diagnose why a sequence renders black, read what is inside one, compare two sequences (what changed, whether a protected original was touched, whether a migrated character kept every animated state), and repair a missing Camera Cuts track. Use when the user says "绕着它转一圈"、"给我个运镜"、"镜头推近一点"、"甩起来那种"、"渲出来是黑的"、"按播放没反应"、"轨道变红了"、"绑定丢了"、"原版动没动"、"迁过去的齐不齐", asks what is inside a sequence, or asks whether a sequence is ready to render. Also read this skill's engine-disconnect rule whenever any Unreal tool reports no connected project. Also renders a sequence to image frames or MP4 through Movie Render Queue when the user asks for it ("出片"、"用 MRQ 渲"、"出 EXR"); every render needs the user's approval. Do not use for focal-length animation, retiming, or rebinding a possessable, none of which are implemented yet.
 ---
 
 # Sequencer
@@ -24,7 +24,7 @@ description: Author any camera move in a Level Sequence by writing keyframes the
 
 一句「编辑器好像崩了，你重开一下，我等你」比十次工具调用有用。
 
-## 五个工具：三个只读，两个写入
+## 六个工具：三个只读，两个写入，一个渲染
 
 只读：
 
@@ -82,6 +82,27 @@ description: Author any camera move in a Level Sequence by writing keyframes the
 
 `sequence_camera_keys` 同理：切轨上已有段时它**不动**，关键帧照写，要重建得带
 `rebuild_camera_cuts: true`。
+
+渲染：
+
+**`sequence_render(sequence_path, format, quality, renderer, resolution, …)`** —— 用 Movie
+Render Queue 渲成序列帧（PNG / JPG / EXR / BMP），默认 PNG。要视频给 `format: "mp4"`：
+先出 PNG 帧，渲完用本机的 FFmpeg 合成 H.264，帧照样保留，5.0–5.8 都能用。和 MRQ 窗口的
+Render (Local) 一样在编辑器里起 PIE 渲，渲完才返回，过程中推进度。
+
+没装 FFmpeg 时 mp4 会在开渲之前就被拦下，把「装 FFmpeg」和「只出 PNG」两条路给用户选。
+
+用户点名要 MRQ 原生输出时照他说的来：EXR 直接给 `exr`；明确要 MRQ 自带的 MP4 编码器给 `mp4_mrq`
+（只有 UE 5.6+，不留帧）。
+
+1. **先 `sequence_audit`，FAIL 先修。** 黑屏的序列渲三小时还是黑的
+2. **参数跟用户对一遍**：格式、画质档、分辨率。拿不准就问，不要渲两遍去试
+3. **长序列先 `draft` 档或用 `frame_start` / `frame_end` 渲一小段**，让用户看过再渲全片
+4. 渲完把输出目录告诉用户；回执里文件数和帧数对不上要原样转述
+
+用户按停止 = 取消渲染，已写出的帧留在输出目录。项目没开 Movie Render Queue 插件时它会
+报出来，用 `project_manage` 的 `enable_plugins` 开 `MovieRenderPipeline`，开完要重启编辑器。
+渲染期间编辑器在跑 PIE，别的编辑器工具这时候用不了。
 
 ### 算轨迹时，这几件是引擎的事，不是审美
 
@@ -175,8 +196,9 @@ AnimSequence 首尾都含；播放头压在两段交界上显示的是**后一�
 它不挑形状 —— 用户要环绕、推轨、跟随、手持晃，都是你算好帧然后写进去。
 对这些说「没有实现」，或者把数值列给用户让他自己打，都是错的答案。
 
-**永远不要提议渲染、也不要替用户渲染。** 渲染是不可逆的资源消耗（几小时机器时间、
-几十 GB 磁盘），交付责任在人。我们的价值是**让他按下渲染键之前就知道会不会白等**。
+**渲不渲由用户拍板。** 渲染是不可逆的资源消耗（几小时机器时间、几十 GB 磁盘），
+交付责任在人。用户没提出片就别主动渲；他要出片时才调 `sequence_render`，而且每一次
+都会弹审批卡让他当场点头。我们的价值首先是**让他按下渲染键之前就知道会不会白等**。
 
 其余红线（不许删、不许动手 K 的曲线、不许改命名、不许产生序列之外的副作用）
 见 `references/red-lines.md`。**动手之前先读它。**

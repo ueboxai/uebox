@@ -100,6 +100,14 @@ namespace UALReflect
 		/** 找不到函数时的说明，用于给调用方拼错误信息 */
 		const FString& GetError() const { return Error; }
 
+		/**
+		 * 函数有没有这个形参。
+		 *
+		 * 给「形参表跨版本变长」的函数用：MRQ 的 `FindOrAddSettingByClass` 在 5.2 多了
+		 * `bExactMatch`。不先问一句就 `Bool()`，5.0/5.1 上会白记一条 Warning。
+		 */
+		bool HasParam(const TCHAR* ParamName) const { return FindParam(ParamName) != nullptr; }
+
 		FCall& Obj(const TCHAR* ParamName, UObject* Value);
 		FCall& Cls(const TCHAR* ParamName, UClass* Value);
 		FCall& Name(const TCHAR* ParamName, FName Value);
@@ -116,6 +124,14 @@ namespace UALReflect
 
 		/** 枚举形参。UHT 按声明形态给出 FByteProperty 或 FEnumProperty，两种都要认 */
 		FCall& Enum(const TCHAR* ParamName, uint8 Value);
+
+		/**
+		 * `FSoftObjectPath` 形参（按值或 const&）。
+		 *
+		 * 它的成员跨版本变过（5.1 起 AssetPathName 拆成 PackageName + AssetName），
+		 * 所以不逐成员写，认准结构体类型后整个赋值。类型对不上就不写并记 Warning。
+		 */
+		FCall& SoftPath(const TCHAR* ParamName, const FSoftObjectPath& Value);
 
 		/**
 		 * 结构体形参：从别处**整块拷**进来。
@@ -143,6 +159,10 @@ namespace UALReflect
 		/** 取出参（含返回值，形参名固定叫 ReturnValue）。没调用过或类型不符返回 nullptr */
 		UObject* OutObject(const TCHAR* ParamName) const;
 		bool OutBool(const TCHAR* ParamName, bool DefaultValue = false) const;
+		/** 整数出参（int32）。没调用过或类型不符返回 DefaultValue */
+		int32 OutInt(const TCHAR* ParamName, int32 DefaultValue = 0) const;
+		/** 浮点出参，float 和 double 都认（理由同 Num） */
+		double OutFloat(const TCHAR* ParamName, double DefaultValue = 0.0) const;
 
 		/**
 		 * 取出参里的结构体：把属性和它在缓冲区里的地址一起给出去，供 StructFrom 搬运。

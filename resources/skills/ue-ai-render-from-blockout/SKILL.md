@@ -26,14 +26,13 @@ image will not match this one exactly.
 
 ### If they want a real render
 
-There is no Movie Render Queue tool. Say that plainly rather than substituting an AI image or
-improvising a render script with `ue_run_python_script` — a half-working MRQ script that reports
-success is worse than not having one.
+Use `sequence_render` — it renders a Level Sequence through Movie Render Queue. Do not
+substitute an AI image, and do not improvise a render script with `ue_run_python_script`: a
+half-working MRQ script that reports success is worse than not having one.
 
-What is available instead: framing the shot, laying out the camera cuts and keys
-(`sequence_camera_cuts`, `sequence_camera_keys`), checking the sequence over (`sequence_audit`),
-and `ue_screenshot` for a quick look. Offer those, and leave the render itself to the user
-unless they explicitly ask for a scripted attempt and accept that it is untested.
+MRQ renders sequences, not viewports. If there is no sequence for the shot yet, build one first
+(`sequence_camera_keys` creates the sequence, the camera and its cuts; a still is a one-frame
+range), run `sequence_audit`, then render. Load the `ue-sequencer` skill for the steps.
 
 ## The loop
 

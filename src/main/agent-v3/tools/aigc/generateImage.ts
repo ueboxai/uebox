@@ -149,7 +149,7 @@ export function createGenerateImageTool(): UnrealAgentTool<GeneratedImageDetails
 
 用户说「渲染」时**先分清他要哪一种**：说概念图、效果图、氛围图、给客户看的图，
 是这个工具；说出片、出序列、Movie Render Queue、MRQ、出视频、带 Alpha、EXR，
-要的是引擎渲染 —— 那个**没有工具**，如实说，不要拿 AI 图顶上。
+要的是引擎渲染，用 \`sequence_render\`，不要拿 AI 图顶上。
 话说得两边都通（「把这个场景渲染成成品」）就先问一句再动手。
 
 【什么时候用】：
