@@ -12,6 +12,12 @@ import type { SendShortcut } from '@renderer/views/Assistant/composables/sendSho
 import ArchivedChatsModal from './ArchivedChatsModal.vue'
 import AppButton from '@renderer/components/AppButton.vue'
 import AppSwitch from '@renderer/components/AppSwitch.vue'
+import {
+  DEFAULT_GOAL_MAX_ROUNDS,
+  GOAL_MAX_ROUNDS_MAX,
+  GOAL_MAX_ROUNDS_MIN,
+  normalizeGoalMaxRounds
+} from '@core/shared/goalRounds'
 
 const aiConfigStore = useAIConfigStore()
 const { t } = useI18n()
@@ -129,6 +135,26 @@ const fileAccessScope = ref<AgentFileAccessScope>('full')
 const persistentAutoResume = ref(true)
 
 /**
+ * 目标模式最多几轮。同样存在应用设置里 —— 循环跑在主进程。
+ *
+ * 失焦 / 回车才存，不跟着 watch：敲「25」的中途会先经过「2」，
+ * 那一下存进去也不算错，但用户没打算存它。
+ */
+const goalMaxRounds = ref(DEFAULT_GOAL_MAX_ROUNDS)
+
+async function saveGoalMaxRounds(): Promise<void> {
+  if (!appSettingsLoaded.value) return
+  // 清空、填 0、填 99：夹回范围，输入框跟着显示真正存下的那个数
+  const rounds = normalizeGoalMaxRounds(goalMaxRounds.value)
+  goalMaxRounds.value = rounds
+  try {
+    await window.api.appSettings.set({ agentGoalMaxRounds: rounds })
+  } catch (error) {
+    console.error('设置目标模式轮数上限失败:', error)
+  }
+}
+
+/**
  * 应用设置读回来了没有。
  *
  * 两个档位共用一个标志，因为它们来自**同一次** `appSettings.get()`。
@@ -175,6 +201,7 @@ onMounted(async () => {
     // 两边不一致的话，界面高亮的会和实际生效的对不上
     fileAccessScope.value = settings.agentFileAccessScope === 'ue-only' ? 'ue-only' : 'full'
     persistentAutoResume.value = settings.agentPersistentAutoResume !== false
+    goalMaxRounds.value = normalizeGoalMaxRounds(settings.agentGoalMaxRounds)
   } catch (error) {
     console.error('读取应用设置失败:', error)
   } finally {
@@ -319,6 +346,24 @@ watch(persistentAutoResume, async (enabled) => {
             :aria-label="$t('profile.ai.persistentAutoResume')"
           />
         </div>
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">{{ $t('profile.ai.goalMaxRounds') }}</div>
+            <div class="setting-desc">{{ $t('profile.ai.goalMaxRoundsDesc') }}</div>
+          </div>
+          <input
+            v-model.number="goalMaxRounds"
+            type="number"
+            step="1"
+            :min="GOAL_MAX_ROUNDS_MIN"
+            :max="GOAL_MAX_ROUNDS_MAX"
+            class="rounds-input"
+            :disabled="!appSettingsLoaded"
+            :aria-label="$t('profile.ai.goalMaxRounds')"
+            @blur="saveGoalMaxRounds"
+            @keyup.enter="saveGoalMaxRounds"
+          />
+        </div>
       </div>
     </section>
 
@@ -410,6 +455,31 @@ watch(persistentAutoResume, async (enabled) => {
 .setting-desc {
   font-size: 12px;
   color: var(--color-text-muted);
+}
+
+.rounds-input {
+  width: 70px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--color-bg-surface-hover);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  text-align: center;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-border);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-accent-border);
+  }
+
+  &:disabled {
+    color: var(--color-text-disabled);
+    cursor: not-allowed;
+  }
 }
 
 .setting-form {

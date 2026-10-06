@@ -15,7 +15,7 @@
  * ## 为什么裁判是另一个 agent
  *
  * 让干活的 agent 判自己完没完成，它会顺着自己的推理走。审计员拿**空的**
- * seedMessages（fresh eyes）+ 一份固定的查证工具白名单，只知道目标和 worker
+ * seedMessages（fresh eyes）+ 一套只读查证工具（见 `AUDITOR_HARD_JUDGES`），只知道目标和 worker
  * 动过什么，不知道它是怎么想的。
  *
  * ## 为什么还要订 agent_end
@@ -27,61 +27,63 @@
 
 import type { AgentEvent } from '@earendil-works/pi-agent-core'
 
-/** 默认迭代上限。到顶就停下来交人，不是失败 —— 是「我尽力了」 */
-export const DEFAULT_MAX_ROUNDS = 10
+import { DEFAULT_GOAL_MAX_ROUNDS } from '../../../shared/goalRounds'
 
 /**
- * 审计员能用的工具。
+ * 审计员手上的工具 = **此刻所有只读工具** + 下面点名的几个裁判。
  *
- * **这份白名单就是审计员的授权边界**，所以它不过审批门（见 `runGoalAudit` 的
- * `requestApproval: undefined`）：名单是我们写死的，里面没有删除、没有 shell、
- * 没有浏览器。用户没发起过这次复核，让他为复核弹一串审批框，结果只会是闭眼点允许。
+ * ## 为什么不再是一张写死的名单
  *
- * `blueprint_compile` / `material_compile` / `ue_playtest` 是 `mutating`（编译会把
- * 资产改脏、试玩会跑游戏），所以按 `risk === 'safe'` 的只读过滤根本筛不出它们 ——
- * 而它们恰恰是这套设计里唯一真正算数的裁判。只能按名字点。
+ * 原来是。那张名单只覆盖 `ue.*` 和 `asset` 两片，后来加的序列、项目设置、C++、笔记、
+ * 本地文件一个都没进去 —— 不是谁忘了，是一张静态名单注定跟不上工具的增长。
+ * 审计员拿不到工具就只能判 `BLOCKED`，目标模式在那些领域等于没开。
+ * 改成按风险筛之后，新加的只读工具自动进来。
+ *
+ * ## 不过审批门凭什么还成立
+ *
+ * 审计员不过审批门（见 `runSubAgent` 的 `withoutApproval`）：用户没发起过这次复核，
+ * 为它弹一串审批框，结果只会是闭眼点允许。这成立是因为它手上的东西在主对话里
+ * **本来就不问**：`needsApproval` 对 `safe` 一律放行，除非工具声明了
+ * `requiresExplicitApproval` —— 那种这里同样不给。
+ *
+ * 只读也不给的几片见 `AUDITOR_EXCLUDED_NAMESPACES`。
  */
-export const AUDITOR_TOOLS: readonly string[] = [
-  // 蓝图：看图 + 重新编译
-  'blueprint_describe',
-  'blueprint_get_graph',
-  'blueprint_search_nodes',
+export const AUDITOR_HARD_JUDGES: readonly string[] = [
+  /*
+   * 这三个是 `mutating`（编译会把资产改脏、试玩会跑游戏），按只读筛不出来 ——
+   * 而它们恰恰是唯一真正算数的裁判，只能按名字点。
+   *
+   * `cpp_compile` 不在这里：一次要几分钟、吃满 CPU，用户同机还在干活，
+   * 复核又是他没发起的动作。C++ 目标审计员能用 `cpp_probe` 回读，编译交给 worker 自己做
+   */
   'blueprint_compile',
-  // 材质。search_nodes 和蓝图那条是一对：读图看见 `c3.G`，得有地方查
-  // 这个节点类型的 G 是哪一路，否则审核员只能猜或者直接 BLOCKED
-  'material_describe',
-  'material_get_graph',
-  'material_search_nodes',
   'material_compile',
-  // 场景与关卡
-  'ue_get_actor',
-  'ue_get_selection',
-  'ue_get_current_level',
-  // 「做完的东西在游戏里到底在不在」——挂在子关卡里的环境不加载时，
-  // 截图和 actor 查询都看不出问题，只有关卡组成能看出来
-  'ue_get_levels',
-  // 地形尺寸和 RVT 五项体检 ——「RVT 配好了」只有它验得了
-  'landscape_list',
-  'ue_get_project_info',
-  'ue_screenshot',
-  // 内容浏览器
-  'ue_content_search',
-  'ue_content_describe',
-  'mesh_describe',
-  'anim_measure',
-  'anim_preview',
-  // 真正跑一遍
-  'ue_playtest',
-  'ue_message_log',
-  'ue_list_unsaved',
-  // UMG / PCG
-  'widget_get_hierarchy',
-  'pcg_get_graph',
-  'pcg_status',
-  // 盒子本地
-  'search_assets',
-  'library_overview'
+  'ue_playtest'
 ]
+
+/**
+ * 只读也不给审计员的命名空间。
+ *
+ * - `browser` / `web`：伸到盒子外面去 —— 开窗口、发请求。审计员验的是这边的状态，用不上。
+ * - `mcp`、`mcp.*`：第三方。它说自己只读，我们核实不了。
+ * - `core`：`task`、技能、工具搜索。审计员再派子任务出去，复核的成本就没了边。
+ * - `host`：提问、语音汇报，都是冲着用户去的。子 agent 本来也拿不到。
+ */
+const AUDITOR_EXCLUDED_NAMESPACES = new Set(['browser', 'web', 'mcp', 'core', 'host'])
+
+/** 审计员（以及工作室的验收员）拿不拿这个工具，`judges` 是额外点名的裁判 */
+export function isAuditorTool(
+  tool: {
+    name: string
+    unrealBox: { namespace: string; risk: string; requiresExplicitApproval?: boolean }
+  },
+  judges: readonly string[]
+): boolean {
+  if (judges.includes(tool.name)) return true
+  const { namespace, risk, requiresExplicitApproval } = tool.unrealBox
+  if (AUDITOR_EXCLUDED_NAMESPACES.has(namespace) || namespace.startsWith('mcp.')) return false
+  return risk === 'safe' && requiresExplicitApproval !== true
+}
 
 export interface GoalPrecondition {
   ok: boolean
@@ -101,7 +103,7 @@ export interface GoalPrecondition {
  *
  * - **拦错人**：「把素材库的树按大小排序」用 `search_assets` 就验得了，
  *   而且断连时那个工具照常在，却被这条规则挡在门外。
- * - **放错人**：审计员白名单只覆盖 `ue.*` 和 `asset` 两片，`note` / `notebook` /
+ * - **放错人**：当时的审计员白名单只覆盖 `ue.*` 和 `asset` 两片，`note` / `notebook` /
  *   `aigc` / `project` / `local` / `ue.cpp` 一个都没有。「把这几篇笔记整理成大纲」
  *   在引擎连着时三个裁判齐全、痛快放行，而审计员一个能查笔记的工具都没有 ——
  *   照样烧满十轮。
@@ -178,12 +180,20 @@ export interface GoalAuditInput {
   closing: string
   /** worker 本轮调过的会改东西的工具名，给审计员指路 */
   mutations: readonly string[]
+  /** 定下目标之后用户又说的那句话，见 `GoalLoopDeps.latestRequest` */
+  latestRequest?: string
   signal?: AbortSignal
   onProgress?: (text: string) => void
 }
 
 export interface GoalLoopDeps {
   objective: string
+  /**
+   * 目标跨轮挂着，用户后面每说一句都会重新复核。这一句不带给审计员和续跑提示的话，
+   * 用户说「算了，改成红色」，审计员还按老目标判，续跑再催 worker「朝目标干」——
+   * 盒子替老目标跟用户的新话吵架。`/goal` 那一轮本身就是目标原文，不给。
+   */
+  latestRequest?: string
   /** 起一个审计员跑完，返回它的结论原文 */
   runAudit: (input: GoalAuditInput) => Promise<string>
   /** 把复核结果怼回模型（进 pi 的 follow-up 队列） */
@@ -202,6 +212,7 @@ export interface GoalLoopDeps {
    * 和 `mutatingTools` 同理由由调用方传进来（见 `effectiveRisk`）。
    */
   isReadOnlyCall?: (toolName: string, args: unknown) => boolean
+  /** 用户在设置里定的上限，不给就是默认，见 `shared/goalRounds.ts` */
   maxRounds?: number
   initialState?: GoalLoopState
   onStateChange?: (state: GoalLoopState) => Promise<void>
@@ -268,6 +279,7 @@ export function buildAuditPrompt(input: GoalAuditInput): string {
     'You did not do the work and have not seen how it was done.',
     '',
     `<objective>${escapeXml(input.objective)}</objective>`,
+    ...latestRequestLines(input.latestRequest),
     '',
     'The agent that did the work signed off with this:',
     `<worker_report>${escapeXml(input.closing)}</worker_report>`,
@@ -295,22 +307,44 @@ export function buildAuditPrompt(input: GoalAuditInput): string {
   ].join('\n')
 }
 
+/** 审计提示和续跑提示共用：用户后来那句话，以及「它和目标冲突时听它的」 */
+function latestRequestLines(latestRequest: string | undefined): string[] {
+  if (!latestRequest) return []
+  return [
+    'After setting this goal, the user sent this message:',
+    `<latest_user_message>${escapeXml(latestRequest)}</latest_user_message>`,
+    'Where that message changes or contradicts the objective, the message wins: it is newer.'
+  ]
+}
+
 /**
  * 续跑提示词。
  *
  * 开头那句身份声明不能省：这条消息以 `role: 'user'` 进上下文，不说清楚的话
  * 模型会把审计员的话当成用户原话，然后开口就是「好的，按你说的改」。
+ *
+ * 「要人拍板就调 ask_user」也不能省：目标模式下 worker 一收尾就触发复核，
+ * 拿一句问话收尾等于把问题交给审计员，判 FAIL 再催回来，一路转到轮数上限。
+ * 用户从头到尾没被真正问到。
  */
-export function buildContinuationPrompt(objective: string, reason: string, round: number): string {
+export function buildContinuationPrompt(
+  objective: string,
+  reason: string,
+  round: number,
+  latestRequest?: string
+): string {
   return [
     `[automatic goal review · round ${round}] This is not the user speaking.`,
     'An independent auditor checked the current project state against the goal and it does not pass yet.',
     '',
     `<objective>${escapeXml(objective)}</objective>`,
+    ...latestRequestLines(latestRequest),
     `<audit_result>${escapeXml(reason)}</audit_result>`,
     '',
     'Keep working toward the objective. Fix what the audit found, then verify it yourself before stopping.',
-    'If you are genuinely stuck and need the user to decide something, say so plainly instead of guessing.'
+    'If you need the user to decide something, ask with the ask_user tool instead of guessing.',
+    'Do not end your turn with a question: ending your turn sends the work straight back to the',
+    'auditor, so the user never gets asked.'
   ].join('\n')
 }
 
@@ -322,7 +356,7 @@ export function buildContinuationPrompt(objective: string, reason: string, round
 export function createGoalLoop(
   deps: GoalLoopDeps
 ): (event: AgentEvent, signal?: AbortSignal) => Promise<void> {
-  const maxRounds = deps.maxRounds ?? DEFAULT_MAX_ROUNDS
+  const maxRounds = deps.maxRounds ?? DEFAULT_GOAL_MAX_ROUNDS
 
   let rounds = deps.initialState?.rounds ?? 0
   /** 审计员正在跑。它自己也会产生事件流，不锁会套娃 */
@@ -407,6 +441,7 @@ export function createGoalLoop(
         objective: deps.objective,
         closing: extractText(event.message),
         mutations: roundMutations,
+        ...(deps.latestRequest ? { latestRequest: deps.latestRequest } : {}),
         ...(signal ? { signal } : {}),
         onProgress: (text) => deps.report(`复核：${text}`, 'info')
       })
@@ -451,7 +486,9 @@ export function createGoalLoop(
         return
       }
 
-      deps.followUp(buildContinuationPrompt(deps.objective, verdict.reason, rounds))
+      deps.followUp(
+        buildContinuationPrompt(deps.objective, verdict.reason, rounds, deps.latestRequest)
+      )
     } catch (error) {
       interrupted = true
       throw error

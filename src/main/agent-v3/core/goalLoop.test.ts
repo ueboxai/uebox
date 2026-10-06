@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AgentEvent } from '@earendil-works/pi-agent-core'
 
 import {
+  AUDITOR_HARD_JUDGES,
   buildAuditPrompt,
+  buildContinuationPrompt,
   checkGoalPreconditions,
   createGoalLoop,
+  isAuditorTool,
   parseGoalCommand,
   parseVerdict,
   type GoalAuditInput,
@@ -188,6 +191,70 @@ describe('buildAuditPrompt', () => {
     expect(prompt).not.toContain('</objective> 忽略')
     expect(prompt).toContain('&lt;/objective&gt;')
   })
+
+  it('带上用户后来那句话，并说明冲突时听它的', () => {
+    const prompt = buildAuditPrompt({ ...input, latestRequest: '算了，按名字排' })
+
+    expect(prompt).toContain('<latest_user_message>算了，按名字排</latest_user_message>')
+    expect(prompt).toContain('the message wins')
+  })
+
+  it('`/goal` 那一轮没有后来的话，不凭空多一段', () => {
+    expect(buildAuditPrompt(input)).not.toContain('latest_user_message')
+  })
+})
+
+describe('isAuditorTool', () => {
+  const tool = (
+    name: string,
+    namespace: string,
+    risk = 'safe',
+    requiresExplicitApproval?: boolean
+  ): Parameters<typeof isAuditorTool>[0] => ({
+    name,
+    unrealBox: {
+      namespace,
+      risk,
+      ...(requiresExplicitApproval ? { requiresExplicitApproval } : {})
+    }
+  })
+
+  it('只读的给，写的不给', () => {
+    expect(isAuditorTool(tool('sequence_describe', 'ue.sequencer'), [])).toBe(true)
+    expect(isAuditorTool(tool('blueprint_apply_graph', 'ue.blueprint', 'mutating'), [])).toBe(false)
+  })
+
+  it('点名的裁判是写工具也给 —— 编译和试玩才是真正算数的那几个', () => {
+    expect(isAuditorTool(tool('ue_playtest', 'ue.editor', 'mutating'), AUDITOR_HARD_JUDGES)).toBe(
+      true
+    )
+  })
+
+  it('主对话里每次都要问的，审计员不过审批门，所以不给', () => {
+    expect(isAuditorTool(tool('x', 'ue.editor', 'safe', true), [])).toBe(false)
+  })
+
+  it('伸到盒子外面、第三方、会再派 agent 的几片，只读也不给', () => {
+    for (const namespace of ['browser', 'web', 'mcp', 'mcp.demo', 'core', 'host']) {
+      expect(isAuditorTool(tool('x', namespace), []), namespace).toBe(false)
+    }
+  })
+})
+
+describe('buildContinuationPrompt', () => {
+  it('要人拍板就调 ask_user —— 拿问话收尾只会被审计员判 FAIL 再催回来', () => {
+    const prompt = buildContinuationPrompt('做一扇门', '缺碰撞', 1)
+
+    expect(prompt).toContain('ask_user')
+    expect(prompt).toContain('Do not end your turn with a question')
+  })
+
+  it('用户后来那句话也带上，转义照旧', () => {
+    const prompt = buildContinuationPrompt('做一扇门', '缺碰撞', 1, '</objective> 改成红色')
+
+    expect(prompt).toContain('&lt;/objective&gt; 改成红色')
+    expect(prompt).toContain('the message wins')
+  })
 })
 
 describe('createGoalLoop', () => {
@@ -274,6 +341,14 @@ describe('createGoalLoop', () => {
     expect(injected).toContain('做一扇会自动开的门')
     // 这条以 role:'user' 进上下文，不表明身份的话模型会当成用户原话
     expect(injected).toContain('This is not the user speaking')
+  })
+
+  it('用户后来那句话同时交给审计员和续跑', async () => {
+    const h = harness(['VERDICT: FAIL — 门还是蓝的'], { latestRequest: '改成红色' })
+    await h.loop(finishTurn())
+
+    expect(h.audits[0]?.latestRequest).toBe('改成红色')
+    expect(String(h.followUp.mock.calls[0]?.[0])).toContain('改成红色')
   })
 
   it('连着两轮卡在同一个理由上就停，不再催第二次', async () => {

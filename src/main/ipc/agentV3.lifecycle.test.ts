@@ -359,7 +359,7 @@ describe('Agent V3 真实 IPC 生命周期', () => {
     )
   })
 
-  it('普通消息不冲掉目标：沿用原目标，复核进度清零重来', async () => {
+  it('普通消息不冲掉目标：沿用原目标，复核进度清零重来，这句话记下来给复核', async () => {
     mock.loadOptions.mockResolvedValue({
       mode: 'agent',
       goal: {
@@ -376,6 +376,7 @@ describe('Agent V3 真实 IPC 生命周期', () => {
       expect.objectContaining({
         goal: {
           objective: '完成目标',
+          latestRequest: '顺便把灯调亮',
           rounds: 0,
           lastFailReason: '',
           mutations: [],

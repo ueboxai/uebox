@@ -414,6 +414,42 @@ describe('resolveTools —— 动态工具过滤', () => {
         expect.arrayContaining(['load_skill', 'read_skill_resource'])
       )
     })
+
+    /*
+     * 审计员按此刻的工具池筛，不按一张写死的名单。那张名单漏掉了序列、项目设置、
+     * C++、笔记 —— 这几类目标审计员一个工具都没有，只能判 BLOCKED。
+     */
+    describe('审计员', () => {
+      const names = resolveAgentTools(
+        { sessionId: 's', ueConnected: true, auditorJudges: ['blueprint_compile'], mcp },
+        skills,
+        taskTool
+      ).map((tool) => tool.name)
+
+      it('后加领域的只读工具自动进来', () => {
+        expect(names).toEqual(
+          expect.arrayContaining([
+            'sequence_describe',
+            'ue_get_config',
+            'cpp_probe',
+            'search_notes',
+            'blueprint_describe'
+          ])
+        )
+      })
+
+      it('点名的裁判照给，没点名的写工具不给', () => {
+        expect(names).toContain('blueprint_compile')
+        expect(names).not.toContain('blueprint_apply_graph')
+        expect(names).not.toContain('cpp_compile')
+      })
+
+      it('只读也不给：第三方 MCP、派子任务、技能、浏览器和联网', () => {
+        for (const name of ['mcp_demo_read', 'task', 'load_skill', 'browser_read', 'web_search']) {
+          expect(names, name).not.toContain(name)
+        }
+      })
+    })
   })
 
   /**

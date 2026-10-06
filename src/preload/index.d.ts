@@ -2847,6 +2847,8 @@ declare global {
         agentToolSearchEnabled: boolean
         /** 自动断点续传：中转不稳时每 60 秒自动续跑，最长 30 分钟 */
         agentPersistentAutoResume: boolean
+        /** 目标模式最多迭代几轮，范围见 `shared/goalRounds.ts` */
+        agentGoalMaxRounds: number
         /** 全量模式下关掉的工具名 */
         agentDisabledTools: string[]
         /** 工具搜索模式下偏离内置常驻清单的那些 */
@@ -2866,6 +2868,7 @@ declare global {
         agentFileAccessScope?: 'ue-only' | 'full'
         agentToolSearchEnabled?: boolean
         agentPersistentAutoResume?: boolean
+        agentGoalMaxRounds?: number
         agentDisabledTools?: string[]
         agentResidentTools?: Record<string, boolean>
         notifyTurnComplete?: 'off' | 'unfocused' | 'always'

@@ -76,7 +76,7 @@ import {
   runWithTargetConnectionId
 } from './projectTargetContext'
 import { releaseAll, runWithLockOwner, teamRootOf } from './assetLock'
-import { AUDITOR_TOOLS, type GoalVerdict } from './goalLoop'
+import { AUDITOR_HARD_JUDGES, isAuditorTool, type GoalVerdict } from './goalLoop'
 import { buildAcceptancePrompt, buildMemberFraming, buildProducerBrief } from './team/teamPrompt'
 import { memberFileBase, type TeamMember, type TeamStore } from './team/teamStore'
 import type { TeamSnapshots } from './team/snapshots'
@@ -279,13 +279,16 @@ export interface SessionContext {
   namespaces?: string[]
   /**
    * 按**工具名**的白名单，比 `namespaces` 更细一档。
-   *
-   * 为 `/goal` 的审计员加的：命名空间是按领域分的（`ue.blueprint` / `asset` …），
-   * 而审计员要的是一横切 —— 各领域的回读工具，外加 `blueprint_compile`、
-   * `ue_playtest` 这几个真正算数的裁判。那几个是 `mutating`，按
-   * `risk === 'safe'` 的只读过滤筛不出来，只能点名。见 `core/goalLoop.ts`。
    */
   toolNames?: string[]
+  /**
+   * 这是一个审计员（`/goal` 的复核、工作室的验收）：手上是此刻所有只读工具，
+   * 外加这里点名的裁判。判据见 `core/goalLoop.ts` 的 `isAuditorTool`。
+   *
+   * 不提前算成 `toolNames`：要按**复核那一刻**的工具池筛 —— 挂上目标时引擎还没连、
+   * 复核时连上了，提前算的名单里就一个 `ue_*` 都没有。
+   */
+  auditorJudges?: readonly string[]
   /**
    * 授权过滤走完之后，最后动一次工具池的机会。
    *
@@ -499,7 +502,7 @@ function resolveCandidateTools(ctx: SessionContext): UnrealAgentTool<never>[] {
  * 系统提示教它去调一个被滤掉的工具，模型要么调空，要么答应用户一件做不到的事
  */
 function canConnectMcpServers(ctx: SessionContext): boolean {
-  if (ctx.mode === 'ask' || ctx.readOnly) return false
+  if (ctx.mode === 'ask' || ctx.readOnly || ctx.auditorJudges) return false
   if (ctx.toolNames && !ctx.toolNames.includes('connect_mcp_server')) return false
   if (ctx.namespaces && !ctx.namespaces.includes('mcp')) return false
   if (!ctx.toolSearchEnabled && ctx.disabledToolNames?.includes('connect_mcp_server')) return false
@@ -551,6 +554,9 @@ function applyFinalToolPolicy(
     const allowed = new Set(ctx.toolNames)
     filtered = filtered.filter((tool) => allowed.has(tool.name))
   }
+
+  const judges = ctx.auditorJudges
+  if (judges) filtered = filtered.filter((tool) => isAuditorTool(tool, judges))
 
   // 调用方最后的那一手（见 `SessionContext.wrapTools`）。没传就原样返回，零代价
   return ctx.wrapTools ? ctx.wrapTools(filtered) : filtered
@@ -652,7 +658,13 @@ export async function createUnrealAgent(ctx: SessionContext): Promise<CreatedAge
    * 派出去的子任务拿的是**完整工具池**，那恰恰是折叠最划算的场景。按身份关等于
    * 把一个没发生的收窄当成发生了。
    */
-  if (ctx.readOnly || ctx.mode === 'ask' || ctx.toolNames?.length || ctx.namespaces?.length)
+  if (
+    ctx.readOnly ||
+    ctx.mode === 'ask' ||
+    ctx.toolNames?.length ||
+    ctx.namespaces?.length ||
+    ctx.auditorJudges
+  )
     ctx.toolSearchEnabled = false
   const runtime = await resolveAgentModel(ctx.modelRequest, ctx.thinkingLevel)
   const { selection, models, summaryModel } = runtime
@@ -971,13 +983,15 @@ export async function runSubAgent(
   input: {
     prompt: string
     namespaces?: string[]
-    /** 按工具名收窄，见 `SessionContext.toolNames`。`/goal` 的审计员用它 */
+    /** 按工具名收窄，见 `SessionContext.toolNames` */
     toolNames?: string[]
+    /** 当审计员跑，见 `SessionContext.auditorJudges` */
+    auditorJudges?: readonly string[]
     /**
      * 不给这个子 agent 审批通道。
      *
-     * 只有一个用途：`/goal` 的审计员。它的授权边界是 `toolNames` 白名单本身
-     * （名单里没有删除、没有 shell、没有浏览器），而复核不是用户发起的动作 ——
+     * 只给审计员（`/goal` 复核、工作室验收）。它的授权边界是 `isAuditorTool` 本身
+     * （只读工具在主对话里本来就不问，外加几个点名的裁判），而复核不是用户发起的动作 ——
      * 为它弹一串审批框，结果只会是用户闭眼点允许，把真正该看的那次也一起点了。
      *
      * 熔断器不依赖审批门，照常生效。
@@ -1073,6 +1087,7 @@ export async function runSubAgent(
     onCompacting: undefined,
     ...(input.namespaces ? { namespaces: input.namespaces } : {}),
     ...(input.toolNames ? { toolNames: input.toolNames } : {}),
+    ...(input.auditorJudges ? { auditorJudges: input.auditorJudges } : {}),
     ...(input.withoutApproval ? { requestApproval: undefined } : {})
   })
 
@@ -1176,7 +1191,12 @@ export async function runSubAgent(
  * 光 `ue_playtest` 模拟不了玩家输入，所以带上自动试玩和注入输入；
  * 交了打包版的话，再拿 `project_smoke_test` 起一次打包版看会不会崩。
  */
-const ACCEPTANCE_TOOLS = [...AUDITOR_TOOLS, 'ue_autoplay', 'ue_inject_input', 'project_smoke_test']
+const ACCEPTANCE_JUDGES = [
+  ...AUDITOR_HARD_JUDGES,
+  'ue_autoplay',
+  'ue_inject_input',
+  'project_smoke_test'
+]
 
 /**
  * 工作室里「谁在跑」：制作人和每个队员开跑时登记、收工时注销，别人发来的话才能当场插进来；
@@ -1284,7 +1304,7 @@ function teamToolsFor(
     },
     runAcceptance: async ({ report, howToPlay, projectPath, packageExe, signal, onProgress }) => {
       // 验收员什么都不带：不看制作过程，只看交付说明和游戏本身。
-      // 不给审批通道，理由同 `/goal` 的审计员：它的授权边界就是那份工具白名单
+      // 不给审批通道，理由同 `/goal` 的审计员：它的授权边界就是 `isAuditorTool`
       const result = await runSubAgent(ctx, {
         prompt: buildAcceptancePrompt({
           objective: team.objective,
@@ -1293,7 +1313,7 @@ function teamToolsFor(
           ...(projectPath ? { projectPath } : {}),
           ...(packageExe ? { packageExe } : {})
         }),
-        toolNames: ACCEPTANCE_TOOLS,
+        auditorJudges: ACCEPTANCE_JUDGES,
         withoutApproval: true,
         seedMessages: [],
         onProgress,

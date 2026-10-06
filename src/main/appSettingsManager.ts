@@ -5,6 +5,7 @@ import { logger } from './services'
 import { START_HIDDEN_ARG } from './startupVisibility'
 import { projectComparisonKey } from './utils/projectPath'
 import { setMainLanguage } from './i18n'
+import { DEFAULT_GOAL_MAX_ROUNDS, normalizeGoalMaxRounds } from '../shared/goalRounds'
 
 /**
  * Agent 浏览器窗口的显示方式。
@@ -78,6 +79,10 @@ interface AppSettings {
    */
   agentPersistentAutoResume: boolean
   /**
+   * 目标模式（`/goal`）最多迭代几轮。每次开跑时读取，范围见 `shared/goalRounds.ts`。
+   */
+  agentGoalMaxRounds: number
+  /**
    * 全量模式下用户关掉的工具名。默认一个都没关。
    *
    * 记「关掉的」而不是「开着的」：以后每加一个工具，老用户的配置里没有它，
@@ -130,6 +135,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   agentToolSearchEnabled: false,
   // 默认开：它只在「这次失败重来可能就好」时才动手，关着的代价是任务半路停下等人点
   agentPersistentAutoResume: true,
+  agentGoalMaxRounds: DEFAULT_GOAL_MAX_ROUNDS,
   // 默认全部打开。设置页里那一长串开关，起手状态就该等于「什么都没设置过」
   agentDisabledTools: [],
   agentResidentTools: {},
@@ -201,6 +207,8 @@ class AppSettingsManager {
           agentToolSearchEnabled: mergedSettings.agentToolSearchEnabled === true,
           // 只有用户明确关掉才算关：旧配置里没有这个字段的，跟着默认走
           agentPersistentAutoResume: mergedSettings.agentPersistentAutoResume !== false,
+          // 手改坏的配置（字符串、负数、9999）夹回范围，不让它变成零轮或者跑一整夜
+          agentGoalMaxRounds: normalizeGoalMaxRounds(mergedSettings.agentGoalMaxRounds),
           // 配置文件被手改坏（写成对象、混进数字）时退回「什么都没关」。
           // 这两份名单只会让模型少拿到工具，读坏了宁可全给，不能让人对着一个
           // 空空如也的助手查半天
@@ -250,6 +258,13 @@ class AppSettingsManager {
   /** 同上：先落盘再更新内存 */
   setAgentPersistentAutoResume(enabled: boolean): void {
     const next = { ...this.settings, agentPersistentAutoResume: enabled }
+    writeFileSync(this.configPath, JSON.stringify(next, null, 2))
+    this.settings = next
+  }
+
+  /** 同上：先落盘再更新内存。越界的值夹回范围再存 */
+  setAgentGoalMaxRounds(rounds: number): void {
+    const next = { ...this.settings, agentGoalMaxRounds: normalizeGoalMaxRounds(rounds) }
     writeFileSync(this.configPath, JSON.stringify(next, null, 2))
     this.settings = next
   }

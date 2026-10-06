@@ -3138,6 +3138,9 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       persistentAutoResume: 'Auto-resume on failure',
       persistentAutoResumeDesc:
         'When your gateway is unstable, pick up from where it stopped every 60s. Gives up after 30 minutes of failures. Failed attempts are left out of the chat.',
+      goalMaxRounds: 'Goal mode round limit',
+      goalMaxRoundsDesc:
+        'With /goal, a failed review sends the work back for another round. After this many rounds it stops and hands back to you. Each round adds a review that may compile Blueprints or run PIE. Applies from your next message. 1–50.',
       openArchivedChats: 'Open archived chats',
       // Smart follow-up suggestions settings
       followUpSuggestions: 'Follow-up suggestions',

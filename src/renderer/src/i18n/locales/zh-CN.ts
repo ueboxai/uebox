@@ -3037,6 +3037,9 @@ export default {
       persistentAutoResume: '自动断点续传',
       persistentAutoResumeDesc:
         '中转不稳定时，每 60 秒自动从断点接着跑，连续失败 30 分钟才停。失败的那几次不留在对话里。',
+      goalMaxRounds: '目标模式最多几轮',
+      goalMaxRoundsDesc:
+        '用 /goal 时，复核没通过就接着改，到这个轮数还没达成就停下来交给你。每轮都会多一次复核，可能编译蓝图、跑 PIE。下一条消息生效，1–50。',
       openArchivedChats: '打开归档对话',
       // 智能追加提问设置
       followUpSuggestions: '追问建议',

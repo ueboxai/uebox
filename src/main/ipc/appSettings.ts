@@ -43,6 +43,7 @@ export function registerAppSettingsIPC(setAppIconTheme: SetAppIconTheme): void {
         agentFileAccessScope?: AgentFileAccessScope
         agentToolSearchEnabled?: boolean
         agentPersistentAutoResume?: boolean
+        agentGoalMaxRounds?: number
         agentDisabledTools?: string[]
         agentResidentTools?: Record<string, boolean>
         notifyTurnComplete?: TurnCompleteNotification
@@ -81,6 +82,9 @@ export function registerAppSettingsIPC(setAppIconTheme: SetAppIconTheme): void {
       }
       if (typeof settings.agentPersistentAutoResume === 'boolean') {
         appSettingsManager.setAgentPersistentAutoResume(settings.agentPersistentAutoResume)
+      }
+      if (typeof settings.agentGoalMaxRounds === 'number') {
+        appSettingsManager.setAgentGoalMaxRounds(settings.agentGoalMaxRounds)
       }
       // 整份名单替换，不做增量：设置页那边本来就是拿着完整清单在点，
       // 增量协议只会在两处各存一份状态，然后慢慢对不上

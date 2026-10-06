@@ -107,7 +107,7 @@ import {
   runWithEditorScreenshotScope
 } from '../agent-v3/core/editorScreenshotScope'
 import {
-  AUDITOR_TOOLS,
+  AUDITOR_HARD_JUDGES,
   buildAuditPrompt,
   checkGoalPreconditions,
   createGoalLoop,
@@ -119,6 +119,7 @@ import { createTeamStore, PRODUCER } from '../agent-v3/core/team/teamStore'
 import { createTeamLive } from '../agent-v3/core/team/teamLive'
 import { formatMail } from '../agent-v3/core/team/teamTools'
 import type { TeamStateView } from '../../shared/agentTeam'
+import { DEFAULT_GOAL_MAX_ROUNDS, normalizeGoalMaxRounds } from '../../shared/goalRounds'
 import { buildCrashNotice, type EditorWatchEvent } from '../agent-v3/core/team/editorWatch'
 import { startTeamEditorWatch } from './teamEditorWatch'
 import { createTeamSnapshots } from './teamSnapshots'
@@ -317,6 +318,21 @@ async function persistentAutoResumeEnabled(): Promise<boolean> {
   }
 }
 
+/**
+ * 设置里的「目标模式最多几轮」，每次开跑时读。读不到按默认 —— 和没改过设置一样。
+ *
+ * 在挂监听**之前**读好传进去，不把 `attachGoalLoop` 改成异步：那样订阅会晚于
+ * 开跑，开头几个事件就漏了。
+ */
+async function goalMaxRounds(): Promise<number> {
+  try {
+    const { appSettingsManager } = await import('../appSettingsManager')
+    return normalizeGoalMaxRounds(appSettingsManager.getSettings().agentGoalMaxRounds)
+  } catch {
+    return DEFAULT_GOAL_MAX_ROUNDS
+  }
+}
+
 /** 这一轮还收不收插话：没收尾、没被叫停 */
 function acceptsSteer(entry: ActiveAgentRun): boolean {
   return !entry.ending && !entry.controller.signal.aborted
@@ -471,7 +487,8 @@ function attachGoalLoop(
   ctx: SessionContext,
   tools: Array<{ name: string; unrealBox: ToolMeta }>,
   options: SessionExecutionOptions,
-  emit: (channel: string, payload: unknown) => void
+  emit: (channel: string, payload: unknown) => void,
+  maxRounds: number
 ): ReturnType<typeof createGoalLoop> | undefined {
   const goal = options.goal
   if (!goal || goal.settled) return undefined
@@ -484,9 +501,11 @@ function attachGoalLoop(
   }
   const loop = createGoalLoop({
     objective: goal.objective,
+    ...(goal.latestRequest ? { latestRequest: goal.latestRequest } : {}),
+    maxRounds,
     initialState: goal,
     onStateChange: async (state) => {
-      options.goal = { objective: goal.objective, ...state }
+      options.goal = { ...goal, ...state }
       await saveExecutionOptions(ctx.sessionId, options)
       // 收齐了界面上那行目标要跟着变
       emit('agent-v3:goal-state', { sessionId: ctx.sessionId })
@@ -500,7 +519,7 @@ function attachGoalLoop(
     runAudit: async (input) => {
       const result = await runSubAgent(ctx, {
         prompt: buildAuditPrompt(input),
-        toolNames: [...AUDITOR_TOOLS],
+        auditorJudges: AUDITOR_HARD_JUDGES,
         withoutApproval: true,
         seedMessages: [],
         ...(input.signal ? { signal: input.signal } : {}),
@@ -2039,7 +2058,15 @@ export function registerAgentV3IPC(): void {
        */
       const goalSource = goalObjective ?? previousOptions?.goal?.objective
       const goal = goalSource
-        ? { objective: goalSource, rounds: 0, lastFailReason: '', mutations: [], settled: false }
+        ? {
+            objective: goalSource,
+            // 沿用老目标的这一轮，用户刚说的话要压过目标原文，见 `GoalLoopDeps.latestRequest`
+            ...(goalObjective ? {} : { latestRequest: promptText }),
+            rounds: 0,
+            lastFailReason: '',
+            mutations: [],
+            settled: false
+          }
         : undefined
       const team = teamObjective
         ? startTeamRound(newTeamState(teamObjective))
@@ -2163,7 +2190,7 @@ export function registerAgentV3IPC(): void {
        * 都没有。模型中途把工程打开、拿到引擎工具、开始改蓝图和关卡之后，
        * 按 `tools` 记的话那些改动一条都不入账 —— 审计员会对着一张空台账签字。
        */
-      attachGoalLoop(agent, ctx, allTools, options, emit)
+      attachGoalLoop(agent, ctx, allTools, options, emit, await goalMaxRounds())
       attachTeamGate(agent, ctx, options, allTools, emit)
       attachEditorWatch(agent, ctx, run, emit)
 
@@ -2570,7 +2597,7 @@ export function registerAgentV3IPC(): void {
       })
       // 同 execute：改动台账要看**全量**工具名，不能只看这一轮开局那份 ——
       // 续跑里模型照样可能中途把工程打开、拿到引擎工具再开始改东西
-      const goalLoop = attachGoalLoop(agent, ctx, allTools, options, emit)
+      const goalLoop = attachGoalLoop(agent, ctx, allTools, options, emit, await goalMaxRounds())
       attachTeamGate(agent, ctx, options, allTools, emit)
       attachEditorWatch(agent, ctx, run, emit)
       if (goalLoop) {

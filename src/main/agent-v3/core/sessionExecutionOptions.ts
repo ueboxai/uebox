@@ -73,6 +73,11 @@ const optionsSchema = z.object({
   goal: z
     .object({
       objective: z.string().min(1),
+      /**
+       * 定下目标之后用户又说的那句话，复核和续跑拿它压过老目标（见 `GoalLoopDeps`）。
+       * 落盘是给「从断点继续」用的；`/goal` 那一轮和老记录里没有
+       */
+      latestRequest: z.string().optional(),
       rounds: z.number().int().min(0),
       lastFailReason: z.string(),
       mutations: z.array(z.string()),

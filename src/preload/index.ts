@@ -3019,6 +3019,7 @@ const api = {
       agentFileAccessScope: 'ue-only' | 'full'
       agentToolSearchEnabled: boolean
       agentPersistentAutoResume: boolean
+      agentGoalMaxRounds: number
       agentDisabledTools: string[]
       agentResidentTools: Record<string, boolean>
       notifyTurnComplete: 'off' | 'unfocused' | 'always'
@@ -3038,6 +3039,7 @@ const api = {
       agentFileAccessScope?: 'ue-only' | 'full'
       agentToolSearchEnabled?: boolean
       agentPersistentAutoResume?: boolean
+      agentGoalMaxRounds?: number
       agentDisabledTools?: string[]
       agentResidentTools?: Record<string, boolean>
       notifyTurnComplete?: 'off' | 'unfocused' | 'always'
