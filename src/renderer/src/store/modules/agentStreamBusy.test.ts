@@ -82,11 +82,10 @@ describe('agentStream 的「忙」判据', () => {
     // 只有这句话本身、它的状态、以及撤回时用来指认它的号 —— 再多一个字段就要问清楚是什么
     expect(Object.keys(item?.data ?? {}).sort()).toEqual([
       'applied',
-      'cancelled',
       'sessionId',
       'steerId',
       'text'
     ])
-    expect(item?.data).toMatchObject({ text: '这个也改了', applied: false, cancelled: false })
+    expect(item?.data).toMatchObject({ text: '这个也改了', applied: false })
   })
 })

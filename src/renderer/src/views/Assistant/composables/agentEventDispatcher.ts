@@ -26,7 +26,11 @@
 
 import { useAgentStreamStore } from '@renderer/store/modules/agentStream'
 import { useChatMessagesStore } from '@renderer/store/modules/chatMessages'
-import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
+import {
+  useChatSessionsStore,
+  type ChatImageDraft
+} from '@renderer/store/modules/chatSessions'
+import { forgetSteerDraft, takeSteerDraft } from './steerDrafts'
 import { usePendingApprovalsStore } from '@renderer/store/modules/pendingApprovals'
 import type { AgentTurnUsage } from '@core/shared/agentUsage'
 import type { AgentQuestion, AgentQuestionAction } from '@core/shared/agentQuestion'
@@ -447,7 +451,9 @@ export function initAgentEventDispatcher(): void {
   // 对不上任何待生效插话的（本轮最初的 prompt）会被 markSteerApplied 忽略。
   on('agent-v3:user-message', (data: { sessionId: string; text: string }) => {
     if (!data?.sessionId || !data.text) return
-    getStreamStore().markSteerApplied(data.sessionId, data.text)
+    const steerId = getStreamStore().markSteerApplied(data.sessionId, data.text)
+    // 进了上下文就撤不回来了，留着放回输入框的草稿没用
+    if (steerId) forgetSteerDraft(steerId)
   })
 
   // ── agent 反问用户 ──────────────────────────────────────────────────
@@ -725,8 +731,10 @@ export function recordUserSteer(agentSessionId: string, text: string, steerId?: 
  * 用户点掉了时间线上一条还排着的插话。
  *
  * **先问内核再改界面**：那句话早就交出去了，「排队中」只是我们这边的说法，
- * 内核可能刚好已经把它读进上下文。先把界面改成「已撤回」再去问，撞上这种时候
- * 用户会看到一条标着「已撤回」的话被模型照做了 —— 那比没有撤回按钮更坏。
+ * 内核可能刚好已经把它读进上下文。先把界面改了再去问，撞上这种时候
+ * 用户会看到一条撤掉的话被模型照做了 —— 那比没有撤回按钮更坏。
+ *
+ * 撤成了：这条从时间线上拿掉，文字和附件原样回到输入框，用户改完再发。
  *
  * 返回撤回到底成没成，调用方据此决定要不要跟用户交代一句。
  */
@@ -734,9 +742,53 @@ export async function cancelUserSteer(agentSessionId: string, steerId: string): 
   const result = await agentV3API.cancelSteer(agentSessionId, steerId)
   if (!result?.success) return false
 
-  getStreamStore().markSteerCancelled(agentSessionId, steerId)
+  const store = getStreamStore()
+  const chatSid = store.getChatSidByAgentSession(agentSessionId)
+  const removed = store.removeSteer(agentSessionId, steerId)
   paintStreamingMessage(agentSessionId)
+
+  const restore = takeSteerDraft(steerId)
+  if (restore) restore()
+  else if (removed && chatSid) void restoreSteerFromTimeline(chatSid, removed)
   return true
+}
+
+/**
+ * 没有输入框留下的草稿时（从排队条目转的插话、语音插话），按时间线上记的放回去。
+ *
+ * 时间线上只有文字和图；文档、表格当时只记了文件名，内容已经交给内核了，还原不出来。
+ * 输入框里已经打了字的，撤回的那句接在前面，不覆盖。
+ */
+async function restoreSteerFromTimeline(
+  chatSid: string,
+  data: { text?: unknown; textSynthetic?: unknown; images?: unknown }
+): Promise<void> {
+  const sessions = useChatSessionsStore()
+  const text = data.textSynthetic === true ? '' : String(data.text ?? '').trim()
+  if (text) {
+    const current = sessions.getDraft(chatSid)
+    sessions.setDraft(chatSid, current.trim() ? `${text}\n\n${current}` : text)
+  }
+
+  const urls = Array.isArray(data.images)
+    ? data.images.filter((url): url is string => typeof url === 'string' && url.length > 0)
+    : []
+  if (urls.length === 0) return
+  const images: ChatImageDraft[] = []
+  for (const [index, url] of urls.entries()) {
+    try {
+      const blob = await (await fetch(url)).blob()
+      const file = new File([blob], `steer-${index + 1}.${blob.type.split('/')[1] || 'png'}`, {
+        type: blob.type
+      })
+      images.push({ id: `steer-${Date.now()}-${index}`, file, preview: url, url, uploading: false })
+    } catch {
+      // 取不回来的那张就算了，别为一张图把整次撤回搞砸
+    }
+  }
+  if (images.length > 0) {
+    sessions.trySetImageDraft(chatSid, [...images, ...sessions.getImageDraft(chatSid)])
+  }
 }
 
 /**

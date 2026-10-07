@@ -1080,9 +1080,12 @@ describe('cancelUserSteer', () => {
     localStorage.clear()
   })
 
-  it('内核确认撤掉了，时间线就地改成已撤回并重画', async () => {
+  it('内核确认撤掉了，时间线上拿掉这条并重画，输入框的草稿放回去', async () => {
     const bus = installApiMock()
     const dispatcher = await freshDispatcher()
+    const { rememberSteerDraft } = await import('./steerDrafts')
+    const restore = vi.fn()
+    rememberSteerDraft('steer-1', restore)
 
     const typingId = useChatMessagesStore().pushAssistantTyping(CHAT_S)
     const store = useAgentStreamStore()
@@ -1091,13 +1094,33 @@ describe('cancelUserSteer', () => {
 
     await expect(dispatcher.cancelUserSteer(SID_S, 'steer-1')).resolves.toBe(true)
     expect(bus.cancelSteer).toHaveBeenCalledWith({ sessionId: SID_S, steerId: 'steer-1' })
+    expect(restore).toHaveBeenCalledTimes(1)
 
-    // 屏幕上那条气泡读的是消息，不是 Store —— 不重画的话它还写着「排队中」
+    // 屏幕上那条气泡读的是消息，不是 Store —— 不重画的话它还挂在那儿
     const painted = useChatMessagesStore()
       .getMessages(CHAT_S)
       .at(-1)
       ?.agentProcess?.find((entry) => entry.type === 'user-steer')
-    expect(painted?.data).toMatchObject({ cancelled: true })
+    expect(painted).toBeUndefined()
+    // 输入框自己会放，不再按时间线另放一遍
+    expect(useChatSessionsStore().getDraft(CHAT_S)).toBe('')
+  })
+
+  // 排队条目转的、语音的插话没有输入框留下的草稿：按时间线上记的文字放回去，接在已打的字前面
+  it('没有草稿时按时间线上记的文字放回输入框', async () => {
+    installApiMock()
+    const dispatcher = await freshDispatcher()
+
+    const typingId = useChatMessagesStore().pushAssistantTyping(CHAT_S)
+    const store = useAgentStreamStore()
+    store.initStream(CHAT_S, SID_S, typingId)
+    store.pushUserSteer(SID_S, '算了别改了', 'steer-1')
+    useChatSessionsStore().setDraft(CHAT_S, '新打的')
+
+    await expect(dispatcher.cancelUserSteer(SID_S, 'steer-1')).resolves.toBe(true)
+    await vi.waitFor(() =>
+      expect(useChatSessionsStore().getDraft(CHAT_S)).toBe('算了别改了\n\n新打的')
+    )
   })
 
   /**
@@ -1121,7 +1144,7 @@ describe('cancelUserSteer', () => {
     const item = store
       .getStreamByAgentSession(SID_S)!
       .agentProcess.find((entry) => entry.type === 'user-steer')
-    expect(item?.data.cancelled).toBe(false)
+    expect(item?.data.text).toBe('算了别改了')
   })
 })
 

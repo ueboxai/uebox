@@ -2383,8 +2383,7 @@ export default {
       pending: '排队中',
       applied: '已发送',
       notApplied: '未发送',
-      cancel: '撤回这条',
-      cancelled: '已撤回',
+      cancel: '撤回重新编辑',
       // 撤不掉是常态：话早就交给内核了，点下去那一刻它可能刚好被读走
       cancelTooLate: '晚了一步，这条已经发给模型了'
     },

@@ -18,6 +18,7 @@ import {
   hasActiveHandler
 } from './agentEventDispatcher'
 import { onAgentReattached } from './agentReattach'
+import { rememberSteerDraft } from './steerDrafts'
 import { isDuplicateNotify, NOTIFY_DEDUP_WINDOW_MS } from './notifyDedup'
 import { describeStartupError } from './agentControlHandlers'
 import { createAgentModeHandlers } from './useAgentModeHandlers'
@@ -1012,7 +1013,12 @@ export function useAgentMode(params: UseAgentModeParams) {
      * 插进哪一轮。调用方在自己开始等（抓闪存、传附件）之前记下的 —— 等的这几秒里
      * 用户切了对话，`currentSessionId` 就指向别人正在跑的那一轮了
      */
-    targetSessionId?: string
+    targetSessionId?: string,
+    /**
+     * 把这次摘走的字和附件放回输入框。插进去之后按号记下，用户撤回这条时调它 ——
+     * 撤回就是「我还要改」，东西得原样回到手上
+     */
+    restoreDraft?: () => void
   ): Promise<boolean> {
     const sessionId = targetSessionId || currentSessionId.value
     // 这一轮属于哪条对话，也在等之前定下来：回执晚到时气泡得落回它自己的对话里
@@ -1063,6 +1069,7 @@ export function useAgentMode(params: UseAgentModeParams) {
         return false
       }
       steerId = result.steerId
+      if (steerId && restoreDraft) rememberSteerDraft(steerId, restoreDraft)
     } catch (error) {
       console.error('[Agent模式] 插话失败:', error)
       message.warning(

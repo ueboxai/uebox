@@ -47,8 +47,6 @@ export interface AgentTimelineSteerBlock {
   text: string
   /** 内核已经把这句话读进上下文（收到它的 message_end 才置位） */
   applied: boolean
-  /** 用户点了撤回，而且内核确认它没进上下文 */
-  cancelled: boolean
   /**
    * 撤回这条要用的号和会话。缺任何一个就不给撤回按钮 ——
    * 画一个点了必然失败的按钮，比没有按钮更糟。
@@ -151,10 +149,11 @@ export function splitAgentTimeline(items: AgentProcessItem[], thinking = ''): Ag
     if (item.type === 'user-steer') {
       const text = readTimelineText(item)
       if (!text.trim()) continue
+      // 早先的版本撤回后留着一条标「已撤回」的；现在撤回的话回输入框了，记录里不再画它
+      if ((item.data as { cancelled?: unknown } | undefined)?.cancelled === true) continue
       const data = item.data as
         | {
             applied?: unknown
-            cancelled?: unknown
             steerId?: unknown
             sessionId?: unknown
             images?: unknown
@@ -176,7 +175,6 @@ export function splitAgentTimeline(items: AgentProcessItem[], thinking = ''): Ag
         key: `steer:${item.timestamp}:${blocks.length}`,
         text,
         applied: data?.applied === true,
-        cancelled: data?.cancelled === true,
         ...(typeof data?.steerId === 'string' ? { steerId: data.steerId } : {}),
         ...(typeof data?.sessionId === 'string' ? { sessionId: data.sessionId } : {}),
         ...(images.length > 0 ? { images } : {}),
@@ -259,8 +257,7 @@ function isSameTimelineBlock(previous: AgentTimelineBlock, next: AgentTimelineBl
   if (previous.kind === 'steer' && next.kind === 'steer') {
     return (
       previous.text === next.text &&
-      previous.applied === next.applied &&
-      previous.cancelled === next.cancelled
+      previous.applied === next.applied
     )
   }
 

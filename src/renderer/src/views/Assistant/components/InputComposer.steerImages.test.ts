@@ -226,7 +226,8 @@ describe('插话没成时放回来', () => {
     wrapper.unmount()
   })
 
-  it('这期间又打了字，就不拿旧的盖掉', async () => {
+  // 放回的那句接在前面：新打的不能被盖掉，撤回的那句也不能丢
+  it('这期间又打了字，放回的接在前面，不盖掉新打的', async () => {
     const wrapper = await steeringComposer([])
     await wrapper.get('textarea').setValue('第一句')
     await wrapper.get('.send-btn').trigger('click')
@@ -236,7 +237,7 @@ describe('插话没成时放回来', () => {
     payload.restore()
     await flushPromises()
 
-    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('已经在打第二句')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('第一句\n\n已经在打第二句')
     wrapper.unmount()
   })
 })

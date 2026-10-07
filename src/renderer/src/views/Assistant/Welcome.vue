@@ -1844,7 +1844,8 @@ async function handleComposerSteer(payload: {
     captured.ok ? captured.snapshot : null,
     payload.images,
     payload.attachments,
-    runningSessionId
+    runningSessionId,
+    payload.restore
   )
   // 没插进去：用户打的字和附件不能就这么没了（输入框为了不卡手，发出时先摘掉了）
   if (!steered) payload.restore?.()

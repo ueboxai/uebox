@@ -379,7 +379,6 @@ export const useAgentStreamStore = defineStore('agentStream', () => {
         text,
         ...(textSynthetic ? { textSynthetic: true } : {}),
         applied: false,
-        cancelled: false,
         steerId,
         sessionId: agentSessionId,
         ...(images?.length ? { images: [...images] } : {}),
@@ -393,20 +392,22 @@ export const useAgentStreamStore = defineStore('agentStream', () => {
   /**
    * 用户把这条插话撤回了，内核也确认它没进上下文。
    *
-   * 不把这条从时间线上删掉：他确实打了这句话、确实按了发送，
-   * 记录里凭空少一段之后没人说得清当时发生过什么，文字本身也一起没了。
-   * 就地改成「已撤回」，看得见、拷得走，也不会被误读成还在等生效。
+   * 直接从时间线上拿掉：它没发出去，模型没看见，留着只会让记录里多一句
+   * 「说了但不算」的话。文字和附件不会丢 —— 调用方拿返回的条目把它放回输入框，
+   * 用户改完再发一遍。
+   *
+   * 返回被拿掉的那条的数据；找不到返回 null。
    */
-  function markSteerCancelled(agentSessionId: string, steerId: string): void {
+  function removeSteer(agentSessionId: string, steerId: string): AgentProcessItem['data'] | null {
     const state = getStreamByAgentSession(agentSessionId)
-    if (!state || !steerId) return
+    if (!state || !steerId) return null
 
-    for (const item of state.agentProcess) {
-      if (item.type !== 'user-steer') continue
-      if (item.data?.steerId !== steerId) continue
-      item.data.cancelled = true
-      return
-    }
+    const index = state.agentProcess.findIndex(
+      (item) => item.type === 'user-steer' && item.data?.steerId === steerId
+    )
+    if (index < 0) return null
+    const [removed] = state.agentProcess.splice(index, 1)
+    return removed.data
   }
 
   /**
@@ -416,22 +417,25 @@ export const useAgentStreamStore = defineStore('agentStream', () => {
    * 那是「真的进去了」的唯一确凿信号 —— IPC 那个 success 只代表**入队成功**。
    *
    * 按文本匹配最早一条还没生效的插话：同一句话连插两次时，先进的先生效。
-   * 撤回掉的跳过 —— 同一句话插两次撤了头一条时，生效的必须记在还留着的那条上。
+   * 撤回的那条已经从时间线上拿掉了，不会被误认。
+   *
+   * 返回标上的那条的 `steerId`（没有就是 undefined），调用方据此放掉撤回用的草稿。
    */
-  function markSteerApplied(agentSessionId: string, text: string): void {
+  function markSteerApplied(agentSessionId: string, text: string): string | undefined {
     const state = getStreamByAgentSession(agentSessionId)
-    if (!state) return
+    if (!state) return undefined
 
     const target = text.trim()
-    if (!target) return
+    if (!target) return undefined
 
     for (const item of state.agentProcess) {
       if (item.type !== 'user-steer') continue
-      if (item.data?.applied || item.data?.cancelled) continue
+      if (item.data?.applied) continue
       if (String(item.data?.text ?? '').trim() !== target) continue
       item.data.applied = true
-      return
+      return typeof item.data.steerId === 'string' ? item.data.steerId : undefined
     }
+    return undefined
   }
 
   /**
@@ -727,7 +731,7 @@ export const useAgentStreamStore = defineStore('agentStream', () => {
     addAgentProcess,
     pushUserSteer,
     markSteerApplied,
-    markSteerCancelled,
+    removeSteer,
     pushQuestion,
     hasPendingQuestion,
     resolveQuestion,

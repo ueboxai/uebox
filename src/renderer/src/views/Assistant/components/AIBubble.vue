@@ -58,16 +58,12 @@
                 :row-count="file.rowCount"
               />
             </div>
-            <div
-              v-if="!block.textSynthetic"
-              class="timeline-steer-bubble"
-              :class="{ cancelled: block.cancelled }"
-            >
+            <div v-if="!block.textSynthetic" class="timeline-steer-bubble">
               {{ block.text }}
             </div>
             <div
               class="timeline-steer-status"
-              :class="{ applied: block.applied && !block.cancelled }"
+              :class="{ applied: block.applied }"
             >
               <!--
                 还排着的才给撤回：已生效的抽不回来（它在 transcript 里，
@@ -836,14 +832,12 @@ function canCancelSteer(block: AgentTimelineSteerBlock): boolean {
   return (
     props.status === 'typing' &&
     !block.applied &&
-    !block.cancelled &&
     !!block.steerId &&
     !!block.sessionId
   )
 }
 
 function steerStatusLabel(block: AgentTimelineSteerBlock): string {
-  if (block.cancelled) return t('assistant.steer.cancelled')
   if (block.applied) return t('assistant.steer.applied')
   return props.status === 'typing' ? t('assistant.steer.pending') : t('assistant.steer.notApplied')
 }
@@ -1921,12 +1915,6 @@ function toggleChanges(): void {
   font-size: var(--font-size-sm);
   white-space: pre-wrap;
   word-break: break-word;
-
-  // 撤回掉的那条留在原地，但要一眼看出它没算数
-  &.cancelled {
-    color: var(--color-text-muted);
-    text-decoration: line-through;
-  }
 }
 
 // 缩略图跟着气泡右对齐，尺寸压到刚够认出画的是什么 —— 它是佐证，不是主角

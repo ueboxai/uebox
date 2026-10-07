@@ -130,14 +130,13 @@ describe('splitAgentTimeline', () => {
     const blocks = splitAgentTimeline([
       {
         type: 'user-steer',
-        data: { text: '算了', applied: false, cancelled: true, steerId: 's-1', sessionId: 'a-1' },
+        data: { text: '算了', applied: false, steerId: 's-1', sessionId: 'a-1' },
         timestamp: 2
       }
     ])
 
     expect(blocks[0]).toMatchObject({
       kind: 'steer',
-      cancelled: true,
       steerId: 's-1',
       sessionId: 'a-1'
     })
@@ -162,16 +161,25 @@ describe('splitAgentTimeline', () => {
     expect(blocks[0]).toMatchObject({ kind: 'steer', images: ['data:image/png;base64,a'] })
   })
 
-  // 撤回是就地改状态，块必须跟着重建，否则界面停在「排队中」
-  it('撤回状态变了就不复用旧块', () => {
+  // 生效是就地改状态，块必须跟着重建，否则界面停在「排队中」
+  it('生效状态变了就不复用旧块', () => {
     const item = steer('算了', 2)
     const before = reconcileAgentTimeline([], [item])
 
-    item.data.cancelled = true
+    item.data.applied = true
     const after = reconcileAgentTimeline(before, [item])
 
     expect(after[0]).not.toBe(before[0])
-    expect(after[0]).toMatchObject({ kind: 'steer', cancelled: true })
+    expect(after[0]).toMatchObject({ kind: 'steer', applied: true })
+  })
+
+  // 早先的版本撤回后留一条标「已撤回」的；现在撤回的话回输入框了，老记录里也不再画它
+  it('老记录里标了撤回的插话不画', () => {
+    const blocks = splitAgentTimeline([
+      { type: 'user-steer', data: { text: '算了', applied: false, cancelled: true }, timestamp: 2 }
+    ])
+
+    expect(blocks).toEqual([])
   })
 
   // 混进工具调用列表里会被读成 agent 自己的一步，而它是用户说的话
@@ -329,37 +337,34 @@ describe('agentStream 把正文记进时间线', () => {
   })
 
   /**
-   * 撤回掉的那条留在原地，只是标成「已撤回」。
-   *
-   * 删掉它的话，用户确实打过、确实按过发送的一句话在记录里凭空消失，
-   * 文字本身也一起没了 —— 他想改两个字再发一遍都没得可抄。
+   * 撤回的那条直接从时间线上拿掉：它没发出去，留着只会多一句「说了但不算」的话。
+   * 文字和附件交回给调用方，由它放回输入框。
    */
-  it('撤回后条目还在时间线上，只是标成已撤回', () => {
+  it('撤回后条目从时间线上拿掉，数据交回调用方', () => {
     setActivePinia(createPinia())
     const store = useAgentStreamStore()
     store.initStream(CHAT, SESSION, 'typing-1')
 
-    store.pushUserSteer(SESSION, '算了别改了', 'steer-1')
-    store.markSteerCancelled(SESSION, 'steer-1')
+    store.pushUserSteer(SESSION, '算了别改了', 'steer-1', ['data:image/png;base64,a'])
+    const removed = store.removeSteer(SESSION, 'steer-1')
 
-    const items = store.getAgentProcess(CHAT)
-    expect(items).toHaveLength(1)
-    expect(items[0].data.cancelled).toBe(true)
-    expect(items[0].data.text).toBe('算了别改了')
+    expect(store.getAgentProcess(CHAT)).toHaveLength(0)
+    expect(removed).toMatchObject({ text: '算了别改了', images: ['data:image/png;base64,a'] })
+    expect(store.removeSteer(SESSION, 'steer-1')).toBeNull()
   })
 
-  // 撤回的那条永远不会生效；同一句话插两次撤了头一条时，生效要记在还留着的那条上
-  it('已撤回的条目不会被内核回执标成已生效', () => {
+  // 同一句话插两次撤了头一条时，生效要记在还留着的那条上，并报出它的号
+  it('撤回之后的回执标在还留着的那条上', () => {
     setActivePinia(createPinia())
     const store = useAgentStreamStore()
     store.initStream(CHAT, SESSION, 'typing-1')
 
     store.pushUserSteer(SESSION, '快点', 'steer-1')
     store.pushUserSteer(SESSION, '快点', 'steer-2')
-    store.markSteerCancelled(SESSION, 'steer-1')
-    store.markSteerApplied(SESSION, '快点')
+    store.removeSteer(SESSION, 'steer-1')
 
-    expect(store.getAgentProcess(CHAT).map((item) => item.data.applied)).toEqual([false, true])
+    expect(store.markSteerApplied(SESSION, '快点')).toBe('steer-2')
+    expect(store.getAgentProcess(CHAT).map((item) => item.data.steerId)).toEqual(['steer-2'])
   })
 
   // 本轮最初的 prompt 也会走这条回执通道，不能让它误标掉待生效的插话

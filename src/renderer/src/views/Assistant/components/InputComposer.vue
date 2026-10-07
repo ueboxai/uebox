@@ -2845,11 +2845,14 @@ function handleSteer(): void {
 
   /*
    * 为了不卡手，发出去这一刻先把它们从输入框摘掉；插话没成（这一轮刚好收尾、
-   * 工程对不上……）时由接收方调这个放回来 —— 不然用户打的字和拖进来的附件就没了。
-   * 放回的是**这次摘走的那几样**：这期间用户又打了字、又拖了东西的，一样不动。
+   * 工程对不上……）或者用户事后撤回了这条时，由接收方调这个放回来 ——
+   * 不然用户打的字和拖进来的附件就没了。
+   * 放回的是**这次摘走的那几样**：这期间用户又打了字、又拖了东西的，一样不动，
+   * 放回的字接在它前面。
    */
   const restore = (): void => {
-    if (!content.value.trim()) content.value = typed
+    const current = content.value.trim()
+    if (typed) content.value = current ? `${typed}\n\n${content.value}` : typed
     if (ready.length > 0) replacePendingImages([...ready, ...pendingImages.value])
     if (readyExcel.length > 0) pendingExcelFiles.value = [...readyExcel, ...pendingExcelFiles.value]
     if (readyDocs.length > 0) pendingDocFiles.value = [...readyDocs, ...pendingDocFiles.value]

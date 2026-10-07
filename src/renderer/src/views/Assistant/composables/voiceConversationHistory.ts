@@ -31,7 +31,7 @@ export function voiceConversationHistory(messages: ChatMessage[]): ConversationT
     }
     const blocks = splitAgentTimeline(message.agentProcess || [])
     for (const block of blocks) {
-      if (block.kind === 'steer' && !block.cancelled) {
+      if (block.kind === 'steer') {
         result.push({ role: 'user', text: block.text })
       }
     }

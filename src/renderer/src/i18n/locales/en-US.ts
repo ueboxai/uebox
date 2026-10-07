@@ -2441,8 +2441,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       pending: 'Queued',
       applied: 'Sent',
       notApplied: 'Not sent',
-      cancel: 'Take it back',
-      cancelled: 'Taken back',
+      cancel: 'Take back to edit',
       // Failing to cancel is normal: the kernel may have just picked it up
       cancelTooLate: 'Too late — this one already went to the model'
     },
