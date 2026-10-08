@@ -569,15 +569,20 @@ static void UAL_MatchViewLighting(UWorld* World, const FVector& ViewLocation, FP
 		const FPostProcessSettings& S = *Props.Settings;
 		if (S.bOverride_DynamicGlobalIlluminationMethod) { GI = S.DynamicGlobalIlluminationMethod; }
 		if (S.bOverride_ReflectionMethod) { Reflections = S.ReflectionMethod; }
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1)
+		// 表面缓存分辨率是 5.1 才进后期设置的（5.0 的 SceneCapture 也还没降它）
 		if (S.bOverride_LumenSurfaceCacheResolution) { SurfaceCacheResolution = S.LumenSurfaceCacheResolution; }
+#endif
 	}
 
 	PP.bOverride_DynamicGlobalIlluminationMethod = true;
 	PP.DynamicGlobalIlluminationMethod = GI;
 	PP.bOverride_ReflectionMethod = true;
 	PP.ReflectionMethod = Reflections;
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1)
 	PP.bOverride_LumenSurfaceCacheResolution = true;
 	PP.LumenSurfaceCacheResolution = SurfaceCacheResolution;
+#endif
 	UE_LOG(LogUALEditor, Log, TEXT("SceneCapture: GI method=%d reflection method=%d surface cache=%.2f"),
 		(int32)GI, (int32)Reflections, SurfaceCacheResolution);
 }
