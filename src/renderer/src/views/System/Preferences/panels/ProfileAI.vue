@@ -272,6 +272,30 @@ watch(persistentAutoResume, async (enabled) => {
         </div>
         <div class="setting-item">
           <div class="setting-info">
+            <div class="setting-label">{{ $t('profile.ai.autoRetitle') }}</div>
+            <div class="setting-desc">{{ $t('profile.ai.autoRetitleDesc') }}</div>
+          </div>
+          <AppSwitch v-model:checked="autoRetitleEnabled" />
+        </div>
+        <!-- 「管理 Skills」也搬去了个性化页：那里同时列着有哪些技能、能逐条删 -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">{{ $t('profile.ai.archivedChats') }}</div>
+            <div class="setting-desc">{{ $t('profile.ai.archivedChatsDesc') }}</div>
+          </div>
+          <AppButton variant="soft" @click="showArchivedChats = true">
+            {{ $t('profile.ai.openArchivedChats') }}
+          </AppButton>
+        </div>
+      </div>
+    </section>
+
+    <!-- 输入 Section -->
+    <section class="settings-section">
+      <h4 class="section-title">{{ $t('profile.ai.inputTitle') }}</h4>
+      <div class="settings-list">
+        <div class="setting-item">
+          <div class="setting-info">
             <div class="setting-label">{{ $t('profile.ai.sendShortcut') }}</div>
             <div class="setting-desc">{{ sendShortcutHint }}</div>
           </div>
@@ -302,6 +326,13 @@ watch(persistentAutoResume, async (enabled) => {
             </template>
           </AppSegmented>
         </div>
+      </div>
+    </section>
+
+    <!-- 任务执行 Section -->
+    <section class="settings-section">
+      <h4 class="section-title">{{ $t('profile.ai.taskTitle') }}</h4>
+      <div class="settings-list">
         <div class="setting-item">
           <div class="setting-info">
             <div class="setting-label">{{ $t('profile.ai.agentBrowserMode') }}</div>
@@ -317,23 +348,6 @@ watch(persistentAutoResume, async (enabled) => {
               {{ agentBrowserModeLabel(option) }}
             </template>
           </AppSegmented>
-        </div>
-        <!-- 「管理 Skills」也搬去了个性化页：那里同时列着有哪些技能、能逐条删 -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <div class="setting-label">{{ $t('profile.ai.archivedChats') }}</div>
-            <div class="setting-desc">{{ $t('profile.ai.archivedChatsDesc') }}</div>
-          </div>
-          <AppButton variant="soft" @click="showArchivedChats = true">
-            {{ $t('profile.ai.openArchivedChats') }}
-          </AppButton>
-        </div>
-        <div class="setting-item">
-          <div class="setting-info">
-            <div class="setting-label">{{ $t('profile.ai.autoRetitle') }}</div>
-            <div class="setting-desc">{{ $t('profile.ai.autoRetitleDesc') }}</div>
-          </div>
-          <AppSwitch v-model:checked="autoRetitleEnabled" />
         </div>
         <div class="setting-item">
           <div class="setting-info">

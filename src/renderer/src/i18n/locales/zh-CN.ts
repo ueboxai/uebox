@@ -3031,6 +3031,10 @@ export default {
       description: '配置 AI Agent 相关的偏好设置',
       /** AI 设置里「对话」那一段的小标题 */
       chatTitle: '对话',
+      /** 发送快捷键、运行中发消息怎么处理 */
+      inputTitle: '输入',
+      /** 浏览器、断点续传、目标模式这些 Agent 干活时的行为 */
+      taskTitle: '任务执行',
       // 隐私设置
       privacyTitle: '隐私',
       // 文件访问范围（两档）。默认收窄：盒子是个虚幻工具，没有理由一上来就能翻整块盘。

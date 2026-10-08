@@ -3129,6 +3129,10 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       description: 'Configure AI Agent preferences',
       /** Heading for the "Chat" section of AI settings */
       chatTitle: 'Chat',
+      /** Send shortcut and what happens to messages sent mid-run */
+      inputTitle: 'Input',
+      /** Browser, auto-resume, goal mode: how the agent behaves while working */
+      taskTitle: 'Task execution',
       // Privacy settings
       privacyTitle: 'Privacy',
       // File access scope (two levels). Defaults to the narrow one: the box is an Unreal tool,
