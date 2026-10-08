@@ -141,11 +141,9 @@ export function createLibraryOverviewTool(): V2Tool {
   SQL 精确算出来的总数和分布，库多大它都只有几百字。
 【怎么往下钻】先不带参数看整体 → 挑一个文件夹/标签，带上 folder 或 tags 再调一次
   → 范围收窄到几十个之后，再用 search_assets 取具体资产。
-【统计哪些保管库】用户的资产分散在多个库里（默认保管库、AIGC 资产库、
-  他自己建的、网络协作库）。不填 vault 时按用户设置的「跨库搜索」走：关着只统计
-  当前活跃库，开着全统计，by_vault 里是各库各有多少。
-  **汇报时要说清楚数字是哪几个库的**（看 searched_vaults）；
-  skipped_vaults 是因为开关关着没统计的库，unsearched_vaults 是这次没数到的库，都要说出来。
+【统计哪些保管库】不填 vault 时按用户的「跨库搜索」设置：关着只统计当前库，
+  开着全统计，by_vault 是各库各有多少。**汇报时说清数字是哪几个库的**（searched_vaults）；
+  skipped_vaults（开关关着没统计）和 unsearched_vaults（这次没数到）也要说出来。
 【注意】返回的分布只列前 ${FACET_LIMIT} 个取值，剩下的会以「（其余 N 类合计）」
   的形式给出总数 —— 汇报时别把列出来的当成全部类别。`,
     inputSchema: z.object({

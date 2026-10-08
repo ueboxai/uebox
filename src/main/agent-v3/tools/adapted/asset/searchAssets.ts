@@ -255,10 +255,9 @@ export function createSearchAssetsTool(): V2Tool {
 【回收站】deleted: true 列出回收站里的资产（配合 restore_assets 恢复）。
   这个模式只支持翻页，不能和其他筛选一起用。
 【搜哪些保管库】用户的资产分散在多个库里（默认保管库、AIGC 资产库、
-  他自己建的、网络协作库），**不是一个库**。不填 vault 时搜哪些由用户设置的
-  「跨库搜索」决定：关着只搜当前活跃库，开着全搜。searched_vaults 是实际搜了哪些，
-  skipped_vaults 是因为开关关着没搜的；结果里的 vault 字段说明每条来自哪个库，
-  by_vault 说明各库各有多少。只在用户点名某个库时才填 vault。
+  他自己建的、网络协作库），**不是一个库**。不填 vault 时按用户的「跨库搜索」
+  设置：关着只搜当前库，开着全搜。searched_vaults 是搜了的，skipped_vaults 是
+  开关关着没搜的；每条的 vault 是它所在的库。只在用户点名某个库时才填 vault。
 【AI 生成的素材也在里面】AI 出的图/视频/模型/音乐在「AIGC 资产库」。
   用户说「刚才生成的那张图」「之前 AI 出的模型」就用这个工具找。
   **它们要导进虚幻工程，用 ue_content_import，把 real_path 填进 files** ——
