@@ -68,6 +68,15 @@ interface TargetProjectStore {
   projectPath?: string
   /** 这条执行流属于哪条会话。查归属只需要它 */
   sessionId?: string
+  /**
+   * 模型刚 `open_project` 打开、但编辑器还没连上的那个工程。
+   *
+   * 不记的话 `waitSeconds: 0`（默认值）那一下切不过去，而之后再也没人来切：
+   * 目标模式一轮能跑几个小时，整轮都挂在「没指定」上 —— 锁全落进同一个空连接
+   * 键里，几个工程并行跑同一份 /goal 时，同名软路径的资产互相挡住
+   * （2026-10-08 真机反馈）。记下来，等它连上时 `getTargetConnectionId()` 再切。
+   */
+  pendingProjectPath?: string
 }
 
 /** 绑定目标时可以给的东西：只给 id，或者连工程路径一起给 */
@@ -191,6 +200,22 @@ function findByProjectPath(projectPath: string): string | undefined {
  */
 export function getTargetConnectionId(): string | undefined {
   const store = storage.getStore()
+  if (store?.pendingProjectPath) {
+    // 记下之后会话可能被改挂到别的工程上 —— 和 `retargetToProject` 同一道闸，过不了就作废
+    const bound = boundProject()
+    if (bound?.projectPath && !isSameProjectPath(bound.projectPath, store.pendingProjectPath)) {
+      delete store.pendingProjectPath
+    }
+  }
+  if (store?.pendingProjectPath) {
+    const opened = findByProjectPath(store.pendingProjectPath)
+    if (opened) {
+      store.connectionId = opened
+      store.projectPath = projectManager.getProject(opened)?.projectPath ?? store.pendingProjectPath
+      delete store.pendingProjectPath
+      return opened
+    }
+  }
   const current = store?.connectionId
   if (!store || !current || !store.projectPath) return current
 
@@ -352,8 +377,13 @@ export function retargetToProject(projectPath: string): RetargetOutcome {
   }
 
   const connectionId = findByProjectPath(projectPath)
-  if (!connectionId) return { ok: false, reason: 'not-connected' }
+  if (!connectionId) {
+    // 先记下来，连上之后 `getTargetConnectionId()` 自己切 —— 见 `pendingProjectPath`
+    store.pendingProjectPath = projectPath
+    return { ok: false, reason: 'not-connected' }
+  }
 
+  delete store.pendingProjectPath
   const changed = connectionId !== store.connectionId
   store.connectionId = connectionId
   // 路径以 projectManager 里那份为准：插件报上来的写法（斜杠方向、有没有结尾

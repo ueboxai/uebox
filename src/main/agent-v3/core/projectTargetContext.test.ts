@@ -417,6 +417,47 @@ describe('retargetToProject —— 工具自己打开工程之后把这一轮切
     })
   })
 
+  it('还没连上时记下来，连上之后这一轮自己切过去', () => {
+    runWithTargetConnectionId({}, () => {
+      expect(retargetToProject('I:/Dev/New')).toMatchObject({ reason: 'not-connected' })
+      expect(getTargetConnectionId()).toBeUndefined()
+
+      projects.push({ connectionId: 'conn-new', projectPath: 'I:/Dev/New', isConnected: true })
+
+      expect(getTargetConnectionId()).toBe('conn-new')
+      expect(getTargetProjectPath()).toBe('I:/Dev/New')
+    })
+  })
+
+  it('原来绑着别的工程时，打开的那个连上就切过去', () => {
+    projects.push({ connectionId: 'conn-a', projectPath: 'I:/Dev/A', isConnected: true })
+    runWithTargetConnectionId({ connectionId: 'conn-a', projectPath: 'I:/Dev/A' }, () => {
+      retargetToProject('I:/Dev/New')
+      // 还没连上：照旧发给 A
+      expect(getTargetConnectionId()).toBe('conn-a')
+
+      projects.push({ connectionId: 'conn-new', projectPath: 'I:/Dev/New', isConnected: true })
+      expect(getTargetConnectionId()).toBe('conn-new')
+    })
+  })
+
+  it('记下待切目标之后会话被改挂到别的工程，就不再切过去', () => {
+    withBinding(null, {}, () => {
+      retargetToProject('I:/Dev/B')
+      setSessionBinding('s-test', { projectName: 'A', projectPath: 'I:/Dev/A' })
+      projects.push({ connectionId: 'conn-b', projectPath: 'I:/Dev/B', isConnected: true })
+      expect(getTargetConnectionId()).toBeUndefined()
+    })
+  })
+
+  it('会话钉在别的工程上时不记待切目标', () => {
+    withBinding({ projectName: 'A', projectPath: 'I:/Dev/A' }, {}, () => {
+      expect(retargetToProject('I:/Dev/B')).toMatchObject({ reason: 'session-scoped' })
+      projects.push({ connectionId: 'conn-b', projectPath: 'I:/Dev/B', isConnected: true })
+      expect(getTargetConnectionId()).toBeUndefined()
+    })
+  })
+
   // 无头跑、外部 MCP 调用这些路径本来就没有「这一轮的目标」可切
   it('不在执行流上下文里时报 no-context，而不是去改一个不存在的目标', () => {
     projects.push({ connectionId: 'conn-new', projectPath: 'I:/Dev/New', isConnected: true })

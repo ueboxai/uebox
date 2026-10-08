@@ -56,7 +56,7 @@ import {
   sameTeam
 } from '../core/assetLock'
 import { enforceAfterWrite, suspendForWrite } from '../core/assetLockEnforcement'
-import { effectiveConnectionId, getTargetConnectionId } from '../core/projectTargetContext'
+import { effectiveConnectionId } from '../core/projectTargetContext'
 import { editorKeyActive, withEditorKey } from '../core/team/editorKey'
 import {
   ASK_USER_TOOL_NAME,
@@ -1464,7 +1464,9 @@ function withAssetLock(tool: UnrealAgentTool<never>): UnrealAgentTool<never> {
        */
       const team = editorKeyActive()
       const lock = async (wanted: string[], soft: boolean): Promise<void> => {
-        const connection = getTargetConnectionId()
+        // 没指定目标、只连着一个编辑器时，命令实际发给的就是它 —— 锁也记在它名下。
+        // 记成「空连接」的话，别的工程里同名软路径的资产会被一起挡住
+        const connection = effectiveConnectionId()
         let result = acquire(connection, owner, wanted, { soft: soft || team })
         const deadline = Date.now() + TEAM_LOCK_WAIT_MS
         while (

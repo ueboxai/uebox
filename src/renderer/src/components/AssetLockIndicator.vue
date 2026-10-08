@@ -31,24 +31,43 @@
       <button class="release" @click="releaseAll">{{ t('assetLock.releaseAll') }}</button>
     </div>
 
-    <ul v-if="expanded && locks.length > 0" class="lock-list">
-      <li v-for="lock in locks" :key="`${lock.connectionId ?? ''}-${lock.path}`">
-        <span class="lock-path">{{ displayPath(lock.path) }}</span>
-        <span v-if="lockOwnerLabel(lock.owner)" class="lock-owner">
-          {{ lockOwnerLabel(lock.owner) }}
-        </span>
-      </li>
-    </ul>
+    <div v-if="expanded && locks.length > 0" class="lock-list">
+      <!-- 按工程分组：开着两个 UE 工程时，光看资产名分不出是哪边被锁 -->
+      <section v-for="group in lockGroups" :key="group.key" class="lock-group">
+        <div v-if="group.projectName" class="lock-project" :title="group.projectPath">
+          {{ group.projectName }}
+        </div>
+        <ul>
+          <li v-for="lock in group.locks" :key="`${lock.connectionId ?? ''}-${lock.path}`">
+            <span class="lock-path" :title="lockTitle(lock.path)">{{ displayName(lock.path) }}</span>
+            <button
+              v-if="ownerSession(lock.owner)"
+              class="lock-owner"
+              :title="ownerSession(lock.owner)?.title"
+              @click="openSession(lock.owner)"
+            >
+              {{ ownerSession(lock.owner)?.title }}
+            </button>
+          </li>
+        </ul>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { PhLock, PhWarning, PhX } from '@phosphor-icons/vue'
+
+import { chatSessionRoute } from '@renderer/common/chatRoute'
 
 import { useI18n } from '@renderer/hooks/useI18n'
 import { useAssetLocks } from '@renderer/hooks/useAssetLocks'
-import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
+import { useChatSessionsStore, type ChatSession } from '@renderer/store/modules/chatSessions'
+import { useTabsStore } from '@renderer/store/modules/tabs'
+import { listConnectedProjects } from '@renderer/views/Assistant/composables/ueProjectContext'
+import type { AssetLock } from '@renderer/hooks/useAssetLocks'
 
 const { t } = useI18n()
 const { locks, conflicts, releaseAll, dismissConflict } = useAssetLocks()
@@ -58,14 +77,93 @@ const { locks, conflicts, releaseAll, dismissConflict } = useAssetLocks()
  * 没有资产路径，盒子并不知道被改的是哪张关卡。直接渲染会在列表里露出一串
  * 带控制字符的乱码。
  */
-function displayPath(path: string): string {
-  return path.charCodeAt(0) === 0 ? t('assetLock.currentLevel') : path
+function isLevelSentinel(path: string): boolean {
+  return path.charCodeAt(0) === 0
+}
+
+/** 列表里只给资产名，完整包路径留给 hover */
+function displayName(path: string): string {
+  return isLevelSentinel(path) ? t('assetLock.currentLevel') : shortPath(path)
+}
+
+function lockTitle(path: string): string | undefined {
+  return isLevelSentinel(path) ? undefined : path
 }
 const chatSessions = useChatSessionsStore()
+const tabsStore = useTabsStore()
+const router = useRouter()
 
 const expanded = ref(false)
 
-/** 完整包路径在一行提示里太长，只留末段 —— 想看全的可以展开列表 */
+/**
+ * connectionId → 工程名。
+ *
+ * 锁是按连接记的，连接才是「锁在哪个工程」的真相；会话上盖的工程只是它第一次
+ * 发消息时连着的那个，之后可能换过。只在展开、且锁涉及的连接变了时查一次。
+ */
+const projectNames = ref<Record<string, { name: string; path?: string }>>({})
+const connectionKey = computed(() =>
+  [...new Set(locks.value.map((lock) => lock.connectionId ?? ''))].sort().join('|')
+)
+watch(
+  [expanded, connectionKey],
+  async ([open]) => {
+    if (!open || !connectionKey.value) return
+    try {
+      const projects = listConnectedProjects((await window.api.websocket.getProjects()) as unknown[])
+      projectNames.value = Object.fromEntries(
+        projects.map((p) => [p.connectionId, { name: p.projectName, path: p.projectPath }])
+      )
+    } catch {
+      // 查不到就退回会话上记的工程
+    }
+  },
+  { immediate: true }
+)
+
+function ownerSession(owner: string): ChatSession | undefined {
+  return chatSessions.sessionByAgentSessionId(owner) || chatSessions.sessionById(owner) || undefined
+}
+
+function lockProject(lock: AssetLock): { name: string; path?: string } {
+  const connected = lock.connectionId ? projectNames.value[lock.connectionId] : undefined
+  if (connected) return connected
+  const stamped = ownerSession(lock.owner)?.project
+  return { name: stamped?.projectName ?? '', path: stamped?.projectPath }
+}
+
+const lockGroups = computed(() => {
+  type Group = { key: string; projectName: string; projectPath?: string; locks: AssetLock[] }
+  const groups = new Map<string, Group>()
+  for (const lock of locks.value) {
+    const project = lockProject(lock)
+    // 按连接分组：同名工程（同一个 .uproject 拷在两个目录）也要分得开
+    const key = lock.connectionId ? `conn:${lock.connectionId}` : `name:${project.name}`
+    const group = groups.get(key) ?? {
+      key,
+      projectName: project.name,
+      projectPath: project.path,
+      locks: []
+    }
+    group.locks.push(lock)
+    groups.set(key, group)
+  }
+  return [...groups.values()]
+})
+
+function openSession(owner: string): void {
+  const session = ownerSession(owner)
+  if (!session) return
+  expanded.value = false
+  router.push(
+    chatSessionRoute(
+      session.id,
+      tabsStore.historyTabs.map((tab) => tab.path)
+    )
+  )
+}
+
+/** 完整包路径太长，只留末段 —— 想看全的 hover */
 const shortPath = (path: string): string => path.split('/').pop() || path
 
 /**
@@ -86,15 +184,6 @@ const sessionLabel = (owner: string): string => {
   return session?.title || t('assetLock.unknownSession')
 }
 
-/**
- * 锁列表里的锁主。
- *
- * 查不到时留空，而不是写「另一条会话」：那是在**断言**这把锁属于别人，而绝大
- * 多数时候它就是用户眼前这条会话的锁。宁可少说一句，也别说一句错的。
- * 冲突提示那边不一样 —— 那里的锁主按定义就是另一条会话，所以照旧兜底。
- */
-const lockOwnerLabel = (owner: string): string =>
-  chatSessions.sessionByAgentSessionId(owner)?.title || chatSessions.sessionById(owner)?.title || ''
 </script>
 
 <style scoped lang="less">
@@ -167,33 +256,60 @@ const lockOwnerLabel = (owner: string): string =>
 }
 
 .lock-list {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 6px 10px;
-  list-style: none;
   border-radius: 6px;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-subtle);
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+  }
 }
 
-.lock-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 2px 0;
+.lock-project {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding-bottom: 2px;
 }
 
 .lock-path {
   color: var(--color-text-secondary);
-  word-break: break-all;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lock-owner {
-  color: var(--color-text-muted);
-  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-text-muted);
+
+  &:hover {
+    color: var(--color-text-primary);
+    text-decoration: underline;
+  }
 }
 </style>
