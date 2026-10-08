@@ -42,6 +42,7 @@ import {
 } from '@earendil-works/pi-ai'
 import type { StreamFn } from '@earendil-works/pi-agent-core'
 
+import { CODEBUDDY_ORIGIN } from '../../../ai/codebuddy'
 import { classifyProviderError } from '../../host/providerError'
 
 export interface GateConfig {
@@ -249,6 +250,20 @@ export function isOverloadError(errorMessage: string): boolean {
   return OVERLOAD_TEXT.test(errorMessage)
 }
 
+/**
+ * CodeBuddy 偶发的空 400：不带响应体，几秒后原样重发就过。
+ *
+ * 真机：hy4-preview 一个 573851 字节的请求回 `400 status code (no body)`，
+ * 23 秒后同一个请求体再发是 200。400 本该是「请求写错了」，但这家不给响应体，
+ * 分不清真错还是上游抽风 —— 那就按过载退避重发几次。真是请求的错，几秒内
+ * 照样失败，最后报原文（不报「扛不住」，免得持续续跑把它当中转不稳再转半小时）。
+ */
+const BODYLESS_400 = /^\s*400 status code \(no body\)/i
+
+export function isTransientBadRequest(model: Model<Api>, errorMessage: string): boolean {
+  return !!model.baseUrl?.startsWith(CODEBUDDY_ORIGIN) && BODYLESS_400.test(errorMessage)
+}
+
 // ── 流包装 ──────────────────────────────────────────────────────────────
 
 const limiters = new Map<string, AdaptiveLimiter>()
@@ -337,6 +352,7 @@ export function pacedStreamFn(inner: StreamFn, deps: PacedStreamDeps = {}): Stre
 
     void (async () => {
       let lastReason = ''
+      let lastTransient = false
       for (let attempt = 0; attempt <= limiter.config.maxRetries; attempt++) {
         if (outer?.aborted) break
         let release: (outcome: Outcome) => void
@@ -385,10 +401,12 @@ export function pacedStreamFn(inner: StreamFn, deps: PacedStreamDeps = {}): Stre
             const event = next.value
             if (event.type === 'error') {
               const message = event.error.errorMessage ?? ''
-              const overload =
-                event.reason === 'error' && !outer?.aborted && isOverloadError(message)
-              if (overload && forwarded === 0) {
+              const failed = event.reason === 'error' && !outer?.aborted
+              const overload = failed && isOverloadError(message)
+              const transient = failed && isTransientBadRequest(model, message)
+              if ((overload || transient) && forwarded === 0) {
                 lastReason = message
+                lastTransient = transient
                 release({ kind: 'overload' })
                 break
               }
@@ -410,6 +428,7 @@ export function pacedStreamFn(inner: StreamFn, deps: PacedStreamDeps = {}): Stre
           const message = error instanceof Error ? error.message : String(error)
           if (forwarded === 0 && !outer?.aborted && isOverloadError(message)) {
             lastReason = message
+            lastTransient = false
             release!({ kind: 'overload' })
           } else {
             release!({ kind: 'neutral' })
@@ -450,6 +469,12 @@ export function pacedStreamFn(inner: StreamFn, deps: PacedStreamDeps = {}): Stre
           type: 'error',
           reason: 'aborted',
           error: failedAssistantMessage(model, 'Operation aborted')
+        })
+      } else if (lastTransient) {
+        out.push({
+          type: 'error',
+          reason: 'error',
+          error: failedAssistantMessage(model, lastReason)
         })
       } else {
         out.push({

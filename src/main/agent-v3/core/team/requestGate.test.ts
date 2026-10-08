@@ -229,6 +229,53 @@ describe('调度包装', () => {
     expect(types[0]).toMatch(/连续 5 次扛不住.*429/)
   })
 
+  describe('CodeBuddy 偶发的空 400', () => {
+    const codebuddy = { ...model, baseUrl: 'https://copilot.tencent.com/v2' } as Model<Api>
+    const bodyless: AssistantMessageEvent = {
+      type: 'error',
+      reason: 'error',
+      error: message({ stopReason: 'error', errorMessage: '400 status code (no body)' })
+    }
+
+    it('退避后重发，过了就只看到成功那一次', async () => {
+      const plans = [[bodyless], ok]
+      const retries: number[] = []
+      const paced = wrap(() => scripted(plans.shift()!), retries)
+      expect(await collect(await paced(codebuddy, { messages: [] }))).toEqual(['start', 'done'])
+      expect(retries).toEqual([1])
+    })
+
+    it('一直 400：报原文，不说「扛不住」（免得持续续跑当成中转不稳接着转）', async () => {
+      const paced = wrap(() => scripted([bodyless]))
+      expect(await collect(await paced(codebuddy, { messages: [] }))).toEqual([
+        'error:400 status code (no body)'
+      ])
+    })
+
+    it('别家的空 400、CodeBuddy 带响应体的 400 都不重发', async () => {
+      let calls = 0
+      const paced = wrap(() => {
+        calls++
+        return scripted([bodyless])
+      })
+      await collect(await paced(model, { messages: [] }))
+      expect(calls).toBe(1)
+
+      const withBody: AssistantMessageEvent = {
+        type: 'error',
+        reason: 'error',
+        error: message({ stopReason: 'error', errorMessage: '400 {"error":"bad tool schema"}' })
+      }
+      calls = 0
+      const paced2 = wrap(() => {
+        calls++
+        return scripted([withBody])
+      })
+      await collect(await paced2(codebuddy, { messages: [] }))
+      expect(calls).toBe(1)
+    })
+  })
+
   it('用户停下：不重发', async () => {
     const controller = new AbortController()
     let calls = 0

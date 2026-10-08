@@ -91,7 +91,7 @@ import { PRODUCER } from './team/teamStore'
 import { createBoardTool, createMessageTool, createTeamTools } from './team/teamTools'
 import { createStatusTool } from './team/teamStatus'
 import { pacedStreamFn, stallGuardStreamFn, type PacedStreamDeps } from './team/requestGate'
-import { diagnosedStreamFn, formatRequestRecord } from './requestDiagnostics'
+import { diagnosedStreamFn, dumpRejectedRequest, formatRequestRecord } from './requestDiagnostics'
 import type { ExperienceRuntime } from '../experience/runtime'
 import { createSessionExperience } from '../experience/session'
 
@@ -693,7 +693,14 @@ export async function createUnrealAgent(ctx: SessionContext): Promise<CreatedAge
     sessionId: ctx.sessionId,
     resumeAttempt: () => ctx.autoResumeAttempt?.() ?? 0,
     sink: (record) => logger.info(formatRequestRecord(record)),
-    describeRoute: describeFetchRoute
+    describeRoute: describeFetchRoute,
+    // 400 不说是哪个参数：留下原样请求体，好逐段删减重发去定位（见 dumpRejectedRequest）
+    dumpRejected: (record, payload) =>
+      void import('electron')
+        .then(({ app }) =>
+          dumpRejectedRequest(`${app.getPath('userData')}/logs/rejected-requests`, record, payload)
+        )
+        .catch(() => undefined)
   })
   const streamFn = ctx.pacedRequests
     ? pacedStreamFn(diagnosed, { onRetry })

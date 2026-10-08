@@ -241,3 +241,41 @@ describe('diagnosedStreamFn', () => {
     })
   })
 })
+
+describe('失败响应的头', () => {
+  it('pi 只给一句「400 (no body)」：响应头和响应体从 fetch 那层记下来，带密钥的头不记', async () => {
+    const records: RequestRecord[] = []
+    const upstream = (async () =>
+      new Response('', {
+        status: 400,
+        headers: { 'x-request-id': 'req-400', 'x-error-code': 'E123', 'set-cookie': 'sid=1' }
+      })) as typeof fetch
+    const fn: StreamFn = async (_m, _context, options) => {
+      await options?.onPayload?.({ messages: ['原样'] }, _m)
+      await options!.fetch!('https://copilot.tencent.com/v2/chat/completions')
+      const stream = createAssistantMessageEventStream()
+      stream.push({
+        type: 'error',
+        reason: 'error',
+        error: message({ stopReason: 'error', errorMessage: '400 status code (no body)' })
+      })
+      stream.end()
+      return stream
+    }
+    const dumped: unknown[] = []
+    const wrapped = diagnosedStreamFn(fn, {
+      sink: (r) => records.push(r),
+      dumpRejected: (_r, payload) => dumped.push(payload)
+    })
+
+    await drain(await wrapped(model, { messages: [] } as Context, { fetch: upstream }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const { headers, body } = records[0].errorResponse!
+    expect(headers).toMatchObject({ 'x-request-id': 'req-400', 'x-error-code': 'E123' })
+    expect(headers).not.toHaveProperty('set-cookie')
+    expect(body).toBeUndefined()
+    // 400 不说是哪个参数：原样请求体留给事后逐段定位
+    expect(dumped).toEqual([{ messages: ['原样'] }])
+  })
+})

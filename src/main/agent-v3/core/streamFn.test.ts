@@ -335,3 +335,86 @@ describe('厂商拉不下多媒体链接', () => {
     expect(streamSimple).toHaveBeenCalledTimes(1)
   })
 })
+
+/**
+ * CodeBuddy 的 hy4：带图的请求过了约 14 万 token 多半回空 400，不带图照收。
+ * 被拒就去掉图片重发一次，这一轮照样有回答。
+ */
+describe('CodeBuddy 带图的请求被拒', () => {
+  const CODEBUDDY = {
+    ...PI_MODEL,
+    baseUrl: 'https://copilot.tencent.com/v2',
+    input: ['text', 'image']
+  }
+  const withImage = {
+    messages: [
+      {
+        role: 'toolResult',
+        toolCallId: 't1',
+        toolName: 'ue_screenshot',
+        content: [
+          { type: 'text', text: '截好了' },
+          { type: 'image', data: 'AAAA', mimeType: 'image/jpeg' }
+        ],
+        isError: false,
+        timestamp: 0
+      }
+    ]
+  }
+  function streamEnding(event: Record<string, unknown>): unknown {
+    const stream = createAssistantMessageEventStream()
+    stream.push(event as never)
+    stream.end()
+    return stream
+  }
+  const rejected = (): unknown =>
+    streamEnding({
+      type: 'error',
+      reason: 'error',
+      error: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        errorMessage: '400 status code (no body)'
+      }
+    })
+  const ok = (): unknown =>
+    streamEnding({
+      type: 'done',
+      reason: 'stop',
+      message: { role: 'assistant', content: [], stopReason: 'stop' }
+    })
+
+  it('去掉图片重发（模型按只收文字发），调用方拿到的是重发的结果', async () => {
+    streamSimple.mockReturnValueOnce(rejected()).mockReturnValueOnce(ok())
+    const runtime = await resolveAgentModel({ role: 'agent' })
+
+    const stream = await runtime.streamFn(
+      CODEBUDDY as never,
+      withImage as never,
+      undefined as never
+    )
+
+    await expect(stream.result()).resolves.toMatchObject({ stopReason: 'stop' })
+    expect(streamSimple).toHaveBeenCalledTimes(2)
+    expect(streamSimple.mock.calls[0][0]).toMatchObject({ input: ['text', 'image'] })
+    expect(streamSimple.mock.calls[1][0]).toMatchObject({ input: ['text'] })
+  })
+
+  it('没有图、或者不是 CodeBuddy：原样交回，不重发', async () => {
+    streamSimple.mockReturnValueOnce(rejected())
+    const runtime = await resolveAgentModel({ role: 'agent' })
+    const noImage = await runtime.streamFn(
+      CODEBUDDY as never,
+      { messages: [] } as never,
+      undefined as never
+    )
+    await expect(noImage.result()).resolves.toMatchObject({ stopReason: 'error' })
+
+    streamSimple.mockReturnValueOnce(rejected())
+    const other = await runtime.streamFn(PI_MODEL as never, withImage as never, undefined as never)
+    await expect(other.result()).resolves.toMatchObject({ stopReason: 'error' })
+
+    expect(streamSimple).toHaveBeenCalledTimes(2)
+  })
+})

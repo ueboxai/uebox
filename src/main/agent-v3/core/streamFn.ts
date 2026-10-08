@@ -25,6 +25,7 @@ import {
 import type { AiProviderSettings, ModelRequest, ModelRole } from '../../ai/types'
 import { classifyProviderError } from '../host/providerError'
 import { thinkingOffFields, toPiProvider } from './piModel'
+import { isTransientBadRequest } from './team/requestGate'
 import { labelToolResultImages } from './toolImageLabels'
 import {
   contextHasMediaRefs,
@@ -221,16 +222,27 @@ function failedMessage(model: Model<Api>, errorMessage: string): AssistantMessag
 }
 
 /**
- * 厂商说拉不下链接里的多媒体（对象存储在墙外、链接过期、格式它不认），
- * 就把引用换成说明重发一次，这一轮照样有回答 —— 见 AGENTS.md 第 5 节第 13 条
- * 「退的每一步都不许打断这一轮」。
+ * 第一下就被拒、而且拒的原因换个请求能绕开时，换一条流重发一次，这一轮照样有回答
+ * —— 见 AGENTS.md 第 5 节第 13 条「退的每一步都不许打断这一轮」。眼下两种：
+ *
+ * - 厂商说拉不下链接里的多媒体（对象存储在墙外、链接过期、格式它不认）：引用换成说明
+ * - CodeBuddy 带图的请求回空 400：去掉图片（见 `contextHasImages` 那里）
  *
  * 只看第一个事件：pi 在 HTTP 失败时只推一个 `error`、不推 `start`，
  * 这时调用方还什么都没收到，换一条流接上不会留下半截内容。
  */
-function retryOnMediaFetchError(
+/** 对话里有没有内嵌图片（工具截图、用户贴的图） */
+function contextHasImages(context: Context): boolean {
+  return context.messages.some(
+    (message) =>
+      Array.isArray(message.content) && message.content.some((block) => block.type === 'image')
+  )
+}
+
+function retryOnFirstError(
   first: AssistantMessageEventStream,
   model: Model<Api>,
+  shouldRetry: (errorMessage: string) => boolean,
   retry: () => AssistantMessageEventStream
 ): AssistantMessageEventStream {
   const out = createAssistantMessageEventStream()
@@ -246,7 +258,7 @@ function retryOnMediaFetchError(
       !head.done &&
       head.value.type === 'error' &&
       head.value.reason === 'error' &&
-      isMediaFetchError(head.value.error.errorMessage ?? '')
+      shouldRetry(head.value.error.errorMessage ?? '')
     ) {
       await forward(retry()[Symbol.asyncIterator]())
     } else {
@@ -406,7 +418,7 @@ export async function resolveAgentModel(
           : {})
       })
       const stream = hasMedia
-        ? retryOnMediaFetchError(firstTry, model, () => {
+        ? retryOnFirstError(firstTry, model, isMediaFetchError, () => {
             const keys = mediaRefKeys(outgoing)
             console.warn(
               `[streamFn] ${selection.providerId} 拉不下对话里的多媒体链接，换成说明重发：`,
@@ -420,11 +432,28 @@ export async function resolveAgentModel(
             )
           })
         : firstTry
+      // CodeBuddy 的 hy4：带图的请求过了约 14 万 token 就多半被拒（不带图 23 万也照收），
+      // 回的是空 400。2026-10-08 拿真机被拒的请求体逐项对照量出来的：同一请求去掉图片
+      // 5/5 能过，原样 5 次挂 4 次。去掉图片重发，模型这一轮看不到截图，但工具结果的
+      // 文字还在，好过整轮失败
+      const final = contextHasImages(outgoing)
+        ? retryOnFirstError(
+            stream,
+            model,
+            (message) => isTransientBadRequest(model, message),
+            () => {
+              console.warn(
+                `[streamFn] ${selection.providerId}/${model.id} 带图的请求被拒，去掉图片重发一次`
+              )
+              return models.streamSimple({ ...model, input: ['text'] }, outgoing, baseOptions)
+            }
+          )
+        : stream
       // 没量出来（bytes < 0）就没有可学的数 —— 别拿一个假数去调这家的预算
       if (projected.bytes >= 0) {
         watchForOversized(stream, selection.providerId, projected.bytes)
       }
-      return stream
+      return final
     },
     models,
     summaryModel: selectModel(settings, models, 'summary')?.model ?? selection.model

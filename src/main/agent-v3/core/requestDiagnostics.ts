@@ -54,6 +54,11 @@ const REQUEST_ID_HEADERS = [
 ]
 
 const ERROR_TEXT_LIMIT = 300
+/** 失败响应体：有的网关把真正的原因放在一层层包着的 JSON 后半截 */
+const ERROR_BODY_LIMIT = 2000
+
+/** 失败响应的头全记（定位「400 没响应体」只能靠它），这几个除外 */
+const SECRET_HEADER = /cookie|auth|token|key|secret/i
 
 export interface RequestRecord {
   sessionId?: string
@@ -83,8 +88,13 @@ export interface RequestRecord {
   errorCode?: string
   responseId?: string
   requestIds?: Record<string, string>
-  /** 这个地址走直连还是系统代理（PAC 原文，如 `PROXY 127.0.0.1:7890`）。只在失败时查 */
+  /** 这个地址走直连还是系统代理（PAC 原文，如 `PROXY 127.0.0.1:7890`） */
   route?: string
+  /**
+   * 非 2xx 时的响应头和响应体开头。pi 出错时不调 `onResponse`，报错里只剩一句
+   * `400 status code (no body)` —— 是哪一层回的、上游的 request-id，全在这里
+   */
+  errorResponse?: { headers: Record<string, string>; body?: string }
 }
 
 export interface DiagnosticsDeps {
@@ -95,6 +105,11 @@ export interface DiagnosticsDeps {
   sink: (record: RequestRecord) => void
   /** 查这个地址怎么走（直连 / 代理）。没有就不记 */
   describeRoute?: (url: string) => Promise<string | undefined>
+  /**
+   * 上游回 400（参数被拒）时，把这次的完整请求体交出去存档。
+   * 400 不说是哪个参数，只能拿原样的请求体逐段删减重发去定位
+   */
+  dumpRejected?: (record: RequestRecord, payload: unknown) => void
   now?: () => number
 }
 
@@ -158,6 +173,7 @@ export function diagnosedStreamFn(inner: StreamFn, deps: DiagnosticsDeps): Strea
     const previousOnPayload = options?.onPayload
     const previousOnResponse = options?.onResponse
     let written = false
+    let sentPayload: unknown
     const finish = async (): Promise<void> => {
       if (written) return
       written = true
@@ -168,8 +184,16 @@ export function diagnosedStreamFn(inner: StreamFn, deps: DiagnosticsDeps): Strea
         record.outcome = 'error'
         record.error = 'stalled: 卡死检测到点掐断'
       }
-      if (record.outcome === 'error' && deps.describeRoute && model.baseUrl) {
+      // 成功的也记：只记失败的话，没法拿来对比「走代理是不是更容易出事」
+      if (deps.describeRoute && model.baseUrl) {
         record.route = await deps.describeRoute(model.baseUrl).catch(() => undefined)
+      }
+      if (record.statusCode === 400 && sentPayload !== undefined) {
+        try {
+          deps.dumpRejected?.(record, sentPayload)
+        } catch {
+          // 存不下来不影响这次请求
+        }
       }
       try {
         deps.sink(record)
@@ -178,14 +202,36 @@ export function diagnosedStreamFn(inner: StreamFn, deps: DiagnosticsDeps): Strea
       }
     }
 
+    const baseFetch = options?.fetch ?? ((input, init) => globalThis.fetch(input, init))
+    const observedFetch: typeof fetch = async (input, init) => {
+      const response = await baseFetch(input, init)
+      if (!response.ok) {
+        const headers: Record<string, string> = {}
+        response.headers.forEach((value, name) => {
+          if (!SECRET_HEADER.test(name)) headers[name] = value.slice(0, 200)
+        })
+        const body = await response
+          .clone()
+          .text()
+          .catch(() => '')
+        record.errorResponse = {
+          headers,
+          ...(body ? { body: body.slice(0, ERROR_BODY_LIMIT) } : {})
+        }
+      }
+      return response
+    }
+
     const observe = observeInto(record, started)
     let stream: Awaited<ReturnType<StreamFn>>
     try {
       stream = await inner(model, context, {
         ...options,
+        fetch: observedFetch,
         onPayload: async (payload, payloadModel) => {
           const upstream = await previousOnPayload?.(payload, payloadModel)
-          record.payloadBytes = byteLength(upstream === undefined ? payload : upstream)
+          sentPayload = upstream === undefined ? payload : upstream
+          record.payloadBytes = byteLength(sentPayload)
           return upstream
         },
         onResponse: async (response, responseModel) => {
@@ -264,4 +310,32 @@ export function diagnosedStreamFn(inner: StreamFn, deps: DiagnosticsDeps): Strea
 /** 一行日志的样子：前缀固定，后面是 JSON，方便 grep 和逐行解析 */
 export function formatRequestRecord(record: RequestRecord): string {
   return `[模型请求] ${JSON.stringify(record)}`
+}
+
+/** 被拒请求最多留几份：够对比，又不至于把一堆对话原文攒在盘上 */
+const REJECTED_KEEP = 5
+
+/**
+ * 把一次被上游拒掉（400）的请求体写进 `dir`，只留最近几份。
+ *
+ * 里面是这次对话的原文（不含密钥：鉴权在请求头里，不在请求体），只落在本机日志目录
+ */
+export async function dumpRejectedRequest(
+  dir: string,
+  record: RequestRecord,
+  payload: unknown
+): Promise<void> {
+  const { mkdir, readdir, rm, writeFile } = await import('fs/promises')
+  const { join } = await import('path')
+  await mkdir(dir, { recursive: true })
+  const stamp = record.startedAt.replace(/[:.]/g, '-')
+  const name = `${stamp}-${record.provider}-${record.model}-a${record.attempt}.json`.replace(
+    /[^\w.-]/g,
+    '_'
+  )
+  await writeFile(join(dir, name), JSON.stringify({ record, payload }, null, 1), 'utf8')
+  const files = (await readdir(dir)).filter((file) => file.endsWith('.json')).sort()
+  for (const old of files.slice(0, Math.max(0, files.length - REJECTED_KEEP))) {
+    await rm(join(dir, old), { force: true })
+  }
 }
