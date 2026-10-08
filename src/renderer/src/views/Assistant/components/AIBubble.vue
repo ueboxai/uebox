@@ -23,6 +23,16 @@
           :expanded="runExpanded"
           @toggle="onToggleRunFold"
         />
+        <!-- 收起的那些步骤里产出的东西不能跟着藏起来，就挂在收起的这一行下面 -->
+        <template v-if="runFold && !runExpanded">
+          <StepMediaStrip :images="runFold.images" :videos="runFold.videos" />
+          <GeneratedArtifacts
+            :music="foldedArtifacts.music"
+            :models="foldedArtifacts.models"
+            :latest-model="latestModel"
+            @resize="emit('resize')"
+          />
+        </template>
         <template v-for="block in visibleBlocks" :key="block.key">
           <!-- 相邻的推理和工具调用并成一组：默认只有一行摘要 -->
           <AgentStepGroup
@@ -99,13 +109,15 @@
             :streaming="status === 'typing'"
             @resize="emit('resize')"
           />
+          <!-- 这一组生成的音乐和模型挂在这一组下面，不堆到整条消息最底下 -->
+          <GeneratedArtifacts
+            v-if="block.kind === 'steps' && artifactsByBlock.has(block.key)"
+            :music="artifactsByBlock.get(block.key)!.music"
+            :models="artifactsByBlock.get(block.key)!.models"
+            :latest-model="latestModel"
+            @resize="emit('resize')"
+          />
         </template>
-        <!-- 收起的那些步骤里产出的图和视频不能跟着藏起来，挂在交付下面 -->
-        <StepMediaStrip
-          v-if="runFold && !runExpanded"
-          :images="runFold.images"
-          :videos="runFold.videos"
-        />
       </template>
       <MarkdownRenderer
         v-if="showTrailingContent"
@@ -114,11 +126,12 @@
         :streaming="status === 'typing'"
         @resize="emit('resize')"
       />
-      <ChatAudioPlayer
-        v-for="track in musicTracks"
-        :key="track.path"
-        :file-path="track.path"
-        :title="track.title"
+      <!-- 归不到时间线上任何一段的产出（V2 老消息的 toolResults）只能挂在最后 -->
+      <GeneratedArtifacts
+        :music="unplacedArtifacts.music"
+        :models="unplacedArtifacts.models"
+        :latest-model="latestModel"
+        @resize="emit('resize')"
       />
       <!-- 资产列表展示 -->
       <AssetList
@@ -127,15 +140,6 @@
         :total-count="assetSearchResult.totalCount"
         class="asset-list"
         @asset-click="handleAssetClick"
-      />
-      <!-- 3D模型预览：一个模型一个框 -->
-      <ChatModelViewer
-        v-for="(path, index) in modelPreviewPaths"
-        :key="path"
-        :file-path="path"
-        :default-collapsed="index !== modelPreviewPaths.length - 1"
-        class="model-preview"
-        @resize="emit('resize')"
       />
       <!-- 导航按钮 -->
       <NavigationButton
@@ -599,7 +603,7 @@ import AskUserCard from './AskUserCard.vue'
 import AttachmentCard from './AttachmentCard.vue'
 import type { AgentProcessItem } from './AgentProcessLog.types'
 import ThinkingProcess from './ThinkingProcess.vue'
-import ChatModelViewer from './ChatModelViewer.vue'
+import GeneratedArtifacts from './GeneratedArtifacts.vue'
 import AssetList from './AssetList.vue'
 import MessageSources from './MessageSources.vue'
 import NavigationButton from './NavigationButton.vue'
@@ -623,10 +627,10 @@ import {
   isMcpChange
 } from '../composables/changeSummary'
 import type { ChangeGroup } from '../composables/changeSummary'
-import ChatAudioPlayer from './ChatAudioPlayer.vue'
 import {
   collectGeneratedMusic,
-  collectGeneratedMediaFromAgentArtifacts
+  collectGeneratedMediaFromAgentArtifacts,
+  type GeneratedMusicTrack
 } from '../composables/agentGeneratedMedia'
 import { reviewTargetsFrom, shouldAutoReview } from '../composables/reviewTargets'
 import {
@@ -1015,6 +1019,62 @@ const modelPreviewPaths = computed<string[]>(() => {
     agentProcess: props.agentProcess
   })
   return models
+})
+
+const latestModel = computed(() => modelPreviewPaths.value[modelPreviewPaths.value.length - 1])
+
+interface BlockArtifacts {
+  music: GeneratedMusicTrack[]
+  models: string[]
+}
+
+function processItemsOf(block: AgentDisplayBlock): AgentProcessItem[] {
+  if (block.kind !== 'steps') return []
+  return block.parts.flatMap((part) => (part.kind === 'process' ? part.items : []))
+}
+
+/** 每个步骤组里生成的音乐和模型：挂在那一组下面，而不是整条消息的最底下 */
+const artifactsByBlock = computed(() => {
+  const map = new Map<string, BlockArtifacts>()
+  for (const block of displayBlocks.value) {
+    const agentProcess = processItemsOf(block)
+    if (agentProcess.length === 0) continue
+    const music = collectGeneratedMusic({ agentProcess })
+    const { models } = collectGeneratedMediaFromAgentArtifacts({ agentProcess })
+    if (music.length || models.length) map.set(block.key, { music, models })
+  }
+  return map
+})
+
+/** 整轮收起时，藏起来的那几组产出的东西合到收起的那一行下面 */
+const foldedArtifacts = computed<BlockArtifacts>(() => {
+  const music: GeneratedMusicTrack[] = []
+  const models: string[] = []
+  if (runFold.value && !runExpanded.value) {
+    for (const block of displayBlocks.value.slice(0, runFold.value.hiddenCount)) {
+      const found = artifactsByBlock.value.get(block.key)
+      if (!found) continue
+      music.push(...found.music)
+      models.push(...found.models)
+    }
+  }
+  return { music, models }
+})
+
+/** 时间线上哪一段都对不上的（V2 老消息的 toolResults）只能挂在最后 */
+const unplacedArtifacts = computed<BlockArtifacts>(() => {
+  const placedMusic = new Set<string>()
+  const placedModels = new Set<string>()
+  if (shouldShowAgentProcessLog.value) {
+    for (const found of artifactsByBlock.value.values()) {
+      for (const track of found.music) placedMusic.add(track.path)
+      for (const model of found.models) placedModels.add(model)
+    }
+  }
+  return {
+    music: musicTracks.value.filter((track) => !placedMusic.has(track.path)),
+    models: modelPreviewPaths.value.filter((model) => !placedModels.has(model))
+  }
 })
 
 /**
@@ -1982,11 +2042,6 @@ function toggleChanges(): void {
 }
 
 // 3D模型预览样式
-.model-preview {
-  margin-top: 12px;
-  width: 100%;
-}
-
 .response-metadata {
   display: flex;
   flex-direction: column;

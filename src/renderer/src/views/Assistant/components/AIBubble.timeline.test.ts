@@ -40,6 +40,10 @@ function mountBubble(props: Record<string, unknown>): ReturnType<typeof mount> {
           template: '<div class="proc" :data-count="parts.length" :data-live="live" />'
         },
         StepMediaStrip: true,
+        GeneratedArtifacts: {
+          props: ['music', 'models'],
+          template: '<div class="art" :data-count="music.length + models.length" />'
+        },
         AskUserCard: true,
         ThinkingProcess: true,
         ChatModelViewer: true,
@@ -59,8 +63,9 @@ function steerItem(text: string, timestamp: number, applied = false): AgentProce
 
 /** DOM 里过程块、正文块、插话块的先后顺序 */
 function blockOrder(wrapper: ReturnType<typeof mount>): string[] {
-  return wrapper.findAll('.proc, .md, .timeline-steer').map((node) => {
+  return wrapper.findAll('.proc, .md, .timeline-steer, .art:not([data-count="0"])').map((node) => {
     if (node.classes().includes('proc')) return 'process'
+    if (node.classes().includes('art')) return 'media'
     if (node.classes().includes('timeline-steer')) return 'steer'
     return 'text'
   })
@@ -298,5 +303,38 @@ describe('AIBubble 过程与正文交替', () => {
 
     expect(blockOrder(wrapper)).toEqual(['text'])
     expect(wrapper.find('.md').attributes('data-content')).toBe('普通对话的回复')
+  })
+
+  /**
+   * 生成的音乐、模型挂在生成它的那一组下面。以前统一堆在整条消息最底下，
+   * 中途出的配乐看着像是最后才做的。
+   */
+  it('音乐挂在生成它的那段过程下面，不堆到最底下', () => {
+    const wrapper = mountBubble({
+      status: 'typing',
+      content: '配乐好了。接着调镜头。',
+      agentProcess: [
+        toolCallItem('generate_task_music', 1),
+        {
+          type: 'tool-result',
+          data: {
+            toolName: 'generate_task_music',
+            result: { success: true, tracks: [{ path: 'H:/out/rain.mp3', title: 'Rain' }] }
+          },
+          timestamp: 2
+        },
+        textItem('配乐好了。', 3),
+        toolCallItem('ue_run_python_script', 4),
+        textItem('接着调镜头。', 5)
+      ]
+    })
+
+    expect(blockOrder(wrapper)).toEqual(['process', 'media', 'text', 'process', 'text'])
+
+    // 整轮做完收起后，藏起来那段的配乐挂在收起的那一行下面，仍在交付之前
+    expect(blockOrder(mountBubble({ ...wrapper.props(), status: 'done' }))).toEqual([
+      'media',
+      'text'
+    ])
   })
 })
