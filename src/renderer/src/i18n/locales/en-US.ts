@@ -2760,6 +2760,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         prepare_task_video: 'Preparing video materials',
         read_task_video_context: 'Reading task history',
         generate_task_music: 'Creating background music',
+        generate_speech: 'Synthesizing speech',
         render_task_video: 'Producing task video',
         analyze_video: 'Watching video',
         open_folder: 'Open Folder',

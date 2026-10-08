@@ -3,6 +3,7 @@ import { defineTool, type UnrealAgentTool } from '../defineTool'
 import { VideoStoryboard } from '../../../services/taskVideo/schema'
 import { readSettingsSync } from '../../../ai/store'
 import { isPlanProvider } from '../../../../shared/creatorPlan'
+import { MAX_SPEECH_CHARS } from '../../../../shared/speech'
 
 async function currentSession(): Promise<string> {
   const { getCurrentSessionId } = await import('../../core/projectTargetContext')
@@ -166,12 +167,42 @@ export function taskVideoTools(): UnrealAgentTool[] {
       }
     }),
     defineTool({
+      name: 'generate_speech',
+      namespace: 'video.production',
+      risk: 'mutating',
+      concurrency: 'sequential',
+      description:
+        '文字合成语音，输出可播放、可导入 UE 的 WAV。台词、对白、无线电通话、旁白都用它，多句逐句调用。用用户绑定的语音合成模型，可能收费；同样文字复用不重复扣费。不需要会话。返回 path、seconds，把 path 作为本地音频链接交给用户。',
+
+      input: z.object({
+        text: z.string().min(1).max(MAX_SPEECH_CHARS)
+      }),
+      execute: async ({ text }, ctx) => {
+        const { resolveSpeechBinding, speakToFile, pcmToWav } = await import(
+          '../../../services/taskVideo/audio'
+        )
+        const binding = await resolveSpeechBinding()
+        if (!binding)
+          throw new Error('未配置语音合成模型。请到偏好设置 → 模型来源配置语音合成。')
+        const { app } = await import('electron')
+        const { join } = await import('node:path')
+        const dir = join(app.getPath('music'), 'UnrealBox', 'speech')
+        const spoken = await speakToFile(binding, text, dir, ctx.signal, () =>
+          ctx.report({ text: '正在合成语音' })
+        )
+        const wav = spoken.path.replace(/\.pcm$/, '.wav')
+        await pcmToWav(spoken.path, wav)
+        const result = { path: wav, seconds: Number(spoken.seconds.toFixed(2)) }
+        return { text: JSON.stringify(result), details: result }
+      }
+    }),
+    defineTool({
       name: 'prepare_task_video_audio',
       namespace: 'video.production',
       risk: 'mutating',
       concurrency: 'sequential',
       description:
-        '先锁定旁白实际时长，再设计动画。仅使用用户配置 TTS，重复调用复用已生成配音。返回每镜头实际 duration 和音频路径；按这些时长编写 composition HTML。不会制作视频。',
+        '先锁定旁白实际时长，再设计动画。仅使用用户配置 TTS，与 generate_speech 同一条合成。重复调用复用已生成配音。返回每镜头实际 duration 和音频路径；按这些时长编写 composition HTML。不会制作视频。',
       input: z.object({ projectDir: z.string(), storyboard: VideoStoryboard }),
       execute: async ({ projectDir, storyboard }, ctx) => {
         const { assertVideoProject } = await import('../../../services/taskVideo/project')

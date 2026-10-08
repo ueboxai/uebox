@@ -11,7 +11,18 @@ const mocks = vi.hoisted(() => ({
   })),
   save: vi.fn(async (source: string) => ({ filePath: `vault/${source}`, assetKey: source })),
   assertProject: vi.fn(async () => 'verified-video-project'),
-  musicProvider: 'music'
+  musicProvider: 'music',
+  speechBinding: { provider: { id: 'voice' }, modelId: 'tts' } as unknown,
+  speak: vi.fn(async (_b: unknown, _t: string, dir: string) => ({
+    path: `${dir}/line.pcm`,
+    seconds: 1.234
+  })),
+  toWav: vi.fn(async () => {})
+}))
+vi.mock('../../../services/taskVideo/audio', () => ({
+  resolveSpeechBinding: async () => mocks.speechBinding,
+  speakToFile: mocks.speak,
+  pcmToWav: mocks.toWav
 }))
 vi.mock('../../core/projectTargetContext', () => ({ getCurrentSessionId: mocks.session }))
 vi.mock('../../../services/aigc/assetSaver', () => ({ saveLocalMusicAsset: mocks.save }))
@@ -99,5 +110,23 @@ describe('independent music generation', () => {
     } finally {
       mocks.musicProvider = 'music'
     }
+  })
+})
+
+describe('independent speech', () => {
+  const speech = (): ReturnType<typeof taskVideoTools>[number] =>
+    taskVideoTools().find((tool) => tool.name === 'generate_speech')!
+  it('外部 MCP 没有盒子会话也能合成，交付 WAV', async () => {
+    mocks.session.mockReturnValue(undefined as unknown as string)
+    const result = await speech().execute('s1', { text: '呼叫指挥部，收到请回答' })
+    const dir = path.join(path.resolve('test-music'), 'UnrealBox', 'speech')
+    expect(mocks.speak.mock.calls[0][2]).toBe(dir)
+    expect(mocks.toWav).toHaveBeenCalledWith(`${dir}/line.pcm`, `${dir}/line.wav`)
+    expect(result.details).toEqual({ path: `${dir}/line.wav`, seconds: 1.23 })
+  })
+  it('没绑语音合成时说清去哪里配', async () => {
+    mocks.speechBinding = undefined
+    await expect(speech().execute('s2', { text: '你好' })).rejects.toThrow('语音合成')
+    mocks.speechBinding = { provider: { id: 'voice' }, modelId: 'tts' }
   })
 })

@@ -2691,6 +2691,7 @@ export default {
         prepare_task_video: '整理视频素材',
         read_task_video_context: '读取任务过程',
         generate_task_music: '制作配乐',
+        generate_speech: '合成语音',
         render_task_video: '制作任务视频',
         analyze_video: '观看视频',
         open_folder: '打开文件夹',

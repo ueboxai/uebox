@@ -22,7 +22,7 @@ vi.mock('../../ai/speech', () => ({
   )
 }))
 import { requestSpeech } from '../../ai/speech'
-import { prepareVideoAudio } from './audio'
+import { pcmToWav, prepareVideoAudio, resolveSpeechBinding, speakToFile } from './audio'
 import { VideoStoryboard } from './schema'
 const dirs: string[] = []
 afterEach(async () => {
@@ -87,4 +87,21 @@ it('keeps authored composition timing when unvoiced metadata is not shown on scr
   const result = await prepareVideoAudio(dir, board)
   expect(result.storyboard.scenes[0].duration).toBe(4)
   expect(requestSpeech).not.toHaveBeenCalled()
+})
+
+it('独立配音不需要视频工程：同样的话复用缓存，输出可播放的 WAV', async () => {
+  const dir = await fs.mkdtemp(path.join(tmpdir(), 'speech-'))
+  dirs.push(dir)
+  const binding = (await resolveSpeechBinding())!
+  const first = await speakToFile(binding, '呼叫指挥部', dir)
+  const again = await speakToFile(binding, '呼叫指挥部', dir)
+  expect(again).toEqual(first)
+  expect(first.seconds).toBe(5)
+  expect(requestSpeech).toHaveBeenCalledTimes(1)
+  const wav = path.join(dir, 'line.wav')
+  await pcmToWav(first.path, wav)
+  const bytes = await fs.readFile(wav)
+  expect(bytes.subarray(0, 4).toString()).toBe('RIFF')
+  expect(bytes.readUInt32LE(24)).toBe(24000)
+  expect(bytes.readUInt32LE(40)).toBe(5 * 48000)
 })
