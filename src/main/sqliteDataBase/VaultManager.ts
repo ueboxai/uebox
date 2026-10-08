@@ -783,8 +783,11 @@ export class VaultManager {
       throw new Error(`保管库不存在: ${vaultId}`)
     }
 
-    if (vaultInfo.systemKey === SYSTEM_VAULT_KEYS.AIGC && this.isNetworkStylePath(newParentPath)) {
-      throw new Error('AIGC 资产库仅支持迁移到本地目录')
+    if (vaultInfo.vaultType === VaultType.NETWORK) {
+      throw new Error('网络资产库不支持迁移位置')
+    }
+    if (this.isNetworkStylePath(newParentPath)) {
+      throw new Error('资产库仅支持迁移到本地目录')
     }
 
     // 验证新父目录

@@ -7772,14 +7772,14 @@ export default {
       uncOrAbsolute: '共享浏览路径需为 UNC 或绝对路径'
     },
     changeSaveLocation: {
-      dialogTitle: '选择 AIGC 资产库的新位置',
+      dialogTitle: '选择「{name}」的新位置',
       dialogButtonLabel: '选择此位置',
       confirmTitle: '更改保存位置',
-      confirmContent: '将把 AIGC 资产库整体迁移到新位置，迁移期间请勿操作资产。确定要继续吗？',
+      confirmContent: '将把「{name}」整个文件夹搬到新位置，迁移期间请勿操作资产。确定要继续吗？',
       startMigration: '开始迁移',
-      migrating: '正在迁移 AIGC 资产库…',
-      migrated: 'AIGC 资产库已迁移',
-      migrateFailed: '迁移 AIGC 资产库失败'
+      migrating: '正在迁移「{name}」…',
+      migrated: '「{name}」已迁移到新位置',
+      migrateFailed: '迁移资产库失败'
     }
   },
   webdavAuthForm: {

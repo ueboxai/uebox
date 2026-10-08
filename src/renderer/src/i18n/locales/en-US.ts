@@ -8016,15 +8016,15 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       uncOrAbsolute: 'The shared browse path should be a UNC or absolute path'
     },
     changeSaveLocation: {
-      dialogTitle: 'Choose a new location for the AIGC vault',
+      dialogTitle: 'Choose a new location for "{name}"',
       dialogButtonLabel: 'Select this folder',
       confirmTitle: 'Change save location',
       confirmContent:
-        'The AIGC vault will be moved to the new location as a whole. Avoid working with assets during the migration. Continue?',
+        'The whole "{name}" folder will be moved to the new location. Avoid working with assets during the migration. Continue?',
       startMigration: 'Start migration',
-      migrating: 'Migrating the AIGC vault, please wait…',
-      migrated: 'The AIGC vault has been moved to the new location',
-      migrateFailed: 'Failed to migrate the AIGC vault'
+      migrating: 'Migrating "{name}", please wait…',
+      migrated: '"{name}" has been moved to the new location',
+      migrateFailed: 'Failed to migrate the vault'
     }
   },
   webdavAuthForm: {

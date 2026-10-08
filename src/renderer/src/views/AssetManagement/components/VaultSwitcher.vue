@@ -214,7 +214,7 @@
         {{ t('assetLib.vault.context.openInExplorer') }}
       </div>
       <div
-        v-if="selectedVault?.systemKey === 'aigc'"
+        v-if="selectedVault && selectedVault.vaultType !== VaultType.NETWORK"
         class="context-menu-item"
         @click="handleChangeSaveLocation"
       >
@@ -1408,13 +1408,14 @@ const handleOpenInFileManager = () => {
 
 const handleChangeSaveLocation = async () => {
   closeContextMenu()
-  if (!selectedVault.value || selectedVault.value.systemKey !== 'aigc') {
+  const vault = selectedVault.value
+  if (!vault || vault.vaultType === VaultType.NETWORK) {
     return
   }
 
   try {
     const result = await window.api.dialog.showOpenDialog({
-      title: t('vaultSwitcher.changeSaveLocation.dialogTitle'),
+      title: t('vaultSwitcher.changeSaveLocation.dialogTitle', { name: vault.name }),
       properties: ['openDirectory', 'createDirectory'],
       buttonLabel: t('vaultSwitcher.changeSaveLocation.dialogButtonLabel')
     })
@@ -1427,7 +1428,7 @@ const handleChangeSaveLocation = async () => {
     const confirmed = await new Promise<boolean>((resolve) => {
       confirmDialog({
         title: t('vaultSwitcher.changeSaveLocation.confirmTitle'),
-        content: t('vaultSwitcher.changeSaveLocation.confirmContent'),
+        content: t('vaultSwitcher.changeSaveLocation.confirmContent', { name: vault.name }),
         okText: t('vaultSwitcher.changeSaveLocation.startMigration'),
         cancelText: t('vaultSwitcher.buttons.cancel'),
         onOk: () => resolve(true),
@@ -1439,15 +1440,18 @@ const handleChangeSaveLocation = async () => {
       return
     }
 
-    const hide = message.loading(t('vaultSwitcher.changeSaveLocation.migrating'), 0)
+    const hide = message.loading(
+      t('vaultSwitcher.changeSaveLocation.migrating', { name: vault.name }),
+      0
+    )
     try {
-      await vaultStore.moveVault(selectedVault.value.id, targetPath)
-      message.success(t('vaultSwitcher.changeSaveLocation.migrated'))
+      await vaultStore.moveVault(vault.id, targetPath)
+      message.success(t('vaultSwitcher.changeSaveLocation.migrated', { name: vault.name }))
     } finally {
       hide()
     }
   } catch (error) {
-    console.error('迁移 AIGC 资产库失败:', error)
+    console.error('迁移资产库失败:', error)
     message.error(
       error instanceof Error ? error.message : t('vaultSwitcher.changeSaveLocation.migrateFailed')
     )
