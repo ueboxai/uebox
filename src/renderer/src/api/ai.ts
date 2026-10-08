@@ -532,6 +532,9 @@ async function requestSessionTitle(
 
   const response = await aiAPI.chat({
     maxTokens: 128,
+    // 轻量档常绑推理模型（mimo-flash、deepseek-flash 默认都会想）：不关思考，
+    // 128 个 token 全被思考吃掉，正文是空的，起名就静静退回截断标题
+    reasoning: 'off',
     callType: 'session-title',
     responseFormat: {
       type: 'json_schema',

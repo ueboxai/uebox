@@ -57,6 +57,8 @@ describe('aiAPI.generateSessionTitle', () => {
     expect(title).toBe('日志排查')
     const args = chatCompletion.mock.calls[0][0]
     expect(args.role).toBe('summary')
+    // 推理模型不关思考的话，128 token 全给思考，正文为空
+    expect(args.reasoning).toBe('off')
     const userMessage = args.messages.at(-1)
     expect(userMessage.content).toHaveLength(500)
     expect(userMessage.content.startsWith('帮我看这段日志\n日日日')).toBe(true)
