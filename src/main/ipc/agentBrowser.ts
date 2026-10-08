@@ -39,6 +39,22 @@ function validSessionId(value: unknown): string | undefined {
   return value
 }
 
+/**
+ * 界面操作失败的统一回包。
+ *
+ * 带上 `AgentBrowserError` 的错误码：界面要按原因换文案（比如助手正占着浏览器），
+ * 不能把关标签页、点后退的失败都说成「打不开网址」。
+ */
+function failure<T>(
+  data: T,
+  error: unknown
+): { success: false; data: T; error: string; code?: string } {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: unknown } | null)?.code
+  logger.info(`[AgentBrowser] 界面操作失败：${message}`)
+  return { success: false, data, error: message, code: typeof code === 'string' ? code : undefined }
+}
+
 export function registerAgentBrowserIPC(): void {
   /**
    * 渲染层报告嵌入面板的位置。
@@ -73,11 +89,7 @@ export function registerAgentBrowserIPC(): void {
       const page = await browser.open(normalizeBrowserAddress(address))
       return { success: true, data: { url: page.url } }
     } catch (error) {
-      return {
-        success: false,
-        data: { url: '' },
-        error: error instanceof Error ? error.message : String(error)
-      }
+      return failure({ url: '' }, error)
     }
   })
 
@@ -90,11 +102,7 @@ export function registerAgentBrowserIPC(): void {
       getSessionBrowser(validSessionId(sessionId)).toolbar(action)
       return { success: true, data: null }
     } catch (error) {
-      return {
-        success: false,
-        data: null,
-        error: error instanceof Error ? error.message : String(error)
-      }
+      return failure(null, error)
     }
   })
 
@@ -114,11 +122,7 @@ export function registerAgentBrowserIPC(): void {
       else throw new Error('Invalid tab command')
       return { success: true, data: null }
     } catch (error) {
-      return {
-        success: false,
-        data: null,
-        error: error instanceof Error ? error.message : String(error)
-      }
+      return failure(null, error)
     }
   })
 

@@ -1396,7 +1396,7 @@ const api = {
     tab: (
       sessionId: string,
       command: BrowserTabCommand
-    ): Promise<{ success: boolean; data: null; error?: string }> =>
+    ): Promise<{ success: boolean; data: null; error?: string; code?: string }> =>
       ipcRenderer.invoke('agent-browser:tab', sessionId, command),
     toolbar: (
       sessionId: string,
@@ -1405,6 +1405,7 @@ const api = {
       success: boolean
       data: null
       error?: string
+      code?: string
     }> => ipcRenderer.invoke('agent-browser:toolbar', sessionId, action),
     openUrl: (
       sessionId: string,
@@ -1413,6 +1414,7 @@ const api = {
       success: boolean
       data: { url: string }
       error?: string
+      code?: string
     }> => ipcRenderer.invoke('agent-browser:open-url', sessionId, address),
     /** 报告嵌入面板的位置；传 null 表示此刻不该显示 */
     setBounds: (

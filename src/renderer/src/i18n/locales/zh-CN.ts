@@ -2887,6 +2887,8 @@ export default {
       address: '网址',
       addressPlaceholder: '输入网址',
       navigationFailed: '无法打开该网址，请检查地址或网络后重试。',
+      actionFailed: '操作没有成功，请稍后重试。',
+      busy: '助手正在用浏览器，等它这一步做完再试。',
       resize: '调整浏览器宽度',
       resizing: '松开鼠标以显示网页',
       closeFailed: '无法保存浏览器关闭状态，请稍后重试。',

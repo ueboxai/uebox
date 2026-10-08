@@ -183,7 +183,7 @@ import { message } from '@renderer/utils/messageManager'
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Input } from 'ant-design-vue'
-import { agentBrowserAPI } from '@renderer/api/agentBrowser'
+import { AgentBrowserActionError, agentBrowserAPI } from '@renderer/api/agentBrowser'
 import { useI18n } from 'vue-i18n'
 import {
   PhPlus,
@@ -276,8 +276,8 @@ async function submitAddress(event: KeyboardEvent): Promise<void> {
     const result = await agentBrowserAPI.openUrl(props.sessionId, address)
     currentUrl.value = result.url
     cancelAddress()
-  } catch {
-    message.error(t('assistant.browserPane.navigationFailed'))
+  } catch (error) {
+    showFailure(error, 'assistant.browserPane.navigationFailed')
   } finally {
     navigating.value = false
   }
@@ -381,17 +381,23 @@ async function runTab(command: BrowserTabCommand): Promise<void> {
       await editAddress()
       addressDraft.value = ''
     }
-  } catch {
-    message.error(t('assistant.browserPane.navigationFailed'))
+  } catch (error) {
+    showFailure(error, 'assistant.browserPane.actionFailed')
   }
 }
 
 async function runToolbar(action: BrowserToolbarAction): Promise<void> {
   try {
     await agentBrowserAPI.toolbar(props.sessionId, action)
-  } catch {
-    message.error(t('assistant.browserPane.navigationFailed'))
+  } catch (error) {
+    showFailure(error, 'assistant.browserPane.actionFailed')
   }
+}
+
+/** 助手正占着浏览器时，点什么都会被拒 —— 那时要说清是在等它，而不是网址或网络有问题 */
+function showFailure(error: unknown, fallback: string): void {
+  const busy = error instanceof AgentBrowserActionError && error.code === 'BROWSER_BUSY'
+  message.error(t(busy ? 'assistant.browserPane.busy' : fallback))
 }
 
 async function handleClose(): Promise<void> {

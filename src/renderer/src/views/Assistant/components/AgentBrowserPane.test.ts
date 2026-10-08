@@ -312,3 +312,33 @@ it('Tab 栏能新建、选择、关闭，并将整组切换到独立窗口', asy
   await wrapper.find('[aria-label="assistant.browserPane.newTab"]').trigger('click')
   expect(window.api.agentBrowser.tab).toHaveBeenLastCalledWith('session-a', { action: 'create' })
 })
+
+it('关标签页失败不说成打不开网址：助手占着浏览器时提示等它做完', async () => {
+  const { message } = await import('@renderer/utils/messageManager')
+  await wrapper.setProps({
+    group: {
+      activeTabId: 'first',
+      tabs: [{ id: 'first', title: '', url: 'about:blank', loading: true }]
+    }
+  })
+  const close = wrapper.get('[aria-label="assistant.browserPane.closeTab"]')
+  vi.mocked(window.api.agentBrowser.tab).mockResolvedValueOnce({
+    success: false,
+    data: null,
+    error: '浏览器正在操作，请稍后重试',
+    code: 'BROWSER_BUSY'
+  })
+  await close.trigger('click')
+  await paint()
+  expect(message.error).toHaveBeenLastCalledWith('assistant.browserPane.busy')
+  vi.mocked(window.api.agentBrowser.tab).mockResolvedValueOnce({
+    success: false,
+    data: null,
+    error: '标签页已关闭',
+    code: 'BROWSER_NOT_OPEN'
+  })
+  await close.trigger('click')
+  await paint()
+  expect(message.error).toHaveBeenLastCalledWith('assistant.browserPane.actionFailed')
+  expect(message.error).not.toHaveBeenCalledWith('assistant.browserPane.navigationFailed')
+})

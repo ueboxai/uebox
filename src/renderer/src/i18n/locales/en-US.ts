@@ -2961,6 +2961,8 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       address: 'Page address',
       addressPlaceholder: 'Enter a URL',
       navigationFailed: 'Could not open this address. Check the URL or connection and try again.',
+      actionFailed: 'That didn’t work. Please try again.',
+      busy: 'The assistant is using the browser. Try again when this step finishes.',
       resize: 'Resize browser pane',
       resizing: 'Release to show the page',
       closeFailed: 'Could not save the closed browser state. Please try again.',

@@ -3113,7 +3113,7 @@ declare global {
       tab: (
         sessionId: string,
         command: BrowserTabCommand
-      ) => Promise<{ success: boolean; data: null; error?: string }>
+      ) => Promise<{ success: boolean; data: null; error?: string; code?: string }>
       toolbar: (
         sessionId: string,
         action: BrowserToolbarAction
@@ -3121,6 +3121,7 @@ declare global {
         success: boolean
         data: null
         error?: string
+        code?: string
       }>
       openUrl: (
         sessionId: string,
@@ -3129,6 +3130,7 @@ declare global {
         success: boolean
         data: { url: string }
         error?: string
+        code?: string
       }>
       /** 报告嵌入面板的位置；传 null 表示此刻不该显示 */
       setBounds: (

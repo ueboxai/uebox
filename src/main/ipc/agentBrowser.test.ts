@@ -119,4 +119,12 @@ it('标签操作只发送给目标会话，拒绝非法命令', async () => {
   for (const command of [null, { action: 'select' }, { action: 'mode', mode: 'bad' }]) {
     expect(await tab({}, 'a', command)).toMatchObject({ success: false })
   }
+  browser.closeTab.mockRejectedValueOnce(
+    Object.assign(new Error('浏览器正在操作，请稍后重试'), { code: 'BROWSER_BUSY' })
+  )
+  expect(await tab({}, 'a', { action: 'close', tabId: 'two' })).toMatchObject({
+    success: false,
+    error: '浏览器正在操作，请稍后重试',
+    code: 'BROWSER_BUSY'
+  })
 })

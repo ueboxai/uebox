@@ -13,15 +13,31 @@ export interface AgentBrowserState extends BrowserGroupState {
   mode: 'window' | 'embedded' | 'hidden'
 }
 
+/** 主进程给的失败原因码（`AgentBrowserError.code`），界面按它挑文案 */
+export class AgentBrowserActionError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string
+  ) {
+    super(message)
+    this.name = 'AgentBrowserActionError'
+  }
+}
+
+function unwrapAction<T>(res: { success: boolean; data: T; error?: string; code?: string }): T {
+  if (res?.success !== true) throw new AgentBrowserActionError(res?.error || '操作失败', res?.code)
+  return res.data
+}
+
 export const agentBrowserAPI = {
   async tab(sessionId: string, command: BrowserTabCommand): Promise<void> {
-    unwrapResult(await window.api.agentBrowser.tab(sessionId, command))
+    unwrapAction(await window.api.agentBrowser.tab(sessionId, command))
   },
   async toolbar(sessionId: string, action: BrowserToolbarAction): Promise<void> {
-    unwrapResult(await window.api.agentBrowser.toolbar(sessionId, action))
+    unwrapAction(await window.api.agentBrowser.toolbar(sessionId, action))
   },
   async openUrl(sessionId: string, address: string): Promise<{ url: string }> {
-    return unwrapResult(await window.api.agentBrowser.openUrl(sessionId, address))
+    return unwrapAction(await window.api.agentBrowser.openUrl(sessionId, address))
   },
   async getState(sessionId: string, restore: boolean): Promise<AgentBrowserState> {
     return unwrapResult<AgentBrowserState>(
