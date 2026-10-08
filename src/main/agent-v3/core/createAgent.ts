@@ -36,6 +36,7 @@ import {
 } from '../tools/builtin/setSessionProject'
 import { createBrowserTools } from '../tools/builtin/browser'
 import { createTaskTool, type SubAgentResult } from '../tools/builtin/task'
+import { oneLine, pickStepTarget } from '../../../shared/stepTarget'
 import {
   ALWAYS_RESIDENT_TOOL_NAMES,
   createToolSearch,
@@ -994,6 +995,26 @@ export async function createUnrealAgent(ctx: SessionContext): Promise<CreatedAge
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 进度里一句话就够，完整的话在子 agent 交回的结论里 */
+const NARRATION_MAX_LENGTH = 200
+
+/** 子 agent 一条助手消息里的正文首句。只有工具调用、没说话的消息返回空串 */
+function readNarration(message: unknown): string {
+  const record = message as { role?: string; content?: unknown }
+  if (record?.role !== 'assistant' || !Array.isArray(record.content)) return ''
+  const text = record.content
+    .map((block) => {
+      const item = block as { type?: string; text?: unknown }
+      return item.type === 'text' && typeof item.text === 'string' ? item.text : ''
+    })
+    .join('\n')
+  return oneLine(text, NARRATION_MAX_LENGTH)
+}
+
 /**
  * 跑一个子 agent 到结束。
  *
@@ -1152,7 +1173,16 @@ export async function runSubAgent(
       if (effectiveRisk(metaByName.get(event.toolName), event.args) !== 'safe') {
         ledger.start(event.toolCallId, event.toolName, event.args)
       }
-      input.onProgress?.(`调用 ${event.toolName}`)
+      // 带上对象，界面点开这一路时每一步才说得清「对什么做的」（格式见渲染层 agentSubtasks.ts）
+      const target = isRecord(event.args) ? pickStepTarget(event.args) : ''
+      input.onProgress?.(target ? `调用 ${event.toolName} ${target}` : `调用 ${event.toolName}`)
+      return
+    }
+    // 子 agent 两步之间说的话（「先看车辆结构」）也冒泡上去：只有工具名的话，
+    // 用户看得到它在调什么，看不出它为什么调、打算干嘛
+    if (event.type === 'message_end') {
+      const narration = readNarration(event.message)
+      if (narration) input.onProgress?.(narration)
       return
     }
     if (event.type !== 'tool_execution_end') return

@@ -2690,7 +2690,9 @@ export default {
         failed: '失败',
         steps: '{count} 步',
         parallelRunning: '{count} 路子任务并行中',
-        untitled: '未写任务描述'
+        untitled: '未写任务描述',
+        brief: '任务书',
+        noSteps: '还没开始动手'
       },
       tools: {
         generate_image: '生成图片',

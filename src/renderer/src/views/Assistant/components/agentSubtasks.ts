@@ -60,6 +60,16 @@ const SUMMARY_MAX_LENGTH = 120
 
 export type SubtaskStatus = 'running' | 'success' | 'failed'
 
+/**
+ * 这一路走过的一步：调了哪个工具、对什么调的，或者它两步之间说的一句话。
+ *
+ * 只留最近一条的话，点开卡片看到的只有派出去的任务书 —— 十分钟里它干了什么
+ * 一概不知。主进程每一步都推上来了，这里全部留着。
+ */
+export type SubtaskStep =
+  | { kind: 'tool'; toolName: string; target: string }
+  | { kind: 'say'; text: string }
+
 export interface SubtaskLane {
   /** 这一路的身份。主进程的 toolCallId，全局唯一 */
   callId: string
@@ -78,9 +88,9 @@ export interface SubtaskLane {
   startedAt: number
   /** 跑完的时刻。还在跑就没有 */
   endedAt?: number
-  /** 最近一条进度，例如「调用 ue_get_actor」 */
-  latest: string
-  /** 收到过多少条进度 ≈ 子 agent 走了几步 */
+  /** 按发生顺序的每一步 */
+  history: SubtaskStep[]
+  /** 调过几次工具 ≈ 子 agent 走了几步。说的话不算步 */
   steps: number
   /** 跑完之后的一句话结论 */
   summary: string
@@ -189,9 +199,22 @@ function readSummary(result: unknown): string {
   return typeof candidate === 'string' ? firstLine(candidate, SUMMARY_MAX_LENGTH) : ''
 }
 
-function readProgress(item: AgentProcessItem): string {
-  const message = String((item.data as Record<string, unknown> | undefined)?.message ?? '')
-  return firstLine(message.replace(SPEAKER_PREFIX, ''), SUMMARY_MAX_LENGTH)
+/**
+ * 主进程推上来的进度是 `调用 <工具名>` 或 `调用 <工具名> <对象>`（见主进程 `runSubAgent`），
+ * 别的都是子 agent 自己说的话。工具名一律是 ASCII 标识符，中文开头的话不会被认成调用。
+ * 队员那一路前面还挂着 `<队员名> · `（见 `teamTools.ts`）—— 卡片标题里已经有名字了。
+ */
+const TOOL_PROGRESS = /^(?:[^·]+ · )?调用 ([\w.:-]+)(?: (.+))?$/
+
+/** 进度行里的对象和说的话都已经在主进程截过了，这里只防老消息里的超长行 */
+const STEP_TEXT_MAX_LENGTH = 200
+
+export function readSubtaskStep(message: string): SubtaskStep | null {
+  const text = firstLine(message.replace(SPEAKER_PREFIX, ''), STEP_TEXT_MAX_LENGTH)
+  if (!text) return null
+  const call = TOOL_PROGRESS.exec(text)
+  if (call) return { kind: 'tool', toolName: normalizeToolName(call[1]), target: call[2] ?? '' }
+  return { kind: 'say', text }
 }
 
 export function buildSubtaskView(items: readonly AgentProcessItem[]): SubtaskView {
@@ -225,7 +248,7 @@ export function buildSubtaskView(items: readonly AgentProcessItem[]): SubtaskVie
         prompt,
         status: 'running',
         startedAt: item.timestamp,
-        latest: '',
+        history: [],
         steps: 0,
         summary: ''
       }
@@ -241,10 +264,10 @@ export function buildSubtaskView(items: readonly AgentProcessItem[]): SubtaskVie
     if (!lane) return
 
     if (item.type === 'notify-users') {
-      const text = readProgress(item)
-      if (!text) return
-      lane.latest = text
-      lane.steps += 1
+      const step = readSubtaskStep(String((item.data as Record<string, unknown>)?.message ?? ''))
+      if (!step) return
+      lane.history.push(step)
+      if (step.kind === 'tool') lane.steps += 1
       absorbed.add(index)
       return
     }

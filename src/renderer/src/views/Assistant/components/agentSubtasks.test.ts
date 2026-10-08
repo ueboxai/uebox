@@ -89,12 +89,29 @@ describe('buildSubtaskView', () => {
     const [first, second] = view.lanes
     expect(first.index).toBe(1)
     expect(first.title).toBe('盘点能用的模型，按用途列清楚')
-    expect(first.latest).toBe('调用 ue_list_assets')
+    expect(first.history.at(-1)).toEqual({ kind: 'tool', toolName: 'ue_list_assets', target: '' })
     expect(first.steps).toBe(2)
 
     expect(second.index).toBe(2)
-    expect(second.latest).toBe('调用 ue_get_actor')
+    expect(second.history).toEqual([{ kind: 'tool', toolName: 'ue_get_actor', target: '' }])
     expect(second.steps).toBe(1)
+  })
+
+  /** 真机截图：点开一路子任务只有任务书，十分钟里它干了什么一概看不到 */
+  it('每一步都留着：调了什么、对什么调的、两步之间说了什么；说的话不算步', () => {
+    const view = buildSubtaskView([
+      taskCall('call-a', '新建追逐序列', 1000),
+      taskProgress('call-a', '先回读一下当前关卡里的车辆', 1500),
+      taskProgress('call-a', '调用 ue_get_actor BP_NightTrafficCar_5', 2000),
+      taskProgress('call-a', '调用 ue_save', 3000)
+    ])
+
+    expect(view.lanes[0].history).toEqual([
+      { kind: 'say', text: '先回读一下当前关卡里的车辆' },
+      { kind: 'tool', toolName: 'ue_get_actor', target: 'BP_NightTrafficCar_5' },
+      { kind: 'tool', toolName: 'ue_save', target: '' }
+    ])
+    expect(view.lanes[0].steps).toBe(2)
   })
 
   it('完整 prompt 原样留在泳道上，供界面展开查看', () => {
@@ -195,7 +212,7 @@ describe('工作室模式的泳道', () => {
     expect(view.lanes).toHaveLength(1)
     expect(view.lanes[0]).toMatchObject({
       title: '地编：搭一个灰盒关卡',
-      latest: '地编 · 调用 ue_spawn_actor',
+      history: [{ kind: 'tool', toolName: 'ue_spawn_actor', target: '' }],
       steps: 1
     })
   })

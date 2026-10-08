@@ -12,6 +12,7 @@
  * 纯函数、不碰 i18n：工具名翻成人话、拼摘要那一句由组件做，这里只出数据。
  */
 import { readFileChange, type FileChange } from '../../../../../shared/fileChange'
+import { oneLine, pickStepTarget, STEP_TARGET_MAX_LENGTH } from '../../../../../shared/stepTarget'
 import type { AgentProcessItem } from './AgentProcessLog.types'
 import { buildSubtaskView, type SubtaskLane } from './agentSubtasks'
 import {
@@ -106,41 +107,6 @@ export interface StepGroupView {
  */
 const HIDDEN_TOOLS = new Set(['done', 'ask_user'])
 
-/**
- * 从参数里取「对什么做的」，按这个顺序找第一个有字的字段。
- *
- * 只认字符串：数组和对象说不成一句话，原文在展开区里。
- */
-const TARGET_KEYS = [
-  'query',
-  'path',
-  'file_path',
-  'folder',
-  'asset_path',
-  'assetPath',
-  'url',
-  'name',
-  'level',
-  'actor_name',
-  'actor',
-  'blueprint',
-  'blueprint_path',
-  'material',
-  'material_path',
-  'command',
-  'pattern',
-  'target',
-  'label',
-  'action',
-  'task',
-  'prompt',
-  'input_text',
-  'script',
-  // 只说了在哪个库里做、别的什么都没给时（资产库概况），库名就是对象
-  'vault'
-] as const
-
-const TARGET_MAX_LENGTH = 60
 const ERROR_MAX_LENGTH = 80
 const ARGS_MAX_LENGTH = 4000
 const RESULT_MAX_LENGTH = 6000
@@ -148,38 +114,14 @@ const RESULT_MAX_LENGTH = 6000
 /** 结果里明确说了「几个」的字段 */
 const COUNT_KEYS = ['count', 'total', 'totalCount', 'total_count'] as const
 
-function oneLine(text: string, maxLength: number): string {
-  const line =
-    text
-      .split('\n')
-      .map((part) => part.trim())
-      .find(Boolean) ?? ''
-  const normalized = line.replace(/\s+/g, ' ')
-  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized
-}
-
 function clip(text: string, maxLength: number): string {
   return text.length > maxLength ? `${text.slice(0, maxLength)}\n…` : text
 }
 
-function readUrlTarget(value: string): string {
-  try {
-    const url = new URL(value)
-    return `${url.hostname}${url.pathname}`.replace(/\/$/, '') || url.hostname
-  } catch {
-    return value
-  }
-}
-
 export function readStepTarget(args: unknown): string {
   const parsed = parseStructuredValue(args)
-  if (!parsed) return typeof args === 'string' ? oneLine(args, TARGET_MAX_LENGTH) : ''
-  for (const key of TARGET_KEYS) {
-    const value = parsed[key]
-    if (typeof value !== 'string' || !value.trim()) continue
-    return oneLine(key === 'url' ? readUrlTarget(value.trim()) : value, TARGET_MAX_LENGTH)
-  }
-  return ''
+  if (!parsed) return typeof args === 'string' ? oneLine(args, STEP_TARGET_MAX_LENGTH) : ''
+  return pickStepTarget(parsed)
 }
 
 function formatArgs(args: unknown): string {
@@ -372,7 +314,7 @@ function collectProcessRows(
       const callId = readCallId(item)
       const owner = callId ? byCallId.get(callId) : undefined
       if (owner && owner.status === 'running') {
-        owner.progress = oneLine(message, TARGET_MAX_LENGTH * 2)
+        owner.progress = oneLine(message, STEP_TARGET_MAX_LENGTH * 2)
         return
       }
 

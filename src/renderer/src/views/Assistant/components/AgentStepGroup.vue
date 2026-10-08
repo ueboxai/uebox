@@ -29,7 +29,13 @@
     <div v-else-if="expanded" class="step-rows">
       <template v-for="row in view.rows" :key="row.key">
         <div v-if="row.kind === 'tool'" class="step-row" :class="`is-${row.status}`">
+          <!-- 看图的那一步（截图、预览）不展开：图就是结果，直接挂在这一行下面 -->
+          <div v-if="row.viewedImages.length > 0" class="step-row-head is-static">
+            <span class="step-verb">{{ toolLabel(row.toolName) }}</span>
+            <span v-if="row.target" class="step-target" :title="row.target">{{ row.target }}</span>
+          </div>
           <button
+            v-else
             type="button"
             class="step-row-head"
             :aria-expanded="openRows.has(row.key)"
@@ -51,7 +57,8 @@
             <p v-if="row.fileChangeUnavailable" class="step-note">
               {{ t('assistant.fileDiff.unavailable') }}
             </p>
-            <!-- agent 自己看的图：截图、预览。只在点开这一步时挂载，收着时不去读盘 -->
+          </div>
+          <div v-if="row.viewedImages.length > 0" class="step-detail">
             <StepMediaStrip :images="row.viewedImages" :max="0" small />
           </div>
         </div>
@@ -83,13 +90,49 @@
             @click="toggleRow(row.key)"
           >
             <span class="step-lane" :class="`is-${row.lane.status}`" />
-            <span class="step-verb">{{
+            <!-- 标题可以有九十个字，不让它缩的话后面的「进行中 · 12 步」整个被挤没 -->
+            <span class="step-verb step-lane-title" :title="row.lane.title">{{
               row.lane.title || t('assistant.agentProcess.subtask.untitled')
             }}</span>
             <span class="step-outcome">— {{ laneOutcome(row.lane) }}</span>
           </button>
+          <!--
+            点开一路：它走过的每一步，和主 agent 的步骤行一个说法；跑完了再跟一句结论。
+            派出去的任务书是长段落，再收一层，要核对时才看。
+          -->
           <div v-if="openRows.has(row.key)" class="step-detail">
-            <pre class="step-raw">{{ laneText(row.lane) }}</pre>
+            <ol v-if="row.lane.history.length > 0" class="lane-steps">
+              <li v-for="(step, i) in row.lane.history" :key="i" class="lane-step">
+                <template v-if="step.kind === 'tool'">
+                  <span class="step-verb">{{ toolLabel(step.toolName) }}</span>
+                  <span v-if="step.target" class="step-target" :title="step.target">{{
+                    step.target
+                  }}</span>
+                </template>
+                <span v-else class="step-preview" :title="step.text">{{ step.text }}</span>
+              </li>
+            </ol>
+            <p v-else-if="row.lane.status === 'running'" class="step-note">
+              {{ t('assistant.agentProcess.subtask.noSteps') }}
+            </p>
+            <p v-if="row.lane.summary" class="step-note">{{ row.lane.summary }}</p>
+            <div v-if="row.lane.prompt">
+              <button
+                type="button"
+                class="step-row-head"
+                :aria-expanded="openRows.has(`${row.key}:brief`)"
+                @click="toggleRow(`${row.key}:brief`)"
+              >
+                <PhCaretRight
+                  class="step-caret"
+                  :class="{ open: openRows.has(`${row.key}:brief`) }"
+                />
+                <span>{{ t('assistant.agentProcess.subtask.brief') }}</span>
+              </button>
+              <pre v-if="openRows.has(`${row.key}:brief`)" class="step-raw">{{
+                row.lane.prompt
+              }}</pre>
+            </div>
           </div>
         </div>
 
@@ -111,7 +154,7 @@ import { PhCaretRight, PhCircleNotch } from '@phosphor-icons/vue'
 import FileChangeCard from './FileChangeCard.vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import StepMediaStrip from './StepMediaStrip.vue'
-import type { SubtaskLane } from './agentSubtasks'
+import type { SubtaskLane, SubtaskStep } from './agentSubtasks'
 import { buildStepGroup, type StepPart, type ToolStepRow } from './agentSteps'
 import { formatStepDuration, resolveToolLabel } from './agentStepLabels'
 
@@ -209,13 +252,14 @@ function laneOutcome(lane: SubtaskLane): string {
         : t('assistant.agentProcess.subtask.running')
   const steps =
     lane.steps > 0 ? t('assistant.agentProcess.subtask.steps', { count: lane.steps }) : ''
-  const detail = lane.status === 'running' ? lane.latest : ''
+  const latest = lane.history[lane.history.length - 1]
+  const detail = lane.status === 'running' && latest ? stepText(latest) : ''
   return [status, steps, detail].filter(Boolean).join(' · ')
 }
 
-/** 点开一路子任务：派出去的完整任务书，和它的结论 */
-function laneText(lane: SubtaskLane): string {
-  return [lane.prompt, lane.summary].filter(Boolean).join('\n\n')
+function stepText(step: SubtaskStep): string {
+  if (step.kind === 'say') return step.text
+  return [toolLabel(step.toolName), step.target].filter(Boolean).join(' ')
 }
 
 // ── 摘要那一行 ──
@@ -311,6 +355,15 @@ const liveText = computed(() => {
   &:focus-visible {
     outline: 2px solid var(--color-border-focus);
     outline-offset: 1px;
+  }
+}
+
+.step-row-head.is-static {
+  cursor: default;
+
+  &:hover {
+    color: inherit;
+    background: transparent;
   }
 }
 
@@ -462,6 +515,32 @@ const liveText = computed(() => {
     background: var(--color-text-secondary);
     animation: step-pulse 1.2s ease-in-out infinite;
   }
+}
+
+.step-lane-title {
+  flex: 0 3 auto;
+  min-width: 6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 一路子任务走过的步骤：跑上几十步也只占一块，滚着看
+.lane-steps {
+  max-height: 320px;
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  overflow: auto;
+  list-style: none;
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.lane-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 2px 0;
 }
 
 @keyframes step-pulse {

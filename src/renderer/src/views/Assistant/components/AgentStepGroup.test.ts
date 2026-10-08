@@ -144,7 +144,7 @@ describe('AgentStepGroup', () => {
   })
 
   // 生图的图是交付物，收起过程也要看得见；截图是它自己看的，收在那一步里
-  it('产出的图默认就铺开，看过的图要点开那一步才挂载', async () => {
+  it('产出的图默认就铺开，看过的图点开这一组就在那一步下面，不带返回原文', async () => {
     const wrapper = mountGroup([
       {
         kind: 'process',
@@ -162,9 +162,10 @@ describe('AgentStepGroup', () => {
     expect(wrapper.findAll('.step-stat').map((node) => node.text())).toContain('看了 1 张图')
 
     await wrapper.find('.step-summary').trigger('click')
-    expect(wrapper.findAll('img')).toHaveLength(1)
-    await wrapper.findAll('.step-row-head')[1].trigger('click')
     expect(wrapper.findAll('img')).toHaveLength(2)
+    // 截图那一行不是按钮，也没有参数和返回原文
+    expect(wrapper.findAll('button.step-row-head')).toHaveLength(1)
+    expect(wrapper.find('.step-raw').exists()).toBe(false)
   })
 
   it('超过 4 张只铺 4 张，最后一张叠上剩下的数', () => {
@@ -188,5 +189,36 @@ describe('AgentStepGroup', () => {
     )
     await wrapper.find('.step-summary').trigger('click')
     expect(wrapper.find('.step-row.is-running .step-spin').exists()).toBe(true)
+  })
+
+  /** 真机截图：点开一路子任务只有派出去的任务书，它这十分钟干了什么一概看不到 */
+  it('点开一路子任务先看到它走过的每一步，任务书再收一层', async () => {
+    const progress = (message: string, timestamp: number): AgentProcessItem => ({
+      type: 'notify-users',
+      data: { message, notifyType: 'progress', toolCallId: 'sub', toolName: 'task' },
+      timestamp
+    })
+    const wrapper = mountGroup(
+      [
+        {
+          kind: 'process',
+          key: 'p1',
+          items: [
+            call('task', { prompt: '新建追逐序列\n只做车辆，不动灯光' }, 1000, 'sub'),
+            progress('子任务：先回读当前关卡里的车辆', 1100),
+            progress('子任务：调用 ue_get_actor BP_NightTrafficCar_5', 1200)
+          ]
+        }
+      ],
+      { live: true }
+    )
+    await wrapper.find('.step-summary').trigger('click')
+    await wrapper.find('.step-row-head').trigger('click')
+
+    const steps = wrapper.findAll('.lane-step').map((step) => step.text())
+    expect(steps).toHaveLength(2)
+    expect(steps[0]).toBe('先回读当前关卡里的车辆')
+    expect(steps[1]).toContain('BP_NightTrafficCar_5')
+    expect(wrapper.text()).not.toContain('只做车辆，不动灯光')
   })
 })

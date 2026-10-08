@@ -2759,7 +2759,9 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         failed: 'Failed',
         steps: '{count} steps',
         parallelRunning: '{count} subtasks running in parallel',
-        untitled: 'No task description'
+        untitled: 'No task description',
+        brief: 'Task brief',
+        noSteps: 'Not started yet'
       },
       tools: {
         generate_image: 'Generate Image',
