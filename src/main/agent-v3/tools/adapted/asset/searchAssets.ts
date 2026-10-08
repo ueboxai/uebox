@@ -206,6 +206,8 @@ function compareItems(a: PageItem, b: PageItem): number {
 interface Pass {
   runs: VaultRun<void>[]
   scopeError?: string
+  /** 跨库搜索关着、这次没去看的库 */
+  skippedVaults?: string[]
   total: number
   lowerBound: boolean
   perVault: Record<string, number>
@@ -252,11 +254,11 @@ export function createSearchAssetsTool(): V2Tool {
   给资产写过备注、打过标签都会刷新它。
 【回收站】deleted: true 列出回收站里的资产（配合 restore_assets 恢复）。
   这个模式只支持翻页，不能和其他筛选一起用。
-【默认搜遍所有保管库】用户的资产分散在多个库里（默认保管库、AIGC 资产库、
-  他自己建的、网络协作库），**不是一个库**。这个工具默认全搜，结果里的 vault
-  字段说明每条来自哪个库，by_vault 说明各库各有多少。
-  「没搜到」之前先确认你没有把范围收窄到某一个库 —— 只在用户明确说
-  「只看某个库」时才填 vault。
+【搜哪些保管库】用户的资产分散在多个库里（默认保管库、AIGC 资产库、
+  他自己建的、网络协作库），**不是一个库**。不填 vault 时搜哪些由用户设置的
+  「跨库搜索」决定：关着只搜当前活跃库，开着全搜。searched_vaults 是实际搜了哪些，
+  skipped_vaults 是因为开关关着没搜的；结果里的 vault 字段说明每条来自哪个库，
+  by_vault 说明各库各有多少。只在用户点名某个库时才填 vault。
 【AI 生成的素材也在里面】AI 出的图/视频/模型/音乐在「AIGC 资产库」。
   用户说「刚才生成的那张图」「之前 AI 出的模型」就用这个工具找。
   **它们要导进虚幻工程，用 ue_content_import，把 real_path 填进 files** ——
@@ -465,118 +467,122 @@ export function createSearchAssetsTool(): V2Tool {
         }
         let order = 0
 
-        const { runs, error } = await runAcrossVaults<void>(input.vault, async (db, vault) => {
-          await yieldToEventLoop()
-          const vaultOrder = order++
-          const scoped: AssetSearchParams = { ...passParams }
+        const { runs, error, skippedVaults } = await runAcrossVaults<void>(
+          input.vault,
+          async (db, vault) => {
+            await yieldToEventLoop()
+            const vaultOrder = order++
+            const scoped: AssetSearchParams = { ...passParams }
 
-          // 文件夹：用户说的是名字，底层认的是 folderKey。
-          // folderKey 是**每个库各一套**的，所以必须逐库解析，不能跨库复用。
-          if (input.folder) {
-            const resolved = resolveFolder(db, input.folder)
-            if (resolved.error || !resolved.folderKey) {
-              pass.folderMisses.push({
-                vault: vault.name,
-                reason: resolved.error ?? '文件夹解析失败'
+            // 文件夹：用户说的是名字，底层认的是 folderKey。
+            // folderKey 是**每个库各一套**的，所以必须逐库解析，不能跨库复用。
+            if (input.folder) {
+              const resolved = resolveFolder(db, input.folder)
+              if (resolved.error || !resolved.folderKey) {
+                pass.folderMisses.push({
+                  vault: vault.name,
+                  reason: resolved.error ?? '文件夹解析失败'
+                })
+                pass.perVault[vault.name] = 0
+                return
+              }
+              scoped.folderKey = resolved.folderKey
+              scoped.includeSubfolders = input.includeSubfolders !== false
+              pass.folderLabel ??=
+                resolved.folder?.fullPath || resolved.folder?.folderName || resolved.folderKey
+            }
+
+            if (rankedQuery) {
+              const filter = buildSearchCriteria(scoped)
+              const ranked = rankedSearchVault(db, {
+                query: rankedQuery,
+                need,
+                filter,
+                publicDb: safePublicDb()
               })
-              pass.perVault[vault.name] = 0
+              if (ranked) kickIndexWarm(db)
+              if (ranked) {
+                pass.total += ranked.total
+                pass.lowerBound ||= ranked.totalIsLowerBound
+                pass.perVault[vault.name] = ranked.total
+                if (ranked.indexPending > 0) pass.indexPending[vault.name] = ranked.indexPending
+                for (const hit of ranked.hits) {
+                  pass.items.push({ vaultId: vault.id, order: vaultOrder, ...hit })
+                }
+              } else {
+                // 这个库还没有全文索引表（老库第一次打开前）：走老路，排在有分数的结果后面
+                // 底层一页最多 500，而 need 最大到 1 万：按页取到 need 为止，否则深翻页会漏掉这个库
+                const legacy: Array<Record<string, unknown>> = []
+                let count = 0
+                for (let from = 0; from < need; from += 500) {
+                  const size = Math.min(500, need - from)
+                  const outcome = (await searchAssets(
+                    { ...scoped, limit: size, offset: from },
+                    db,
+                    vault.path
+                  )) as unknown as SearchOutcome
+                  if (outcome.success === false) throw new Error(outcome.error ?? '搜索失败')
+                  count = outcome.count ?? 0
+                  legacy.push(...(outcome.assets ?? []))
+                  if ((outcome.assets ?? []).length < size || legacy.length >= count) break
+                }
+                pass.total += count
+                pass.perVault[vault.name] = count
+                legacy.forEach((asset, index) => {
+                  pass.items.push({
+                    vaultId: vault.id,
+                    order: vaultOrder,
+                    tier: 0,
+                    score: Number.POSITIVE_INFINITY,
+                    id: index,
+                    preformatted: { ...asset, vault: vault.name }
+                  })
+                })
+              }
+
+              // 语义那一路：只收「全文没命中」的，单独列出、不计数
+              if (isAssetVectorEnabled(db)) {
+                pass.semanticEnabled = true
+                const recalled = await semanticRecall(db, rankedQuery, undefined, getEmbedding)
+                semanticOnlyIds(db, recalled, rankedQuery, filter)
+                  .slice(0, SEMANTIC_MATCH_LIMIT)
+                  .forEach((id, rank) =>
+                    pass.semantic.push({ vaultId: vault.id, order: vaultOrder, rank, id })
+                  )
+              }
               return
             }
-            scoped.folderKey = resolved.folderKey
-            scoped.includeSubfolders = input.includeSubfolders !== false
-            pass.folderLabel ??=
-              resolved.folder?.fullPath || resolved.folder?.folderName || resolved.folderKey
-          }
 
-          if (rankedQuery) {
-            const filter = buildSearchCriteria(scoped)
-            const ranked = rankedSearchVault(db, {
-              query: rankedQuery,
-              need,
-              filter,
-              publicDb: safePublicDb()
-            })
-            if (ranked) kickIndexWarm(db)
-            if (ranked) {
-              pass.total += ranked.total
-              pass.lowerBound ||= ranked.totalIsLowerBound
-              pass.perVault[vault.name] = ranked.total
-              if (ranked.indexPending > 0) pass.indexPending[vault.name] = ranked.indexPending
-              for (const hit of ranked.hits) {
-                pass.items.push({ vaultId: vault.id, order: vaultOrder, ...hit })
-              }
-            } else {
-              // 这个库还没有全文索引表（老库第一次打开前）：走老路，排在有分数的结果后面
-              // 底层一页最多 500，而 need 最大到 1 万：按页取到 need 为止，否则深翻页会漏掉这个库
-              const legacy: Array<Record<string, unknown>> = []
-              let count = 0
-              for (let from = 0; from < need; from += 500) {
-                const size = Math.min(500, need - from)
-                const outcome = (await searchAssets(
-                  { ...scoped, limit: size, offset: from },
-                  db,
-                  vault.path
-                )) as unknown as SearchOutcome
-                if (outcome.success === false) throw new Error(outcome.error ?? '搜索失败')
-                count = outcome.count ?? 0
-                legacy.push(...(outcome.assets ?? []))
-                if ((outcome.assets ?? []).length < size || legacy.length >= count) break
-              }
-              pass.total += count
-              pass.perVault[vault.name] = count
-              legacy.forEach((asset, index) => {
-                pass.items.push({
-                  vaultId: vault.id,
-                  order: vaultOrder,
-                  tier: 0,
-                  score: Number.POSITIVE_INFINITY,
-                  id: index,
-                  preformatted: { ...asset, vault: vault.name }
-                })
-              })
+            // ── 浏览：首尾相接 ────────────────────────────────────────────────
+            // vault.path 一定要跟着 db 一起传：备份库里资产的 filePath 是相对
+            // 保管库的，不给库根目录就会按**当前活跃库**去拼
+            const outcome = (await searchAssets(
+              // 这一页占满了也照跑：不跑的话 count 会漏掉后面几个库，
+              // hasMore / nextOffset 跟着算错，翻页就永远翻不到它们
+              { ...scoped, limit: Math.max(1, remaining), offset: skip },
+              db,
+              vault.path
+            )) as unknown as SearchOutcome
+            // 这一个库炸了就只算它自己失败（helper 会接住），别的库照常出结果
+            if (outcome.success === false) throw new Error(outcome.error ?? '搜索失败')
+
+            const count = outcome.count ?? 0
+            pass.total += count
+            pass.perVault[vault.name] = count
+            if (remaining > 0) {
+              const taken = (outcome.assets ?? [])
+                .slice(0, remaining)
+                .map((asset) => ({ ...asset, vault: vault.name }))
+              remaining -= taken.length
+              pass.browsePage.push(...taken)
             }
-
-            // 语义那一路：只收「全文没命中」的，单独列出、不计数
-            if (isAssetVectorEnabled(db)) {
-              pass.semanticEnabled = true
-              const recalled = await semanticRecall(db, rankedQuery, undefined, getEmbedding)
-              semanticOnlyIds(db, recalled, rankedQuery, filter)
-                .slice(0, SEMANTIC_MATCH_LIMIT)
-                .forEach((id, rank) =>
-                  pass.semantic.push({ vaultId: vault.id, order: vaultOrder, rank, id })
-                )
-            }
-            return
+            skip = Math.max(0, skip - count)
           }
-
-          // ── 浏览：首尾相接 ────────────────────────────────────────────────
-          // vault.path 一定要跟着 db 一起传：备份库里资产的 filePath 是相对
-          // 保管库的，不给库根目录就会按**当前活跃库**去拼
-          const outcome = (await searchAssets(
-            // 这一页占满了也照跑：不跑的话 count 会漏掉后面几个库，
-            // hasMore / nextOffset 跟着算错，翻页就永远翻不到它们
-            { ...scoped, limit: Math.max(1, remaining), offset: skip },
-            db,
-            vault.path
-          )) as unknown as SearchOutcome
-          // 这一个库炸了就只算它自己失败（helper 会接住），别的库照常出结果
-          if (outcome.success === false) throw new Error(outcome.error ?? '搜索失败')
-
-          const count = outcome.count ?? 0
-          pass.total += count
-          pass.perVault[vault.name] = count
-          if (remaining > 0) {
-            const taken = (outcome.assets ?? [])
-              .slice(0, remaining)
-              .map((asset) => ({ ...asset, vault: vault.name }))
-            remaining -= taken.length
-            pass.browsePage.push(...taken)
-          }
-          skip = Math.max(0, skip - count)
-        })
+        )
 
         pass.runs = runs
         pass.scopeError = error
+        pass.skippedVaults = skippedVaults
         return pass
       }
 
@@ -601,7 +607,7 @@ export function createSearchAssetsTool(): V2Tool {
         return {
           success: false,
           error:
-            `所有保管库里都没有文件夹「${input.folder}」（查过：${pass.folderMisses.map((miss) => miss.vault).join('、')}）。` +
+            `${pass.skippedVaults ? '当前保管库' : '所有保管库'}里都没有文件夹「${input.folder}」（查过：${pass.folderMisses.map((miss) => miss.vault).join('、')}）。` +
             (asVault
               ? `「${asVault.vault.name}」是一个**保管库**的名字，不是文件夹 —— 只搜这个库用 vault: "${asVault.vault.name}"。`
               : '文件夹名要和库里的一致；不确定有哪些文件夹，用 library_overview 看。')
@@ -642,6 +648,7 @@ export function createSearchAssetsTool(): V2Tool {
       const extras: Record<string, unknown> = {
         ...(pass.folderLabel ? { searched_folder: pass.folderLabel } : {}),
         searched_vaults: searched,
+        ...(pass.skippedVaults ? { skipped_vaults: pass.skippedVaults } : {}),
         ...(Object.keys(pass.perVault).length > 1 ? { by_vault: pass.perVault } : {}),
         ...(failed.length > 0
           ? {
@@ -803,6 +810,11 @@ export function createSearchAssetsTool(): V2Tool {
       const emptyMessage =
         `${searched.join('、')} 里都没有符合条件的资产。` +
         (failed.length > 0 ? '注意上面 unsearched_vaults 里的库这次没能搜到。' : '') +
+        // 不说的话「当前库没有」会被讲成「你库里没有」
+        (pass.skippedVaults
+          ? `用户在资产库设置里关了「跨库搜索」，所以没搜 ${pass.skippedVaults.join('、')}。` +
+            '东西可能在那里 —— 别说库里没有；用户点名某个库时 vault 填库名再搜。'
+          : '') +
         (Object.keys(pass.indexPending).length > 0
           ? '有的库还没建完索引（见 index_pending），过一会儿再搜一次可能就有了。'
           : '')

@@ -3332,6 +3332,8 @@ export default {
       archiveImportAsk: '压缩包导入前询问',
       archiveImportAskDesc:
         '把压缩包导入 UE 工程时，先问一次是解压后导入还是原样复制（关闭后一律解压后导入）',
+      crossVaultSearch: '跨库搜索',
+      crossVaultSearchDesc: 'AI 助手找素材时连其他保管库一起搜。关闭时只搜当前保管库。',
       defaultApps: '默认应用',
       selectApp: '选择应用程序',
       selectAppSuccess: '设置成功',

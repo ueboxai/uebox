@@ -3033,6 +3033,8 @@ const api = {
       notifyQuestionRequired: boolean
       hideWindowOnProjectLaunch: boolean
       autoRecoverEditorCrash: boolean
+      /** agent 搜素材时看不看别的保管库，默认关 */
+      assetCrossVaultSearch: boolean
     }> => ipcRenderer.invoke('app-settings:get'),
     /**
      * 更新应用设置
@@ -3053,6 +3055,7 @@ const api = {
       notifyQuestionRequired?: boolean
       hideWindowOnProjectLaunch?: boolean
       autoRecoverEditorCrash?: boolean
+      assetCrossVaultSearch?: boolean
     }): Promise<{ success: boolean }> => ipcRenderer.invoke('app-settings:set', settings),
     /**
      * 设置开机自启

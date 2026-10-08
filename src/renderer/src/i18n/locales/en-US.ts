@@ -3448,6 +3448,9 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       archiveImportAsk: 'Ask before importing an archive',
       archiveImportAskDesc:
         'When importing an archive into a UE project, ask whether to extract it or copy it as-is (when disabled, archives are always extracted)',
+      crossVaultSearch: 'Cross-vault search',
+      crossVaultSearchDesc:
+        'Let the AI assistant search other vaults too when looking for assets. When off, it only searches the current vault.',
       defaultApps: 'Default Apps',
       selectApp: 'Select Application',
       selectAppSuccess: 'Settings saved',

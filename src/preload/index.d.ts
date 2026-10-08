@@ -2858,6 +2858,8 @@ declare global {
         notifyQuestionRequired: boolean
         hideWindowOnProjectLaunch: boolean
         autoRecoverEditorCrash: boolean
+        /** agent 搜素材时看不看别的保管库，默认关 */
+        assetCrossVaultSearch: boolean
       }>
       /** 更新应用设置 */
       set: (settings: {
@@ -2876,6 +2878,7 @@ declare global {
         notifyQuestionRequired?: boolean
         hideWindowOnProjectLaunch?: boolean
         autoRecoverEditorCrash?: boolean
+        assetCrossVaultSearch?: boolean
       }) => Promise<{ success: boolean }>
       /** 设置开机自启 */
       setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean }>

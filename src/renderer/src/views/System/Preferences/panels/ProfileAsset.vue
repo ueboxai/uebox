@@ -426,6 +426,30 @@ onUnmounted(() => {
 //
 // 默认关闭，开关在这里而不是自动开启，是因为**建索引要花钱**：
 // 每个资产都要调一次嵌入模型。几十万个资产的库，这笔账该不该付只有用户知道。
+// ==============================
+// 跨库搜索
+// ==============================
+//
+// AI 助手找素材时搜不搜别的保管库。存在主进程的应用设置里，因为读它的是主进程的
+// search_assets —— 默认关，理由见 appSettingsManager 里 assetCrossVaultSearch 的注释。
+const crossVaultSearch = ref(false)
+const crossVaultBusy = ref(false)
+
+const onToggleCrossVault = async (next: boolean): Promise<void> => {
+  if (crossVaultBusy.value) return
+  crossVaultBusy.value = true
+  crossVaultSearch.value = next
+  try {
+    await window.api.appSettings.set({ assetCrossVaultSearch: next })
+  } catch (error) {
+    // 写盘失败就弹回去：开关停在新位置而 agent 照旧，比弹回去更难查
+    crossVaultSearch.value = !next
+    console.error('设置跨库搜索失败:', error)
+  } finally {
+    crossVaultBusy.value = false
+  }
+}
+
 const semanticStatus = ref<AssetSemanticStatus | null>(null)
 const semanticBusy = ref(false)
 let semanticTimer: ReturnType<typeof setInterval> | null = null
@@ -494,6 +518,12 @@ const onResumeSemantic = async (): Promise<void> => {
 }
 
 onMounted(() => {
+  window.api.appSettings
+    .get()
+    .then((settings) => {
+      crossVaultSearch.value = settings.assetCrossVaultSearch === true
+    })
+    .catch((error) => console.error('读取跨库搜索设置失败:', error))
   void refreshSemanticStatus()
   // 建索引是后台跑的，轮询是这里唯一能看到进度的办法
   semanticTimer = setInterval(() => void refreshSemanticStatus(), 2000)
@@ -562,6 +592,24 @@ onUnmounted(() => {
               :checked="semanticEnabled"
               :disabled="semanticBusy || semanticStatus?.available === false"
               @update:checked="onToggleSemantic"
+            />
+          </div>
+        </div>
+
+        <!-- Cross-vault Search Row -->
+        <div class="setting-row">
+          <div class="row-icon">
+            <PhInfo />
+          </div>
+          <div class="row-content">
+            <div class="row-title">{{ $t('profile.asset.crossVaultSearch') }}</div>
+            <div class="row-desc">{{ $t('profile.asset.crossVaultSearchDesc') }}</div>
+          </div>
+          <div class="row-control">
+            <AppSwitch
+              :checked="crossVaultSearch"
+              :disabled="crossVaultBusy"
+              @update:checked="onToggleCrossVault"
             />
           </div>
         </div>

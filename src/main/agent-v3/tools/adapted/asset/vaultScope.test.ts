@@ -11,12 +11,17 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { vaultManager } = vi.hoisted(() => ({
+const { vaultManager, settings } = vi.hoisted(() => ({
   vaultManager: {
     getAllVaults: vi.fn(),
     getCurrentVault: vi.fn(),
     withVaultDatabase: vi.fn()
-  }
+  },
+  settings: { assetCrossVaultSearch: true }
+}))
+
+vi.mock('../../../../appSettingsManager', () => ({
+  appSettingsManager: { getSettings: () => settings }
 }))
 
 vi.mock('../../../../sqliteDataBase', () => ({
@@ -43,7 +48,49 @@ beforeEach(() => {
   vaultManager.getAllVaults.mockReset()
   vaultManager.getCurrentVault.mockReset()
   vaultManager.withVaultDatabase.mockReset()
+  settings.assetCrossVaultSearch = true
   standOnAIGC()
+})
+
+describe('runAcrossVaults：跨库搜索关着（默认）', () => {
+  beforeEach(() => {
+    settings.assetCrossVaultSearch = false
+  })
+
+  it('不填和 "all" 都只跑当前库，没跑的库报出来', async () => {
+    for (const scope of [undefined, 'all']) {
+      const seen: string[] = []
+      const { skippedVaults } = await runAcrossVaults(scope, (_db, vault) => {
+        seen.push(vault.name)
+      })
+
+      expect(seen).toEqual(['AIGC 资产库'])
+      expect(skippedVaults).toEqual(['默认保管库'])
+    }
+  })
+
+  it('用户点名的库照样能搜', async () => {
+    const seen: string[] = []
+    const { skippedVaults } = await runAcrossVaults('默认保管库', (_db, vault) => {
+      seen.push(vault.name)
+    })
+
+    expect(seen).toEqual(['默认保管库'])
+    expect(skippedVaults).toBeUndefined()
+  })
+
+  it('只有一个库时不报 skippedVaults', async () => {
+    vaultManager.getAllVaults.mockReturnValue([AIGC_VAULT])
+    const { skippedVaults } = await runAcrossVaults(undefined, () => undefined)
+
+    expect(skippedVaults).toBeUndefined()
+  })
+
+  it('「它在别的库里」的探查不受开关影响 —— 那是把话说准，不是替用户搜', async () => {
+    const reason = await explainVaultMiss('找不到', (db) => db === DB.v_default)
+
+    expect(reason).toContain('默认保管库')
+  })
 })
 
 describe('runAcrossVaults：范围解析', () => {

@@ -129,6 +129,14 @@ interface AppSettings {
    * 见 `services/editorCrashWatch`。
    */
   autoRecoverEditorCrash: boolean
+  /**
+   * agent 搜素材时看不看别的保管库。默认关着：只搜当前活跃的那个库。
+   *
+   * 默认关的理由：搜到别的库的东西，导入、移动、删除照样得先切过去
+   * （「读跨库，写不跨库」，见 `agent-v3/tools/adapted/asset/vaultScope.ts`），
+   * 结果里混着一堆当下动不了的资产，比只看眼前这个库更让人迷糊。
+   */
+  assetCrossVaultSearch: boolean
 }
 
 /**
@@ -165,7 +173,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   hideWindowOnProjectLaunch: false,
   // 默认开着。崩溃报告窗口不点就一直挡着，agent 那一轮活也就停在那儿；
   // 重开之前会把未保存的自动存档备份好，不替用户决定恢复不恢复
-  autoRecoverEditorCrash: true
+  autoRecoverEditorCrash: true,
+  assetCrossVaultSearch: false
 }
 
 /** 只保留字符串项；不是数组就当空名单 */
@@ -240,7 +249,8 @@ class AppSettingsManager {
           notifyApprovalRequired: mergedSettings.notifyApprovalRequired,
           notifyQuestionRequired: mergedSettings.notifyQuestionRequired,
           hideWindowOnProjectLaunch: mergedSettings.hideWindowOnProjectLaunch,
-          autoRecoverEditorCrash: mergedSettings.autoRecoverEditorCrash
+          autoRecoverEditorCrash: mergedSettings.autoRecoverEditorCrash,
+          assetCrossVaultSearch: mergedSettings.assetCrossVaultSearch === true
         }
       }
     } catch (error) {
@@ -273,6 +283,13 @@ class AppSettingsManager {
   /** 先落盘再更新内存，保存失败时让设置页显示错误并保留原值。 */
   setAgentToolSearchEnabled(enabled: boolean): void {
     const next = { ...this.settings, agentToolSearchEnabled: enabled, agentToolSearchUserSet: true }
+    writeFileSync(this.configPath, JSON.stringify(next, null, 2))
+    this.settings = next
+  }
+
+  /** 同上：先落盘再更新内存 */
+  setAssetCrossVaultSearch(enabled: boolean): void {
+    const next = { ...this.settings, assetCrossVaultSearch: enabled }
     writeFileSync(this.configPath, JSON.stringify(next, null, 2))
     this.settings = next
   }

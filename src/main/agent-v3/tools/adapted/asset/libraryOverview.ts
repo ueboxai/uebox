@@ -141,10 +141,11 @@ export function createLibraryOverviewTool(): V2Tool {
   SQL 精确算出来的总数和分布，库多大它都只有几百字。
 【怎么往下钻】先不带参数看整体 → 挑一个文件夹/标签，带上 folder 或 tags 再调一次
   → 范围收窄到几十个之后，再用 search_assets 取具体资产。
-【默认统计所有保管库】用户的资产分散在多个库里（默认保管库、AIGC 资产库、
-  他自己建的、网络协作库）。这个工具默认全统计，by_vault 里是各库各有多少。
-  **汇报时要说清楚数字是所有库合起来的**，别说成某一个库的；
-  unsearched_vaults 非空说明有库这次没数到，也要说出来。
+【统计哪些保管库】用户的资产分散在多个库里（默认保管库、AIGC 资产库、
+  他自己建的、网络协作库）。不填 vault 时按用户设置的「跨库搜索」走：关着只统计
+  当前活跃库，开着全统计，by_vault 里是各库各有多少。
+  **汇报时要说清楚数字是哪几个库的**（看 searched_vaults）；
+  skipped_vaults 是因为开关关着没统计的库，unsearched_vaults 是这次没数到的库，都要说出来。
 【注意】返回的分布只列前 ${FACET_LIMIT} 个取值，剩下的会以「（其余 N 类合计）」
   的形式给出总数 —— 汇报时别把列出来的当成全部类别。`,
     inputSchema: z.object({
@@ -222,50 +223,51 @@ export function createLibraryOverviewTool(): V2Tool {
       const folderMisses: string[] = []
       let folderScope: string | undefined
 
-      const { runs, error: scopeError } = await runAcrossVaults<AssetLibraryOverview | null>(
-        input.vault,
-        (db, vault) => {
-          const scoped: AssetSearchCriteria = { ...criteria }
-          let scopePath = ''
+      const {
+        runs,
+        error: scopeError,
+        skippedVaults
+      } = await runAcrossVaults<AssetLibraryOverview | null>(input.vault, (db, vault) => {
+        const scoped: AssetSearchCriteria = { ...criteria }
+        let scopePath = ''
 
-          // 文件夹：用户说名字，底层认 folderKey。folderKey 每个库各一套，
-          // 必须逐库解析 —— 跨库复用会统计到另一个库里同 key 的文件夹上
-          if (input.folder) {
-            const resolved = resolveFolder(db, input.folder)
-            if (resolved.error || !resolved.folderKey) {
-              folderMisses.push(`${vault.name}：${resolved.error ?? '文件夹解析失败'}`)
-              return null
-            }
-            scoped.folderKey = resolved.folderKey
-            scoped.includeSubfolders = true
-            scopePath = resolved.folder?.fullPath ?? ''
-            folderScope ??= scopePath || resolved.folder?.folderName || resolved.folderKey
+        // 文件夹：用户说名字，底层认 folderKey。folderKey 每个库各一套，
+        // 必须逐库解析 —— 跨库复用会统计到另一个库里同 key 的文件夹上
+        if (input.folder) {
+          const resolved = resolveFolder(db, input.folder)
+          if (resolved.error || !resolved.folderKey) {
+            folderMisses.push(`${vault.name}：${resolved.error ?? '文件夹解析失败'}`)
+            return null
           }
-
-          // 关键词走全文索引还是 LIKE，和 search_assets 用同一段判断。
-          // 索引是每个库自己的，所以这一步也得逐库来
-          const resolvedKeyword = resolveKeywordCriteria(db, input.query)
-          if (resolvedKeyword.ftsMatch) scoped.ftsMatch = resolvedKeyword.ftsMatch
-          if (resolvedKeyword.keyword) scoped.keyword = resolvedKeyword.keyword
-
-          const one = getAssetLibraryOverview(db, scoped, {
-            // 多个库要合并时每库多取一些桶，否则合并后的前 12 会算小
-            facetLimit: MERGE_FACET_LIMIT,
-            largestLimit,
-            scopePath,
-            publicDb
-          })
-          perVault[vault.name] = `${one.total} 个 / ${humanBytes(one.totalSize)}`
-          return one
+          scoped.folderKey = resolved.folderKey
+          scoped.includeSubfolders = true
+          scopePath = resolved.folder?.fullPath ?? ''
+          folderScope ??= scopePath || resolved.folder?.folderName || resolved.folderKey
         }
-      )
+
+        // 关键词走全文索引还是 LIKE，和 search_assets 用同一段判断。
+        // 索引是每个库自己的，所以这一步也得逐库来
+        const resolvedKeyword = resolveKeywordCriteria(db, input.query)
+        if (resolvedKeyword.ftsMatch) scoped.ftsMatch = resolvedKeyword.ftsMatch
+        if (resolvedKeyword.keyword) scoped.keyword = resolvedKeyword.keyword
+
+        const one = getAssetLibraryOverview(db, scoped, {
+          // 多个库要合并时每库多取一些桶，否则合并后的前 12 会算小
+          facetLimit: MERGE_FACET_LIMIT,
+          largestLimit,
+          scopePath,
+          publicDb
+        })
+        perVault[vault.name] = `${one.total} 个 / ${humanBytes(one.totalSize)}`
+        return one
+      })
 
       if (scopeError) return { success: false, error: scopeError }
 
       if (input.folder && !folderScope) {
         return {
           success: false,
-          error: `所有保管库里都没有文件夹「${input.folder}」：${folderMisses.join('；')}`
+          error: `${skippedVaults ? '当前保管库' : '所有保管库'}里都没有文件夹「${input.folder}」：${folderMisses.join('；')}`
         }
       }
       if (folderScope) scope.push(`文件夹 ${folderScope}`)
@@ -287,13 +289,15 @@ export function createLibraryOverviewTool(): V2Tool {
         .filter((value): value is AssetLibraryOverview => Boolean(value))
 
       const overview = mergeOverviews(parts, largestLimit)
-      const scopeLabel = scope.length > 0 ? scope.join(' + ') : '全部保管库'
+      const scopeLabel =
+        scope.length > 0 ? scope.join(' + ') : skippedVaults ? '当前保管库' : '全部保管库'
       const multi = Object.keys(perVault).length > 1
 
       // 哪个库没统计到必须说出来。不说的话「库里就这么多」和「有一个库没数到」
       // 长得一模一样，而后者会让用户以为自己的素材丢了
       const vaultNotes: Record<string, unknown> = {
         searched_vaults: searched,
+        ...(skippedVaults ? { skipped_vaults: skippedVaults } : {}),
         ...(multi ? { by_vault: perVault } : {}),
         ...(failed.length > 0
           ? { unsearched_vaults: failed.map((run) => `${run.vault.name}：${run.error}`) }

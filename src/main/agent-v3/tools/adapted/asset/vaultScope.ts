@@ -26,6 +26,7 @@
  */
 
 import type Database from 'better-sqlite3'
+import { appSettingsManager } from '../../../../appSettingsManager'
 import { getDatabaseManager } from '../../../../sqliteDataBase'
 import type { VaultInfo } from '../../../../sqliteDataBase/VaultManager'
 
@@ -41,6 +42,13 @@ export interface VaultScopeResult<T> {
   runs: VaultRun<T>[]
   /** scope 指到一个不存在的库时的报错。此时 runs 为空 */
   error?: string
+  /**
+   * 跨库搜索关着、所以这次**没去看**的那些库的名字。
+   *
+   * 要回给模型：不说的话「当前库里没有」会被讲成「你库里没有」，
+   * 而用户的东西可能好好待在另一个库里。
+   */
+  skippedVaults?: string[]
 }
 
 /** `vault` 参数的两个保留字 */
@@ -54,28 +62,51 @@ const SCOPE_CURRENT = 'current'
  * 两处各写一遍，早晚会有一处漏掉「可以直接写库名」。
  */
 export const VAULT_SCOPE_DESCRIPTION =
-  '搜哪个保管库：不填 / "all" = 全部保管库（默认）、"current" = 只搜当前活跃的那个、' +
-  '或者直接写库名（如 "默认保管库"、"AIGC 资产库"）。' +
-  '**用户的素材分散在多个库里，默认全搜是对的** —— 只在用户明确说「只看某个库」时才收窄。'
+  '搜哪个保管库：不填 / "all" = 按用户在资产库设置里的「跨库搜索」走 —— ' +
+  '关着（默认）只搜当前活跃的那个库，开着搜全部；"current" = 只搜当前活跃的那个；' +
+  '或者直接写库名（如 "默认保管库"、"AIGC 资产库"），只在用户点名某个库时这样填。' +
+  '结果里 skipped_vaults 列着因为跨库搜索关着而没搜的库。'
+
+/**
+ * 用户开没开跨库搜索。
+ *
+ * 读不出来（抛异常）就当关着 —— 和默认值一致，窄了结果里会写明还有哪些库没搜。
+ */
+function crossVaultSearchEnabled(): boolean {
+  try {
+    return appSettingsManager.getSettings().assetCrossVaultSearch === true
+  } catch {
+    return false
+  }
+}
 
 /**
  * 把 scope 解析成要跑哪几个库。
  *
  * 当前库排在最前面：用户嘴里的「我库里的东西」多半先指它，
  * 分页时它的结果也就排在前面。
+ *
+ * `crossVault` 为 false 时，不填和 "all" 都只落到当前库；点名某个库照样认 ——
+ * 用户自己说了「去 AIGC 库里找」，那就不是 agent 自作主张地跨库。
  */
 function resolveTargets(
   scope: string | undefined,
   all: VaultInfo[],
-  current: VaultInfo | null
-): { targets: VaultInfo[]; error?: string } {
+  current: VaultInfo | null,
+  crossVault: boolean
+): { targets: VaultInfo[]; error?: string; skippedVaults?: string[] } {
   const raw = String(scope ?? '').trim()
 
   const ordered = current
     ? [...all.filter((v) => v.id === current.id), ...all.filter((v) => v.id !== current.id)]
     : all
 
-  if (!raw || raw.toLowerCase() === SCOPE_ALL) return { targets: ordered }
+  if (!raw || raw.toLowerCase() === SCOPE_ALL) {
+    // 没有活跃库时没什么可收窄的，照旧全搜
+    if (crossVault || !current) return { targets: ordered }
+    const skipped = all.filter((v) => v.id !== current.id).map((v) => v.name)
+    return { targets: [current], ...(skipped.length > 0 ? { skippedVaults: skipped } : {}) }
+  }
 
   if (raw.toLowerCase() === SCOPE_CURRENT) {
     if (!current) return { targets: [], error: '当前没有活跃的保管库。' }
@@ -89,7 +120,7 @@ function resolveTargets(
     targets: [],
     error:
       `没有叫「${raw}」的保管库。现在有这几个：${all.map((v) => v.name).join('、')}。` +
-      '不确定就别填这个参数，默认是全部一起搜。'
+      '不确定就别填这个参数。'
   }
 }
 
@@ -99,10 +130,14 @@ function resolveTargets(
  * **是顺序跑不是并发**：调用方经常要在回调里攒跨库的分页状态
  * （还要取几个、要跳过几个），并发跑那些状态就乱了。
  * 库的个数是个位数，顺序跑不值得为它引入并发。
+ *
+ * @param options.ignoreSetting 不看「跨库搜索」开关、"all" 就是全部。只给内部探查用
+ *   （`explainVaultMiss` 那种「当前库没有，它在哪」）—— 那是把话说准，不是替用户搜东西
  */
 export async function runAcrossVaults<T>(
   scope: string | undefined,
-  op: (db: Database.Database, vault: VaultInfo) => Promise<T> | T
+  op: (db: Database.Database, vault: VaultInfo) => Promise<T> | T,
+  options: { ignoreSetting?: boolean } = {}
 ): Promise<VaultScopeResult<T>> {
   let vaultManager: ReturnType<ReturnType<typeof getDatabaseManager>['getVaultManager']>
   try {
@@ -111,10 +146,11 @@ export async function runAcrossVaults<T>(
     return { runs: [], error: error instanceof Error ? error.message : String(error) }
   }
 
-  const { targets, error } = resolveTargets(
+  const { targets, error, skippedVaults } = resolveTargets(
     scope,
     vaultManager.getAllVaults(),
-    vaultManager.getCurrentVault()
+    vaultManager.getCurrentVault(),
+    options.ignoreSetting === true || crossVaultSearchEnabled()
   )
   if (error) return { runs: [], error }
 
@@ -129,7 +165,7 @@ export async function runAcrossVaults<T>(
       runs.push({ vault, error: err instanceof Error ? err.message : String(err) })
     }
   }
-  return { runs }
+  return skippedVaults ? { runs, skippedVaults } : { runs }
 }
 
 /**
@@ -162,10 +198,14 @@ export async function explainVaultMiss(
     const current = getDatabaseManager().getVaultManager().getCurrentVault()
 
     const found: string[] = []
-    const { runs } = await runAcrossVaults('all', (db, vault) => {
-      if (vault.id === current?.id) return
-      if (probe(db)) found.push(vault.name)
-    })
+    const { runs } = await runAcrossVaults(
+      'all',
+      (db, vault) => {
+        if (vault.id === current?.id) return
+        if (probe(db)) found.push(vault.name)
+      },
+      { ignoreSetting: true }
+    )
     if (runs.length === 0 || found.length === 0) return baseReason
 
     return (
@@ -227,11 +267,15 @@ export async function explainVaultMissBatch(
     if (missing.length === 0) return empty
 
     const foundIn: Record<string, number> = {}
-    await runAcrossVaults('all', (db, vault) => {
-      if (vault.id === current.id) return
-      const hit = missing.filter((key) => existsIn(db, key)).length
-      if (hit > 0) foundIn[vault.name] = hit
-    })
+    await runAcrossVaults(
+      'all',
+      (db, vault) => {
+        if (vault.id === current.id) return
+        const hit = missing.filter((key) => existsIn(db, key)).length
+        if (hit > 0) foundIn[vault.name] = hit
+      },
+      { ignoreSetting: true }
+    )
 
     const elsewhere = Object.entries(foundIn).sort((a, b) => b[1] - a[1])
     if (elsewhere.length === 0) {

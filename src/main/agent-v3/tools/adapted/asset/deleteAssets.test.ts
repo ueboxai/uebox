@@ -36,6 +36,10 @@ const {
 const OTHER_VAULT_DB = { tag: 'other' }
 let otherVaultHas: string[] = []
 
+// 跨库搜索默认关；这里的用例测的是开着时的跨库行为，关着的那一档在 vaultScope.test.ts
+vi.mock('../../../../appSettingsManager', () => ({
+  appSettingsManager: { getSettings: () => ({ assetCrossVaultSearch: true }) }
+}))
 vi.mock('../../../../sqliteDataBase', () => ({
   getVaultDatabase: () => ({}),
   getDatabaseManager: () => ({

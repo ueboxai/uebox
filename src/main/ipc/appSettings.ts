@@ -51,6 +51,7 @@ export function registerAppSettingsIPC(setAppIconTheme: SetAppIconTheme): void {
         notifyQuestionRequired?: boolean
         hideWindowOnProjectLaunch?: boolean
         autoRecoverEditorCrash?: boolean
+        assetCrossVaultSearch?: boolean
       }
     ) => {
       if (typeof settings.autoLaunch === 'boolean') {
@@ -118,6 +119,9 @@ export function registerAppSettingsIPC(setAppIconTheme: SetAppIconTheme): void {
       }
       if (typeof settings.autoRecoverEditorCrash === 'boolean') {
         appSettingsManager.setAutoRecoverEditorCrash(settings.autoRecoverEditorCrash)
+      }
+      if (typeof settings.assetCrossVaultSearch === 'boolean') {
+        appSettingsManager.setAssetCrossVaultSearch(settings.assetCrossVaultSearch)
       }
       return { success: true }
     }
