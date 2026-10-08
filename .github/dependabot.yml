@@ -51,13 +51,26 @@ updates:
           - patch
         exclude-patterns:
           - '@earendil-works/pi-*'
-      # 大版本也收成一个 PR，免得每周冒出一串。合不合、拆不拆，打开 PR 人工看。
-      major:
+      # vitest 和 @vitest/* 必须同版本，大版本也得一起升。
+      # 其余 major 不分组，一个包一个 PR：#35 把 17 个大版本塞进一个 PR，
+      # 装依赖就挂（better-sqlite3 13），后面 16 个连 CI 都没跑到，根本没法合。
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
         update-types:
           - major
-        exclude-patterns:
-          - '@earendil-works/pi-*'
     ignore:
+      # better-sqlite3 13 改了产物位置，scripts/better-sqlite3-abi.mjs 缓存不到，
+      # postinstall 直接退出。脚本适配之前先拦住大版本。
+      - dependency-name: better-sqlite3
+        update-types:
+          - version-update:semver-major
+      # 这几个是为安全修复/兼容性故意钉死的版本（见 package.json 的 overrides），
+      # 机器人只会改 devDependencies 那一行、不动 overrides，升了反而两套版本并存。
+      - dependency-name: minimatch
+      - dependency-name: brace-expansion
+      - dependency-name: webidl-conversions
       # electron 跟着 electron-builder / better-sqlite3 的 ABI 走，
       # 升版本要连带 pnpm rebuild:electron，不能让机器人自己决定。
       # 小版本也拦：44.0 → 44.4 一样会牵出原生模块重编译，统一人工升。
