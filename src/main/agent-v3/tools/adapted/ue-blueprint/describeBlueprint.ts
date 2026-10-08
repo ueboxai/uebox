@@ -65,7 +65,10 @@ export function createDescribeBlueprintTool() {
     description: `Read the overall Blueprint structure for validation and context building.
 
 Returns name, path, parent class, components, variables, compile status, and the list of
-inspectable graphs (graph_names / preferred_graph).
+inspectable graphs (graph_names / preferred_graph). Graphs nested inside others — state
+machines, their states and transition rules, collapsed graphs — are listed by path
+("AnimGraph/Locomotion/Idle->Walk"); pass that path as graph_name to read or write them.
+An Animation Blueprint also reports its skeleton (anim_blueprint.target_skeleton).
 Use this before editing an existing Blueprint, when the user asks what the current Blueprint
 contains, or when you need to know which graphs exist before calling blueprint_get_graph.
 
@@ -188,6 +191,10 @@ reported here, so do not fall back to running Python to read the SCS tree.`,
             .join(', ')
           const graphSummary =
             graphNames.length > 0 ? `, ${graphNames.length} graphs [${graphNames.join(', ')}]` : ''
+          // 动画蓝图绑死一副骨架，往里放的每段动画都得是这副骨架的
+          const skeleton = (rawResponse.anim_blueprint as { target_skeleton?: string } | undefined)
+            ?.target_skeleton
+          const kind = skeleton ? `Animation Blueprint on ${skeleton}, ` : ''
 
           return {
             success: true,
@@ -208,7 +215,7 @@ reported here, so do not fall back to running Python to read the SCS tree.`,
             // 下一步多半是 blueprint_get_graph，直接把该开哪张图告诉它
             preferred_graph: pickPreferredGraphName(graphRefs),
             graphs: graphRefs,
-            summary: `Blueprint "${response.name}" (${response.parent_class}): ${response.components.length} components [${componentSummary || 'none'}], ${response.variables.length} variables [${variableSummary || 'none'}]${graphSummary}`
+            summary: `Blueprint "${response.name}" (${kind}${response.parent_class}): ${response.components.length} components [${componentSummary || 'none'}], ${response.variables.length} variables [${variableSummary || 'none'}]${graphSummary}`
           }
         }
 

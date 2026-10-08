@@ -175,3 +175,38 @@ describe('连不上引擎', () => {
     expect(String(result.error)).toContain('boom')
   })
 })
+
+describe('动画节点', () => {
+  const animHit = {
+    write_as: 'BlendPosesByInt',
+    raw_class: 'AnimGraphNode_BlendListByInt',
+    title: 'Blend List by Int',
+    settings: ['ActiveChildIndex (int32)', 'BlendTime (TArray)']
+  }
+
+  it('动画节点和函数一起回，summary 里点到', async () => {
+    callRequest.mockResolvedValue({ ...printStringHit, anim_nodes: [animHit] })
+
+    const result = await run({ query: 'blend', blueprint_path: '/Game/ABP_Hero' })
+
+    expect(result.anim_nodes).toEqual([animHit])
+    expect(String(result.summary)).toContain('1 个动画节点')
+  })
+
+  it('没有同名函数但有动画节点时不报「没找到」', async () => {
+    callRequest.mockResolvedValue({
+      ok: true,
+      query: 'blend',
+      match_count: 0,
+      total_candidates: 0,
+      functions: [],
+      anim_nodes: [animHit]
+    })
+
+    const result = await run({ query: 'blend', blueprint_path: '/Game/ABP_Hero' })
+
+    expect(result.anim_nodes).toEqual([animHit])
+    expect(String(result.summary)).toContain('动画节点')
+    expect(String(result.summary)).not.toContain('没有匹配')
+  })
+})

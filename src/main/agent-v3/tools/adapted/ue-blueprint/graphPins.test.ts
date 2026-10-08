@@ -323,3 +323,71 @@ describe('节点的重建说明', () => {
     expect(out).not.toHaveProperty('timeline')
   })
 })
+
+describe('动画节点和状态机', () => {
+  const { describeNodeForModel, stateMachineConnections } = __testing
+
+  it('动画节点的设置和子图路径要带回来 —— 丢了设置写回去就变回默认值', () => {
+    const out = describeNodeForModel({
+      node_id: 'GUID-SM',
+      class: 'AnimGraphNode_StateMachine',
+      title: 'Locomotion',
+      pos_x: 0,
+      pos_y: 0,
+      pins: [],
+      write_as: 'StateMachine',
+      member_name: 'Locomotion',
+      sub_graph: 'AnimGraph/Locomotion',
+      settings: { MaxTransitionsPerFrame: 2 }
+    })
+
+    expect(out.write_as).toBe('StateMachine')
+    expect(out.sub_graph).toBe('AnimGraph/Locomotion')
+    expect(out.settings).toEqual({ MaxTransitionsPerFrame: 2 })
+  })
+
+  it('状态机里的状态不带引脚时不塞空的 pins —— 那一页的线是转换，不是引脚连线', () => {
+    const out = describeNodeForModel({
+      node_id: 'GUID-IDLE',
+      class: 'AnimStateNode',
+      title: 'Idle',
+      pos_x: 0,
+      pos_y: 0,
+      write_as: 'State',
+      member_name: 'Idle'
+    } as never)
+
+    expect(out).not.toHaveProperty('pins')
+    expect(out).not.toHaveProperty('settings')
+  })
+
+  it('转换读回来就是 apply_graph 那一页 connections 的写法，入口排第一', () => {
+    const connections = stateMachineConnections({
+      ok: true,
+      blueprint_path: '/Game/ABP_Hero',
+      graph_name: 'AnimGraph/Locomotion',
+      graph_kind: 'state_machine',
+      nodes: [],
+      entry_state: 'Idle',
+      transitions: [
+        {
+          from: 'Idle',
+          to: 'Walk',
+          node_id: 'T1',
+          rule_graph: 'AnimGraph/Locomotion/Idle->Walk',
+          settings: { CrossfadeDuration: 0.3 }
+        },
+        { from: 'Walk', to: 'Idle', node_id: 'T2', settings: {} }
+      ]
+    })
+
+    expect(connections[0]).toEqual({ from: 'Entry', to: 'Idle' })
+    expect(connections[1]).toMatchObject({
+      from: 'Idle',
+      to: 'Walk',
+      settings: { CrossfadeDuration: 0.3 },
+      rule_graph: 'AnimGraph/Locomotion/Idle->Walk'
+    })
+    expect(connections[2]).not.toHaveProperty('settings')
+  })
+})

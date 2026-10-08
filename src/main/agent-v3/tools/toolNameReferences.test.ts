@@ -64,6 +64,9 @@ const NOT_TOOL_NAMES: Record<string, string> = {
   library_sample: 'search_assets 零命中回退时返回的字段',
   cpp_name: 'blueprint_search_nodes 返回的字段（C++ 里的函数名）',
   write_as: 'blueprint_get_graph / blueprint_library_save 的参数',
+  // `anim_` 是真前缀（有 anim_ 开头的工具），所以这两个响应字段被当成了工具名
+  anim_blueprint: 'blueprint_describe 的响应字段（动画蓝图的骨架）',
+  anim_nodes: 'blueprint_search_nodes 的响应字段（动画节点）',
   delete_broken: 'ue_fixup_redirectors / ue_content_rollback 的参数',
   move_input_ignored: 'ue_inject_input 返回的字段',
   rename_asset: 'ue_run_python_script 描述里举例的 unreal Python API',

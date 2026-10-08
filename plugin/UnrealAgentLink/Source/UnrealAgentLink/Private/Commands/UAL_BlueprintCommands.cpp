@@ -1,5 +1,8 @@
 ﻿#include "UAL_BlueprintCommands.h"
 #include "UAL_CommandUtils.h"
+// 动画蓝图：图路径、动画节点、状态机（设计见 docs/动画蓝图编辑设计-2026-10-08.md）
+#include "UAL_AnimGraphSupport.h"
+#include "UAL_BlueprintCompileReport.h"
 
 #include "Editor.h"
 #include "Engine/Blueprint.h"
@@ -316,7 +319,9 @@ static bool UAL_IsGraphEmptyForImport(const UEdGraph* Graph, FString& OutReason)
 
 		const UK2Node_FunctionEntry* Entry = Cast<UK2Node_FunctionEntry>(Node);
 		const UK2Node_FunctionResult* Result = Cast<UK2Node_FunctionResult>(Node);
-		if (!Entry && !Result && !bIsGhostEventNode)
+		// 动画图的骨架是它自带的输出节点（输出姿势 / 状态结果 / 转换结果），同函数图的 Result
+		const bool bAnimSkeleton = UALAnimGraph::IsSkeletonNode(Node);
+		if (!Entry && !Result && !bIsGhostEventNode && !bAnimSkeleton)
 		{
 			OutReason = FString::Printf(
 				TEXT("graph contains '%s' (%s), which is not an empty-graph skeleton node"),
@@ -364,8 +369,11 @@ static bool UAL_IsGraphEmptyForImport(const UEdGraph* Graph, FString& OutReason)
 				return false;
 			}
 
-			// ⑤ 三个槽位分别查 —— 少查一个就漏一类字面量
-			if (!Pin->DefaultValue.IsEmpty() || Pin->DefaultObject != nullptr || !Pin->DefaultTextValue.IsEmpty())
+			// ⑤ 三个槽位分别查 —— 少查一个就漏一类字面量。
+			// 动画输出节点的姿势引脚永远挂着 "(LinkID=-1,...)"，那是连线编号不是字面量，不算
+			const UObject* PinStruct = Pin->PinType.PinSubCategoryObject.Get();
+			const bool bPoseLink = PinStruct && PinStruct->GetName().Contains(TEXT("PoseLink"));
+			if (!bPoseLink && (!Pin->DefaultValue.IsEmpty() || Pin->DefaultObject != nullptr || !Pin->DefaultTextValue.IsEmpty()))
 			{
 				OutReason = FString::Printf(
 					TEXT("pin '%s' on '%s' carries a literal default value"),
@@ -384,6 +392,14 @@ static UEdGraph* UAL_FindGraph(UBlueprint* Blueprint, const FString& GraphName)
 	if (!Blueprint)
 	{
 		return nullptr;
+	}
+
+	// 带斜杠的是图路径：状态机、状态、转换规则、折叠图这些子图
+	// （AnimGraph/Locomotion/Idle->Walk）。走不通时的原因由 UAL_GraphNotFoundMessage 现查
+	if (GraphName.Contains(TEXT("/")))
+	{
+		FString Ignored;
+		return UALAnimGraph::FindGraphByPath(Blueprint, GraphName, Ignored);
 	}
 
 	// 默认：事件图
@@ -415,17 +431,33 @@ static UEdGraph* UAL_FindGraph(UBlueprint* Blueprint, const FString& GraphName)
 	return nullptr;
 }
 
-static TSharedPtr<FJsonObject> UAL_BuildGraphRefJson(UEdGraph* Graph, const FString& GraphType)
+/**
+ * 「图找不到」的完整说法。图路径走到哪一层断了、那一层下面有哪些子图，一起说 ——
+ * 只回一句 not found 的话，调用方分不清是状态机名错了还是状态名错了。
+ */
+static FString UAL_GraphNotFoundMessage(UBlueprint* Blueprint, const FString& GraphName)
+{
+	if (GraphName.Contains(TEXT("/")))
+	{
+		FString Detail;
+		UALAnimGraph::FindGraphByPath(Blueprint, GraphName, Detail);
+		return FString::Printf(TEXT("Graph not found: %s - %s"), *GraphName, *Detail);
+	}
+	return FString::Printf(TEXT("Graph not found: %s"), GraphName.IsEmpty() ? TEXT("EventGraph") : *GraphName);
+}
+
+static TSharedPtr<FJsonObject> UAL_BuildGraphRefJson(UEdGraph* Graph, const FString& GraphType, const FString& NameOverride = FString())
 {
 	if (!Graph)
 	{
 		return nullptr;
 	}
 
+	const FString Name = NameOverride.IsEmpty() ? Graph->GetName() : NameOverride;
 	TSharedPtr<FJsonObject> GraphObj = MakeShared<FJsonObject>();
-	GraphObj->SetStringField(TEXT("name"), Graph->GetName());
+	GraphObj->SetStringField(TEXT("name"), Name);
 	GraphObj->SetStringField(TEXT("type"), GraphType);
-	GraphObj->SetStringField(TEXT("title"), Graph->GetName());
+	GraphObj->SetStringField(TEXT("title"), Name);
 	return GraphObj;
 }
 
@@ -437,6 +469,8 @@ struct FUAL_GraphDiscoveryResult
 	TArray<TSharedPtr<FJsonValue>> MacroGraphs;
 	TArray<TSharedPtr<FJsonValue>> DelegateGraphs;
 	TArray<TSharedPtr<FJsonValue>> IntermediateGraphs;
+	/** 子图（状态机、状态、转换规则、折叠图），name 是图路径 */
+	TArray<TSharedPtr<FJsonValue>> NestedGraphs;
 	TArray<TSharedPtr<FJsonValue>> GraphNames;
 	TSet<FString> SeenGraphNames;
 	FString PreferredGraphName;
@@ -445,14 +479,15 @@ struct FUAL_GraphDiscoveryResult
 		UEdGraph* Graph,
 		const TCHAR* GraphType,
 		TArray<TSharedPtr<FJsonValue>>& TypedArray,
-		bool bPreferAsDefault = false)
+		bool bPreferAsDefault = false,
+		const FString& PathName = FString())
 	{
 		if (!Graph)
 		{
 			return;
 		}
 
-		const FString GraphName = Graph->GetName();
+		const FString GraphName = PathName.IsEmpty() ? Graph->GetName() : PathName;
 		const FString GraphKey = GraphName.ToLower();
 		if (SeenGraphNames.Contains(GraphKey))
 		{
@@ -475,7 +510,7 @@ struct FUAL_GraphDiscoveryResult
 
 		GraphNames.Add(MakeShared<FJsonValueString>(GraphName));
 
-		if (TSharedPtr<FJsonObject> GraphObj = UAL_BuildGraphRefJson(Graph, GraphType))
+		if (TSharedPtr<FJsonObject> GraphObj = UAL_BuildGraphRefJson(Graph, GraphType, PathName))
 		{
 			Graphs.Add(MakeShared<FJsonValueObject>(GraphObj));
 			TypedArray.Add(MakeShared<FJsonValueObject>(GraphObj));
@@ -497,7 +532,9 @@ static FUAL_GraphDiscoveryResult UAL_CollectBlueprintGraphs(UBlueprint* Blueprin
 	}
 	for (UEdGraph* Graph : Blueprint->FunctionGraphs)
 	{
-		Result.AddGraph(Graph, TEXT("function"), Result.FunctionGraphs);
+		// 动画蓝图的 AnimGraph 和动画层也存在 FunctionGraphs 里，类型照实说
+		const TCHAR* Kind = UALAnimGraph::GetGraphKind(Graph);
+		Result.AddGraph(Graph, Kind ? Kind : TEXT("function"), Result.FunctionGraphs);
 	}
 	for (UEdGraph* Graph : Blueprint->MacroGraphs)
 	{
@@ -511,6 +548,10 @@ static FUAL_GraphDiscoveryResult UAL_CollectBlueprintGraphs(UBlueprint* Blueprin
 	{
 		Result.AddGraph(Graph, TEXT("intermediate"), Result.IntermediateGraphs);
 	}
+	UALAnimGraph::ForEachNestedGraph(Blueprint, [&Result](UEdGraph* Graph, const FString& Path, const TCHAR* Type)
+	{
+		Result.AddGraph(Graph, Type, Result.NestedGraphs, false, Path);
+	});
 
 	return Result;
 }
@@ -606,7 +647,11 @@ static TArray<TSharedPtr<FJsonValue>> UAL_BuildPinsJson(UEdGraphNode* Node)
 		 * 三个槽位分开回（对应 TrySetDefaultValue 的三种落值方式），
 		 * 且只在非空时带上，避免给每个引脚都塞一个空串。
 		 */
-		if (!Pin->DefaultValue.IsEmpty())
+		// 动画姿势引脚（FPoseLink）上挂着 "(LinkID=-1,SourceLinkID=-1)" —— 那是连线的内部编号，
+		// 不是字面量。回出去的话调用方会把它照抄进 pin_defaults
+		const UObject* PinStruct = Pin->PinType.PinSubCategoryObject.Get();
+		const bool bPoseLink = PinStruct && PinStruct->GetName().Contains(TEXT("PoseLink"));
+		if (!Pin->DefaultValue.IsEmpty() && !bPoseLink)
 		{
 			PinObj->SetStringField(TEXT("default_value"), Pin->DefaultValue);
 		}
@@ -1085,6 +1130,8 @@ static TSharedPtr<FJsonObject> UAL_BuildNodeJson(UEdGraphNode* Node)
 	}
 
 	UAL_AnnotateNodeForRewrite(Node, NodeObj);
+	// 动画节点、状态、转换取值：write_as / member_name / settings / sub_graph
+	UALAnimGraph::AnnotateNode(Node, NodeObj);
 	NodeObj->SetArrayField(TEXT("pins"), UAL_BuildPinsJson(Node));
 	return NodeObj;
 }
@@ -4016,6 +4063,16 @@ static UEdGraphNode* UAL_CreateNodeInternal(
 		return PlacedNode;
 	}
 
+	// ===== 动画节点（姿势图、状态内部、转换规则）=====
+	// 排在蓝图具名类型之后：撞名时蓝图那边优先。raw_class 点名 AnimGraphNode_* 的也在这里接住
+	{
+		UEdGraphNode* AnimNode = nullptr;
+		if (UALAnimGraph::TryCreateNode(Blueprint, Graph, Spec.Type, Spec.RawClass, Spec.Name, PosX, PosY, AnimNode, bOutReused, OutError))
+		{
+			return AnimNode;
+		}
+	}
+
 	// ===== 逃生口：按类名直接实例化 =====
 	// 放在最后，具名分派优先 —— 具名那些能带上函数引用/宏图/目标类，通用路径不能。
 	{
@@ -4069,8 +4126,8 @@ static UEdGraphNode* UAL_CreateNodeInternal(
 	}
 
 	OutError = FString::Printf(
-		TEXT("Unsupported node type: %s. Named types: Event, Function, VariableGet, VariableSet, InputAction, EnhancedInputAction, Branch, Sequence, Cast, SpawnActor, CustomEvent, Select, MakeArray, MakeStruct, BreakStruct, Self, Timeline, CallDispatcher, BindEvent, UnbindEvent, UnbindAllEvents, ForLoop, WhileLoop, Gate, DoOnce, DoN, FlipFlop, IsValid, ForEachLoop, ForEachLoopWithBreak, ReverseForEachLoop, Macro. Or pass raw_class=\"K2Node_<Something>\"."),
-		*Spec.Type);
+		TEXT("Unsupported node type: %s. Named types: Event, Function, VariableGet, VariableSet, InputAction, EnhancedInputAction, Branch, Sequence, Cast, SpawnActor, CustomEvent, Select, MakeArray, MakeStruct, BreakStruct, Self, Timeline, CallDispatcher, BindEvent, UnbindEvent, UnbindAllEvents, ForLoop, WhileLoop, Gate, DoOnce, DoN, FlipFlop, IsValid, ForEachLoop, ForEachLoopWithBreak, ReverseForEachLoop, Macro. Or pass raw_class=\"K2Node_<Something>\".%s"),
+		*Spec.Type, *UALAnimGraph::DescribeNodeTypesForError(Graph));
 	return nullptr;
 }
 
@@ -4119,9 +4176,30 @@ void FUAL_BlueprintCommands::Handle_CreateBlueprint(const TSharedPtr<FJsonObject
 	// 1. Resolve Parent Class
 	FString ClassError;
 	UClass* ParentClass = UAL_CommandUtils::ResolveClassFromIdentifier(ParentClassStr, AActor::StaticClass(), ClassError);
+	// 不是 Actor 的话看是不是 AnimInstance —— 那是动画蓝图，下面走另一条建法
+	if (!ParentClass)
+	{
+		FString AnimClassError;
+		UClass* AnimParent = UAL_CommandUtils::ResolveClassFromIdentifier(ParentClassStr, nullptr, AnimClassError);
+		if (UALAnimGraph::IsAnimInstanceClass(AnimParent))
+		{
+			ParentClass = AnimParent;
+		}
+	}
 	if (!ParentClass)
 	{
 		UAL_CommandUtils::SendError(RequestId, 404, ClassError);
+		return;
+	}
+	const bool bAnimBlueprint = UALAnimGraph::IsAnimInstanceClass(ParentClass);
+	FString SkeletonRef;
+	Payload->TryGetStringField(TEXT("skeleton"), SkeletonRef);
+	if (bAnimBlueprint && SkeletonRef.IsEmpty())
+	{
+		// 先问清楚再建包：动画蓝图绑死一副骨架，不给骨架建出来的东西放不了任何动画
+		FString SkeletonError;
+		UALAnimGraph::CreateAnimBlueprint(ParentClass, nullptr, NAME_None, SkeletonRef, SkeletonError);
+		UAL_CommandUtils::SendError(RequestId, 400, SkeletonError);
 		return;
 	}
 
@@ -4180,14 +4258,29 @@ void FUAL_BlueprintCommands::Handle_CreateBlueprint(const TSharedPtr<FJsonObject
 		BlueprintType = BPTYPE_FunctionLibrary;
 	}
 
-	UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprint(
-		ParentClass,
-		Package,
-		FName(*BlueprintName),
-		BlueprintType,
-		UBlueprint::StaticClass(),
-		UBlueprintGeneratedClass::StaticClass()
-	);
+	UBlueprint* Blueprint = nullptr;
+	if (bAnimBlueprint)
+	{
+		// 动画蓝图走引擎自己的工厂：AnimGraph、骨架绑定、预览网格都是它铺的
+		FString AnimError;
+		Blueprint = UALAnimGraph::CreateAnimBlueprint(ParentClass, Package, FName(*BlueprintName), SkeletonRef, AnimError);
+		if (!Blueprint)
+		{
+			UAL_CommandUtils::SendError(RequestId, 400, AnimError);
+			return;
+		}
+	}
+	else
+	{
+		Blueprint = FKismetEditorUtilities::CreateBlueprint(
+			ParentClass,
+			Package,
+			FName(*BlueprintName),
+			BlueprintType,
+			UBlueprint::StaticClass(),
+			UBlueprintGeneratedClass::StaticClass()
+		);
+	}
 
 	if (!Blueprint)
 	{
@@ -4417,6 +4510,11 @@ void FUAL_BlueprintCommands::Handle_CreateBlueprint(const TSharedPtr<FJsonObject
 	{
 		CreateWarnings.Add(MakeShared<FJsonValueString>(
 			FString::Printf(TEXT("component attachment - %s"), *AttachIssue)));
+	}
+	if (bAnimBlueprint && Components && Components->Num() > 0)
+	{
+		CreateWarnings.Add(MakeShared<FJsonValueString>(
+			TEXT("components were ignored - an Animation Blueprint has no components; add them to the Actor Blueprint that uses it")));
 	}
 	Result->SetArrayField(TEXT("warnings"), CreateWarnings);
 
@@ -5513,7 +5611,21 @@ void FUAL_BlueprintCommands::Handle_GetBlueprintGraph(const TSharedPtr<FJsonObje
 	UEdGraph* Graph = UAL_FindGraph(Blueprint, GraphName);
 	if (!Graph)
 	{
-		UAL_CommandUtils::SendError(RequestId, 404, FString::Printf(TEXT("Graph not found: %s"), *GraphName));
+		UAL_CommandUtils::SendError(RequestId, 404, UAL_GraphNotFoundMessage(Blueprint, GraphName));
+		return;
+	}
+
+	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+	Result->SetBoolField(TEXT("ok"), true);
+	Result->SetStringField(TEXT("blueprint_path"), Blueprint->GetPathName());
+	// 子图的对象名是引擎起的（转换规则图叫 Transition_3），回路径才抄得回来
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
+
+	// 状态机那一页不是蓝图图：节点是状态，线是转换，单独一套形状
+	if (UALAnimGraph::IsStateMachineGraph(Graph))
+	{
+		UALAnimGraph::AppendStateMachineJson(Graph, Result);
+		UAL_CommandUtils::SendResponse(RequestId, 200, Result);
 		return;
 	}
 
@@ -5530,10 +5642,10 @@ void FUAL_BlueprintCommands::Handle_GetBlueprintGraph(const TSharedPtr<FJsonObje
 		}
 	}
 
-	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
-	Result->SetBoolField(TEXT("ok"), true);
-	Result->SetStringField(TEXT("blueprint_path"), Blueprint->GetPathName());
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	if (const TCHAR* Kind = UALAnimGraph::GetGraphKind(Graph))
+	{
+		Result->SetStringField(TEXT("graph_kind"), Kind);
+	}
 	Result->SetArrayField(TEXT("nodes"), Nodes);
 	UAL_CommandUtils::SendResponse(RequestId, 200, Result);
 }
@@ -6282,7 +6394,9 @@ TSharedPtr<FJsonObject> FUAL_BlueprintCommands::BuildBlueprintStructureJson(
 	{
 		Result->SetStringField(TEXT("preferred_graph"), GraphDiscovery.PreferredGraphName);
 	}
-	
+	// 动画蓝图：骨架
+	UALAnimGraph::AppendBlueprintInfo(Blueprint, Result);
+
 	// 编译状态。BS_UpToDateWithWarnings 要单列，否则 describe 报 "Other"，
 	// 调用方会把一个只是带警告的正常蓝图当成状态异常（同 Handle_CompileBlueprint）
 	FString StatusStr;
@@ -6450,7 +6564,7 @@ void FUAL_BlueprintCommands::Handle_DeleteNode(const TSharedPtr<FJsonObject>& Pa
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), true);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetStringField(TEXT("node_id"), NodeId); // Return the ID of the deleted node
 	Result->SetStringField(TEXT("message"), FString::Printf(TEXT("Deleted node %s (%s)"), *NodeTitle, *NodeClass));
 	
@@ -6567,7 +6681,7 @@ void FUAL_BlueprintCommands::Handle_DisconnectBlueprintPins(const TSharedPtr<FJs
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), true);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetNumberField(TEXT("broken"), Before - Pin->LinkedTo.Num());
 	Result->SetNumberField(TEXT("remaining"), Pin->LinkedTo.Num());
 	UAL_CommandUtils::SendResponse(RequestId, 200, Result);
@@ -6972,8 +7086,20 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 	{
 		UAL_CommandUtils::SendError(
 			RequestId, 404,
-			FString::Printf(TEXT("Graph not found: %s. This command does not create graphs - use blueprint.create_function first."),
-				GraphName.IsEmpty() ? TEXT("EventGraph") : *GraphName));
+			UAL_GraphNotFoundMessage(Blueprint, GraphName)
+				+ TEXT(". This command does not create graphs - use blueprint.create_function first, or create a StateMachine node to get a state machine page."));
+		return;
+	}
+
+	// 状态机那一页：节点是状态、线是转换，整条命令转过去
+	if (UALAnimGraph::IsStateMachineGraph(Graph))
+	{
+		if (Blueprint->bBeingCompiled)
+		{
+			UAL_CommandUtils::SendError(RequestId, 409, TEXT("Blueprint is currently compiling; retry in a moment"));
+			return;
+		}
+		UALAnimGraph::HandleApplyStateMachine(Blueprint, Graph, ResolvedPath, Payload, RequestId);
 		return;
 	}
 
@@ -7003,7 +7129,7 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		if (!UAL_IsGraphEmptyForImport(Graph, NotEmptyReason))
 		{
 			TSharedPtr<FJsonObject> Details = MakeShared<FJsonObject>();
-			Details->SetStringField(TEXT("graph_name"), Graph->GetName());
+			Details->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 			Details->SetStringField(TEXT("reason"), NotEmptyReason);
 			UAL_CommandUtils::SendError(
 				RequestId, 409,
@@ -7029,6 +7155,8 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 
 	TArray<FString> Errors;
 	TArray<FString> Warnings;
+	/** 对已有节点的改动（复用节点上的 settings、顺手暴露的引脚），回滚时照它写回去 */
+	UALAnimGraph::FMutationLog AnimLog;
 
 	// clear_existing 要删的那批，先记下来，**真的删在最后**
 	TArray<UEdGraphNode*> PreExistingNodes;
@@ -7131,6 +7259,57 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		CreatedNodesInfo.Add(MakeShared<FJsonValueObject>(NodeInfo));
 	}
 
+	// ===== 5b. 动画节点：member_name 落地（播哪段动画、缓存叫什么）+ settings =====
+	// 排在全部节点建完之后：「用缓存姿势」要找同一批里的「存缓存姿势」。
+	// 排在引脚默认值之前：设置会改引脚（输入个数、暴露哪些属性）
+	for (int32 i = 0; i < NodesArray->Num(); ++i)
+	{
+		const TSharedPtr<FJsonObject>* NodeObjPtr = nullptr;
+		if (!(*NodesArray)[i].IsValid() || !(*NodesArray)[i]->TryGetObject(NodeObjPtr) || !NodeObjPtr)
+		{
+			continue;
+		}
+		const TSharedPtr<FJsonObject>& NodeObj = *NodeObjPtr;
+		FString NodeId;
+		NodeObj->TryGetStringField(TEXT("id"), NodeId);
+		if (NodeId.IsEmpty())
+		{
+			NodeId = FString::Printf(TEXT("node_%d"), i);
+		}
+		UEdGraphNode** NodePtr = NodeIdMap.Find(NodeId);
+		if (!NodePtr || !*NodePtr)
+		{
+			continue;
+		}
+		const bool bIsNew = CreatedNodes.Contains(*NodePtr);
+
+		if (bIsNew)
+		{
+			FString MemberName;
+			if (!NodeObj->TryGetStringField(TEXT("member_name"), MemberName))
+			{
+				NodeObj->TryGetStringField(TEXT("name"), MemberName);
+			}
+			FString FinishError;
+			if (!UALAnimGraph::FinishNode(Blueprint, *NodePtr, MemberName, FinishError))
+			{
+				Errors.Add(FString::Printf(TEXT("nodes[%d] '%s': %s"), i, *NodeId, *FinishError));
+				continue;
+			}
+		}
+
+		const TSharedPtr<FJsonObject>* SettingsPtr = nullptr;
+		if (NodeObj->TryGetObjectField(TEXT("settings"), SettingsPtr) && SettingsPtr && (*SettingsPtr).IsValid())
+		{
+			TArray<FString> SettingErrors;
+			UALAnimGraph::ApplySettings(*NodePtr, *SettingsPtr, bIsNew, AnimLog, SettingErrors);
+			for (const FString& SettingError : SettingErrors)
+			{
+				Errors.Add(FString::Printf(TEXT("nodes '%s': %s"), *NodeId, *SettingError));
+			}
+		}
+	}
+
 	// ===== 6. 引脚默认值 =====
 	// 必须排在连线校验**之前**：有些节点会因为默认值变化重新长引脚
 	// （SpawnActor 设了 Class 才会有那批暴露出来的属性引脚）。
@@ -7176,6 +7355,11 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 			UEdGraphPin* Pin = UAL_FindPinByName(Node, UAL_JsonKey(Pair.Key));
 			if (!Pin)
 			{
+				// 动画节点默认藏着的引脚（播放速率、第 N 个混合输入）按需变出来
+				Pin = UALAnimGraph::RevealPin(Node, UAL_JsonKey(Pair.Key), CreatedNodes.Contains(Node), AnimLog);
+			}
+			if (!Pin)
+			{
 				Errors.Add(FString::Printf(TEXT("nodes '%s': pin '%s' not found (available: %s)"),
 					*NodeId, *Pair.Key, *UAL_ListPins(Node)));
 				continue;
@@ -7185,6 +7369,53 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 			if (!UAL_SetPinDefault(K2Schema, Pin, PinValue, PinError))
 			{
 				Errors.Add(FString::Printf(TEXT("nodes '%s': %s"), *NodeId, *PinError));
+			}
+		}
+	}
+
+	// ===== 7a. 动画节点：连线点名的、默认藏着的引脚先全部变出来 =====
+	//
+	// 必须在解析任何一根线**之前**做完。暴露引脚 / 补一个混合输入会重建整个节点的引脚，
+	// 旧引脚对象随之作废 —— 要是边解析边暴露，前面几根线存下的引脚指针就指向了
+	// 已经销毁的引脚，下一步连线时引擎当场断言（真机上 5.8 就这么崩过一次：
+	// 先存了 p.Pose，后一根线暴露了 p.PlayRate）。
+	if (ConnectionsArray)
+	{
+		for (const TSharedPtr<FJsonValue>& ConnVal : *ConnectionsArray)
+		{
+			if (!ConnVal.IsValid())
+			{
+				continue;
+			}
+			TArray<FString> Ends;
+			const TArray<TSharedPtr<FJsonValue>>* ConnArr = nullptr;
+			const TSharedPtr<FJsonObject>* ConnObjPtr = nullptr;
+			if (ConnVal->TryGetArray(ConnArr) && ConnArr && ConnArr->Num() >= 2)
+			{
+				Ends.Add((*ConnArr)[0]->AsString());
+				Ends.Add((*ConnArr)[1]->AsString());
+			}
+			else if (ConnVal->TryGetObject(ConnObjPtr) && ConnObjPtr && (*ConnObjPtr).IsValid())
+			{
+				FString From, To;
+				(*ConnObjPtr)->TryGetStringField(TEXT("from"), From);
+				(*ConnObjPtr)->TryGetStringField(TEXT("to"), To);
+				Ends.Add(From);
+				Ends.Add(To);
+			}
+			for (const FString& End : Ends)
+			{
+				FString EndNodeId, EndPinName;
+				if (!End.Split(TEXT("."), &EndNodeId, &EndPinName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+				{
+					continue;
+				}
+				UEdGraphNode** Found = NodeIdMap.Find(EndNodeId);
+				UEdGraphNode* EndNode = Found ? *Found : UAL_FindNodeByGuid(Graph, EndNodeId);
+				if (EndNode && !UAL_FindPinByName(EndNode, EndPinName))
+				{
+					UALAnimGraph::RevealPin(EndNode, EndPinName, CreatedNodes.Contains(EndNode), AnimLog);
+				}
 			}
 		}
 	}
@@ -7260,6 +7491,7 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 				continue;
 			}
 
+			// 动画节点默认藏着的引脚已经在 7a 里变出来了；这里不能再重建节点（理由见 7a）
 			UEdGraphPin* FromPin = UAL_FindPinByName(FromNode, FromPinName);
 			UEdGraphPin* ToPin = UAL_FindPinByName(ToNode, ToPinName);
 			if (!FromPin || !ToPin)
@@ -7347,6 +7579,9 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 			}
 		}
 
+		// 留在图里的那些节点（复用的、连线时顺手暴露了引脚的）上的改动写回去
+		AnimLog.Rollback();
+
 		// 引擎自己插的转换节点
 		if (NodesBeforeConnect.Num() > 0)
 		{
@@ -7430,7 +7665,7 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		Result->SetBoolField(TEXT("ok"), false);
 		Result->SetBoolField(TEXT("rolled_back"), true);
 		Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-		Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+		Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 		Result->SetNumberField(TEXT("created_count"), 0);
 		Result->SetNumberField(TEXT("connection_count"), 0);
 		Result->SetBoolField(TEXT("compiled"), false);
@@ -7623,6 +7858,12 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 			{
 				continue;
 			}
+			// 动画：别的转换规则还在读这个播放节点的进度，删了那条规则就编不过
+			const FString DependentNote = UALAnimGraph::DescribeGetterDependents(Blueprint, Node);
+			if (!DependentNote.IsEmpty())
+			{
+				Warnings.Add(DependentNote);
+			}
 			FBlueprintEditorUtils::RemoveNode(Blueprint, Node, /*bDontRecompile=*/true);
 			RemovedCount++;
 		}
@@ -7640,7 +7881,7 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), true);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetNumberField(TEXT("created_count"), CreatedNodesInfo.Num());
 	Result->SetNumberField(TEXT("connection_count"), ConnectionCount);
 	if (RemovedCount > 0)
@@ -7675,14 +7916,6 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 
 	if (bCompile)
 	{
-		FCompilerResultsLog CompileResults;
-		CompileResults.bSilentMode = true;
-		FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::None, &CompileResults);
-
-		Result->SetBoolField(TEXT("compiled"), true);
-		Result->SetNumberField(TEXT("compile_error_count"), CompileResults.NumErrors);
-		Result->SetNumberField(TEXT("compile_warning_count"), CompileResults.NumWarnings);
-
 		// 编译诊断按**调用方给的 id** 回传，不是引擎 GUID ——
 		// 调用方手里只有自己写的 id，回 GUID 等于让它再查一次图去对号
 		TMap<UEdGraphNode*, FString> NodeToCallerId;
@@ -7690,44 +7923,7 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		{
 			NodeToCallerId.Add(Pair.Value, Pair.Key);
 		}
-
-		TArray<TSharedPtr<FJsonValue>> Diagnostics;
-		for (const TSharedRef<FTokenizedMessage>& Message : CompileResults.Messages)
-		{
-			const EMessageSeverity::Type Severity = Message->GetSeverity();
-			if (Severity != EMessageSeverity::Error && Severity != EMessageSeverity::Warning)
-			{
-				continue;
-			}
-
-			TSharedPtr<FJsonObject> Diag = MakeShared<FJsonObject>();
-			Diag->SetStringField(TEXT("severity"), Severity == EMessageSeverity::Error ? TEXT("error") : TEXT("warning"));
-			Diag->SetStringField(TEXT("message"), Message->ToText().ToString());
-
-#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1)
-			for (const TSharedRef<IMessageToken>& Token : Message->GetMessageTokens())
-			{
-				if (Token->GetType() != EMessageToken::Object)
-				{
-					continue;
-				}
-				const TSharedRef<FUObjectToken> ObjectToken = StaticCastSharedRef<FUObjectToken>(Token);
-				UEdGraphNode* Node = Cast<UEdGraphNode>(ObjectToken->GetObject().Get());
-				if (!Node)
-				{
-					continue;
-				}
-				if (const FString* CallerId = NodeToCallerId.Find(Node))
-				{
-					Diag->SetStringField(TEXT("node"), *CallerId);
-				}
-				Diag->SetStringField(TEXT("node_id"), UAL_GuidToString(Node->NodeGuid));
-				break;
-			}
-#endif
-			Diagnostics.Add(MakeShared<FJsonValueObject>(Diag));
-		}
-		Result->SetArrayField(TEXT("diagnostics"), Diagnostics);
+		UAL_CompileAndReport(Blueprint, NodeToCallerId, Result);
 	}
 	else
 	{
@@ -7765,11 +7961,68 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		}
 		if (UEdGraphNode* FinalNode = UAL_FindNodeByGuid(Graph, NodeInfo->GetStringField(TEXT("node_id"))))
 		{
+			// 动画节点要把实际落下的名字、设置、子图路径带回去 —— 新建状态机后
+			// 下一步就是往 sub_graph 里写状态，不回它调用方还得再读一次图
+			UALAnimGraph::AnnotateNode(FinalNode, NodeInfo);
 			NodeInfo->SetArrayField(TEXT("pins"), UAL_BuildPinsJson(FinalNode));
 		}
 	}
 
 	UAL_CommandUtils::SendResponse(RequestId, 200, Result);
+}
+
+void UAL_CompileAndReport(UBlueprint* Blueprint, const TMap<UEdGraphNode*, FString>& NodeToCallerId, const TSharedPtr<FJsonObject>& Result)
+{
+	FCompilerResultsLog CompileResults;
+	CompileResults.bSilentMode = true;
+	FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::None, &CompileResults);
+
+	Result->SetBoolField(TEXT("compiled"), true);
+	Result->SetNumberField(TEXT("compile_error_count"), CompileResults.NumErrors);
+	Result->SetNumberField(TEXT("compile_warning_count"), CompileResults.NumWarnings);
+
+	TArray<TSharedPtr<FJsonValue>> Diagnostics;
+	for (const TSharedRef<FTokenizedMessage>& Message : CompileResults.Messages)
+	{
+		const EMessageSeverity::Type Severity = Message->GetSeverity();
+		if (Severity != EMessageSeverity::Error && Severity != EMessageSeverity::Warning)
+		{
+			continue;
+		}
+
+		TSharedPtr<FJsonObject> Diag = MakeShared<FJsonObject>();
+		Diag->SetStringField(TEXT("severity"), Severity == EMessageSeverity::Error ? TEXT("error") : TEXT("warning"));
+		Diag->SetStringField(TEXT("message"), Message->ToText().ToString());
+
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1)
+		for (const TSharedRef<IMessageToken>& Token : Message->GetMessageTokens())
+		{
+			if (Token->GetType() != EMessageToken::Object)
+			{
+				continue;
+			}
+			const TSharedRef<FUObjectToken> ObjectToken = StaticCastSharedRef<FUObjectToken>(Token);
+			UEdGraphNode* Node = Cast<UEdGraphNode>(ObjectToken->GetObject().Get());
+			if (!Node)
+			{
+				continue;
+			}
+			if (const FString* CallerId = NodeToCallerId.Find(Node))
+			{
+				Diag->SetStringField(TEXT("node"), *CallerId);
+			}
+			Diag->SetStringField(TEXT("node_id"), UAL_GuidToString(Node->NodeGuid));
+			// 状态机里的报错常落在别的子图上（某个状态里、某条转换的规则里），说清楚在哪一页
+			if (const UEdGraph* NodeGraph = Node->GetGraph())
+			{
+				Diag->SetStringField(TEXT("graph"), UALAnimGraph::GetGraphPath(NodeGraph));
+			}
+			break;
+		}
+#endif
+		Diagnostics.Add(MakeShared<FJsonValueObject>(Diag));
+	}
+	Result->SetArrayField(TEXT("diagnostics"), Diagnostics);
 }
 
 // ============================================================================
@@ -7952,6 +8205,21 @@ void FUAL_BlueprintCommands::Handle_SearchBlueprintNodes(const TSharedPtr<FJsonO
 		Result->SetStringField(
 			TEXT("note"),
 			FString::Printf(TEXT("Showing %d of %d matches - narrow the query or raise limit."), Results.Num(), Candidates.Num()));
+	}
+
+	// 动画蓝图另搜动画节点：它们不是函数，函数表里永远搜不到
+	if (UALAnimGraph::IsAnimBlueprint(Blueprint))
+	{
+		TArray<TSharedPtr<FJsonValue>> AnimNodes;
+		int32 AnimTotal = 0;
+		UALAnimGraph::SearchAnimNodes(Query, Limit, AnimNodes, AnimTotal);
+		Result->SetArrayField(TEXT("anim_nodes"), AnimNodes);
+		if (AnimTotal > AnimNodes.Num())
+		{
+			Result->SetStringField(
+				TEXT("anim_note"),
+				FString::Printf(TEXT("Showing %d of %d animation nodes - narrow the query or raise limit."), AnimNodes.Num(), AnimTotal));
+		}
 	}
 
 	UAL_CommandUtils::SendResponse(RequestId, 200, Result);
@@ -8203,7 +8471,7 @@ void FUAL_BlueprintCommands::Handle_SetNodePositions(const TSharedPtr<FJsonObjec
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), NotFound.Num() == 0);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetNumberField(TEXT("moved"), Moved);
 	if (NotFound.Num() > 0)
 	{
@@ -8414,7 +8682,7 @@ void FUAL_BlueprintCommands::Handle_SetComment(const TSharedPtr<FJsonObject>& Pa
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), NotFound.Num() == 0);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetStringField(TEXT("node_id"), UAL_GuidToString(Comment->NodeGuid));
 	Result->SetBoolField(TEXT("created"), bCreated);
 	Result->SetStringField(TEXT("text"), Comment->NodeComment);
@@ -9199,7 +9467,7 @@ void FUAL_BlueprintCommands::Handle_ComponentEvent(const TSharedPtr<FJsonObject>
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), true);
 	Result->SetStringField(TEXT("blueprint_path"), Blueprint->GetPathName());
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetStringField(TEXT("node_id"), NewNode->NodeGuid.ToString());
 	Result->SetStringField(TEXT("event_name"), EventNameStr);
 	Result->SetBoolField(TEXT("reused"), false);
@@ -9706,7 +9974,7 @@ void FUAL_BlueprintCommands::Handle_ExportNodesT3D(const TSharedPtr<FJsonObject>
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), NotFound.Num() == 0);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetNumberField(TEXT("node_count"), NodesToExport.Num());
 	Result->SetArrayField(TEXT("exported_node_ids"), ExportedIds);
 	Result->SetStringField(TEXT("text"), ExportedText);
@@ -9766,7 +10034,7 @@ void FUAL_BlueprintCommands::Handle_ImportNodesT3D(const TSharedPtr<FJsonObject>
 	if (!FEdGraphUtilities::CanImportNodesFromText(Graph, TextToImport))
 	{
 		TSharedPtr<FJsonObject> Details = MakeShared<FJsonObject>();
-		Details->SetStringField(TEXT("graph_name"), Graph->GetName());
+		Details->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 		Details->SetNumberField(TEXT("text_length"), TextToImport.Len());
 		UAL_CommandUtils::SendError(
 			RequestId, 400,
@@ -9788,7 +10056,7 @@ void FUAL_BlueprintCommands::Handle_ImportNodesT3D(const TSharedPtr<FJsonObject>
 		if (!UAL_IsGraphEmptyForImport(Graph, NotEmptyReason))
 		{
 			TSharedPtr<FJsonObject> Details = MakeShared<FJsonObject>();
-			Details->SetStringField(TEXT("graph_name"), Graph->GetName());
+			Details->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 			Details->SetStringField(TEXT("reason"), NotEmptyReason);
 			UAL_CommandUtils::SendError(
 				RequestId, 409,
@@ -9934,7 +10202,7 @@ void FUAL_BlueprintCommands::Handle_ImportNodesT3D(const TSharedPtr<FJsonObject>
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("ok"), true);
 	Result->SetStringField(TEXT("blueprint_path"), ResolvedPath);
-	Result->SetStringField(TEXT("graph_name"), Graph->GetName());
+	Result->SetStringField(TEXT("graph_name"), UALAnimGraph::GetGraphPath(Graph));
 	Result->SetNumberField(TEXT("imported_count"), NodesJson.Num());
 	Result->SetArrayField(TEXT("nodes"), NodesJson);
 	Result->SetBoolField(TEXT("structural"), bStructural);

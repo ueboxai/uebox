@@ -115,6 +115,12 @@ public class UnrealAgentLink : ModuleRules
 				"AutomationController", // §2.5 自动化测试：IAutomationControllerModule
 				"DeveloperSettings",    // §2.4 项目设置 schema：UDeveloperSettings 反射遍历
 
+				// 动画蓝图编辑（UAL_AnimGraphSupport）：AnimGraph 是动画图编辑器模块
+				// （Editor/AnimGraph），AnimGraphRuntime 装着节点里那些 FAnimNode_* 结构体。
+				// 两个都是引擎本体模块，5.0–5.8 都在、不是插件，不引入对插件 DLL 的硬导入
+				"AnimGraph",
+				"AnimGraphRuntime",
+
 				// 试玩机器人寻路（UAL_PieBotCommands 的 pie.nav_path）。
 				// 引擎运行时模块（Engine/Source/Runtime/NavigationSystem），5.0–5.8 都在，
 				// 不是插件模块，不引入对插件 DLL 的硬导入

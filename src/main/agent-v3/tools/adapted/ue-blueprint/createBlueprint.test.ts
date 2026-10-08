@@ -134,3 +134,32 @@ describe('同名蓝图已存在', () => {
     expect(String(r.message)).toContain('未核实')
   })
 })
+
+describe('动画蓝图', () => {
+  it('骨架发给插件，回执里说出引擎绑上的那副骨架', async () => {
+    callRequest.mockResolvedValue({
+      ...CREATED,
+      name: 'ABP_Hero',
+      path: '/Game/ABP_Hero.ABP_Hero',
+      parent_class: 'AnimInstance',
+      components: [],
+      anim_blueprint: {
+        target_skeleton: '/Game/Mannequin/SK_Mannequin_Skeleton.SK_Mannequin_Skeleton'
+      }
+    })
+
+    const r = await run({
+      name: 'ABP_Hero',
+      parent_class: 'AnimInstance',
+      skeleton: 'SK_Mannequin'
+    })
+
+    expect(callRequest.mock.calls[0][1]).toMatchObject({
+      parent_class: 'AnimInstance',
+      skeleton: 'SK_Mannequin'
+    })
+    expect(String(r.message)).toContain('骨架 /Game/Mannequin/SK_Mannequin_Skeleton')
+    expect(r.target_skeleton).toBe('/Game/Mannequin/SK_Mannequin_Skeleton.SK_Mannequin_Skeleton')
+    expect(String(r.note)).toContain('AnimGraph')
+  })
+})

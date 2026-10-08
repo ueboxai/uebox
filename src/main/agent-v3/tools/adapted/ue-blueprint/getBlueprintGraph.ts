@@ -23,7 +23,11 @@ const GetBlueprintGraphSchema = z.object({
   graph_name: z
     .string()
     .optional()
-    .describe('Optional graph name. Defaults to EventGraph or the best available graph.')
+    .describe(
+      'Optional graph name. Defaults to EventGraph or the best available graph. ' +
+        'Graphs inside other graphs are addressed by path: "AnimGraph/Locomotion" (a state machine), ' +
+        '"AnimGraph/Locomotion/Idle" (inside a state), "AnimGraph/Locomotion/Idle->Walk" (a transition rule).'
+    )
 })
 
 export interface BlueprintGraphPinInfo {
@@ -90,13 +94,35 @@ export interface BlueprintGraphNodeInfo {
   node_height?: number
   font_size?: number
   nodes_under_comment?: string[]
+  /** 动画节点、状态、转换的设置项（只回改过的），原样填回 apply_graph 的 settings */
+  settings?: Record<string, unknown>
+  /** 状态机 / 状态 / 混合空间图这类节点里面那张图的路径，拿去当 graph_name */
+  sub_graph?: string
+  /** StateAlias 专有 */
+  aliased_states?: string[]
+  global_alias?: boolean
+}
+
+/** 状态机那一页的一条转换 */
+export interface StateMachineTransitionInfo {
+  from: string
+  to: string
+  node_id: string
+  rule_graph?: string
+  custom_blend_graph?: string
+  settings?: Record<string, unknown>
 }
 
 export interface GetBlueprintGraphResponse {
   ok: boolean
   blueprint_path: string
   graph_name: string
+  /** 动画图才有：anim_graph / state_machine / state / conduit / transition / custom_blend */
+  graph_kind?: string
   nodes: BlueprintGraphNodeInfo[]
+  /** 状态机那一页才有 */
+  transitions?: StateMachineTransitionInfo[]
+  entry_state?: string
   links?: Array<Record<string, unknown>>
   connections?: Array<Record<string, unknown>>
   [key: string]: unknown
@@ -214,11 +240,48 @@ function describeNodeForModel(node: BlueprintGraphNodeInfo): Record<string, unkn
     ...(node.node_width ? { node_width: node.node_width } : {}),
     ...(node.node_height ? { node_height: node.node_height } : {}),
     ...(node.nodes_under_comment?.length ? { nodes_under_comment: node.nodes_under_comment } : {}),
-    pins: node.pins?.map(describePin)
+    // 动画节点 / 状态的设置和子图。设置丢了，写回去就变回默认值（循环、播放速率、混合时长）；
+    // 子图路径是下一步要写的地方（状态机里的状态、状态里的动画）
+    ...(node.settings && Object.keys(node.settings).length > 0 ? { settings: node.settings } : {}),
+    ...(node.sub_graph ? { sub_graph: node.sub_graph } : {}),
+    ...(node.aliased_states ? { aliased_states: node.aliased_states } : {}),
+    ...(node.global_alias ? { global_alias: true } : {}),
+    // 状态机那一页的状态不带引脚（连线就是转换，见 connections）
+    ...(node.pins ? { pins: node.pins.map(describePin) } : {})
   }
 }
 
+/**
+ * 状态机那一页的连线 = 转换，形状和 apply_graph 的 connections 一致：
+ * { from: 状态名, to: 状态名, settings }。入口那一根是 { from: "Entry", to: 入口状态 }。
+ * 读回来改一改原样写回，同一对状态之间已有的转换会被就地修改而不是再叠一条。
+ */
+export function stateMachineConnections(
+  response: GetBlueprintGraphResponse
+): Array<Record<string, unknown>> {
+  const connections: Array<Record<string, unknown>> = []
+  if (response.entry_state) {
+    connections.push({ from: 'Entry', to: response.entry_state })
+  }
+  for (const transition of response.transitions ?? []) {
+    connections.push({
+      from: transition.from,
+      to: transition.to,
+      ...(transition.settings && Object.keys(transition.settings).length > 0
+        ? { settings: transition.settings }
+        : {}),
+      node_id: transition.node_id,
+      ...(transition.rule_graph ? { rule_graph: transition.rule_graph } : {}),
+      ...(transition.custom_blend_graph
+        ? { custom_blend_graph: transition.custom_blend_graph }
+        : {})
+    })
+  }
+  return connections
+}
+
 export const __testing = {
+  stateMachineConnections,
   describePin,
   formatPinType,
   deriveConnectionsFromPins,
@@ -262,7 +325,14 @@ A Timeline node also comes back with "timeline": its length, loop/autoplay flags
 every float track's keyframes, including each key's interpolation. That is the curve
 itself — pins cannot show it. Carry it back into blueprint_apply_graph unchanged
 except for what you mean to change; a key whose interp is "user" or "break" was
-hand-tuned in the editor and its arrive/leave tangents must survive the round trip.`,
+hand-tuned in the editor and its arrive/leave tangents must survive the round trip.
+
+Animation Blueprints: AnimGraph, a state machine, a state's inside and a transition rule
+are each their own graph, addressed by path (graph_kind says which). Animation nodes and
+states come back with "settings" (only what differs from the defaults) and, when they
+contain a graph, "sub_graph" — the path to read or write next. A state machine page
+returns states as nodes and its transitions as connections ({ from, to, settings,
+rule_graph }), the same shape blueprint_apply_graph takes there.`,
     inputSchema: GetBlueprintGraphSchema,
     execute: async (input) => {
       try {
@@ -388,6 +458,21 @@ hand-tuned in the editor and its arrive/leave tangents must survive the round tr
 
         const graphNodes = response.nodes?.map(describeNodeForModel)
 
+        if (response.graph_kind === 'state_machine') {
+          const connections = stateMachineConnections(response)
+          return {
+            success: true,
+            blueprint_path: response.blueprint_path,
+            graph_name: response.graph_name,
+            graph_kind: response.graph_kind,
+            node_count: response.nodes?.length ?? 0,
+            nodes: graphNodes,
+            connection_count: connections.length,
+            connections,
+            tried_graph_names: triedGraphNames
+          }
+        }
+
         /**
          * 连线从 `pins[].linked_to` 推出来。
          *
@@ -448,6 +533,7 @@ hand-tuned in the editor and its arrive/leave tangents must survive the round tr
           success: true,
           blueprint_path: response.blueprint_path,
           graph_name: response.graph_name,
+          ...(response.graph_kind ? { graph_kind: response.graph_kind } : {}),
           node_count: response.nodes?.length ?? 0,
           nodes: graphNodes,
           connection_count: graphConnections.length,

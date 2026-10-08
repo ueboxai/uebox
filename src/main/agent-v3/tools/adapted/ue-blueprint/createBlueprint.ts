@@ -62,7 +62,15 @@ const CreateBlueprintSchema = z.object({
     .string()
     .optional()
     .default('Actor')
-    .describe('Parent class, e.g. Actor/Pawn/Character, default Actor'),
+    .describe(
+      'Parent class, e.g. Actor/Pawn/Character, default Actor. AnimInstance (or a subclass) makes an Animation Blueprint — then skeleton is required'
+    ),
+  skeleton: z
+    .string()
+    .optional()
+    .describe(
+      'Animation Blueprint only: the Skeleton it animates, or a Skeletal Mesh using that skeleton (also becomes the preview mesh). Path or asset name'
+    ),
   folder: z.string().optional().describe('Target folder, e.g. /Game/Blueprints'),
   components: z.array(ComponentSchema).optional().describe('Optional components to add')
 })
@@ -83,6 +91,8 @@ interface CreateBlueprintResponse {
   }>
   /** 没写进去的组件属性、没挂到要求位置的组件。旧版插件可能不带 */
   warnings?: string[]
+  /** 动画蓝图才有：它绑的那副骨架（引擎读回来的） */
+  anim_blueprint?: { target_skeleton?: string }
 }
 
 /** 同名蓝图已存在时读回来的实际状态（blueprint.describe 的子集） */
@@ -110,6 +120,7 @@ export function createBlueprintTool() {
   return defineV2Tool({
     description: `在虚幻引擎中创建一个新的蓝图资产。
 - 支持指定父类（Actor/Pawn/Character）
+- 父类填 AnimInstance 建的是动画蓝图，要同时给 skeleton
 - 支持创建时附带组件列表
 - 返回蓝图路径、生成类、组件列表等信息`,
 
@@ -129,6 +140,7 @@ export function createBlueprintTool() {
 
         const params: Record<string, unknown> = { name: input.name }
         if (input.parent_class) params.parent_class = input.parent_class
+        if (input.skeleton) params.skeleton = input.skeleton
         if (input.folder) params.folder = input.folder
         if (input.components) params.components = input.components
 
@@ -175,8 +187,11 @@ export function createBlueprintTool() {
               reason: response.save_warning ?? '蓝图只在内存里，没写到磁盘，关编辑器就没了'
             })
           }
+          const skeleton = response.anim_blueprint?.target_skeleton
           const body =
-            `蓝图 "${response.name}" 已创建（父类 ${response.parent_class}），路径: ${response.path}` +
+            `蓝图 "${response.name}" 已创建（父类 ${response.parent_class}` +
+            (skeleton ? `，骨架 ${skeleton}` : '') +
+            `），路径: ${response.path}` +
             (response.saved === false ? '，**未能保存**' : '')
 
           return {
@@ -194,6 +209,7 @@ export function createBlueprintTool() {
             saved: response.saved,
             components: response.components,
             component_count: response.components?.length || 0,
+            ...(skeleton ? { target_skeleton: skeleton } : {}),
             ...(response.save_warning ? { save_warning: response.save_warning } : {}),
             warnings: response.warnings ?? [],
             blueprintState: {
@@ -201,8 +217,9 @@ export function createBlueprintTool() {
               componentCount: componentNames.length,
               hasDefaultSceneRoot: componentNames.includes('DefaultSceneRoot')
             },
-            note:
-              componentNames.length <= 1
+            note: skeleton
+              ? '动画蓝图：用 blueprint_describe 看 AnimGraph 和状态机这些图，blueprint_apply_graph 写进去。'
+              : componentNames.length <= 1
                 ? '蓝图当前仅有默认组件。如需添加其它组件，请继续调用 blueprint.add_component。'
                 : undefined
           }

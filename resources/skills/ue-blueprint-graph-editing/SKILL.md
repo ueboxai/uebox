@@ -1,6 +1,6 @@
 ---
 name: ue-blueprint-graph-editing
-description: Build or modify logic inside an existing Blueprint — write nodes, wiring, pin defaults and layout in one declarative call, repair from compile diagnostics, and manage the members that logic depends on (variables and their details-panel behaviour, event dispatchers, component events, function parameters, parent class, replication). Use when the user wants behaviour added to a Blueprint, or says things like "走进触发区就开门"、"点一下就捡起来"、"让策划能调这个参数"、"门开了通知别的东西"、"这个 BP 应该继承 Character"、"这个函数再加个参数". Do not use for creating the Blueprint asset itself, for material graphs, or for Sequencer.
+description: Build or modify logic inside an existing Blueprint — write nodes, wiring, pin defaults and layout in one declarative call, repair from compile diagnostics, and manage the members that logic depends on (variables and their details-panel behaviour, event dispatchers, component events, function parameters, parent class, replication). Use when the user wants behaviour added to a Blueprint, or says things like "走进触发区就开门"、"点一下就捡起来"、"让策划能调这个参数"、"门开了通知别的东西"、"这个 BP 应该继承 Character"、"这个函数再加个参数", or works on an Animation Blueprint — AnimGraph, state machines, states and transition rules ("动画蓝图"、"状态机"、"站立走路跑步切换"、"速度大于 10 就切到跑"). Do not use for creating the Blueprint asset itself, for material graphs, or for Sequencer.
 ---
 
 # Blueprint graph editing
@@ -103,6 +103,14 @@ including how to wire a bound event's returned `node_id` straight into
 - a node type or pin name is not behaving, or you are about to search a graph you just
   wrote → **`references/node-types-and-traps.md`** (you write `Branch`, it reads back as
   `K2Node_IfThenElse`)
+
+## Animation Blueprints
+
+AnimGraph, a state machine, the inside of a state and a transition rule are each a page
+written with the same `blueprint_apply_graph`, addressed by path
+(`graph_name: "AnimGraph/Locomotion/Idle->Walk"`). On a state machine page the nodes are
+states and a connection is a transition. Read **`references/anim-blueprints.md`** before
+writing one.
 
 ## Irreversible
 

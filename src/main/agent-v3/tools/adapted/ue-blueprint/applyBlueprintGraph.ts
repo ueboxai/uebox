@@ -66,7 +66,9 @@ const NodeDefinitionSchema = z.object({
       '节点类型。常用：Event、EnhancedInputAction、Function、VariableGet、VariableSet、Branch、Sequence、' +
         'Cast、SpawnActor、CustomEvent、Select、MakeArray、MakeStruct、BreakStruct、Self、Timeline、' +
         'CallDispatcher、BindEvent、UnbindEvent、UnbindAllEvents、' +
-        'ForLoop、WhileLoop、DoOnce、Gate、FlipFlop、IsValid、ForEachLoop'
+        'ForLoop、WhileLoop、DoOnce、Gate、FlipFlop、IsValid、ForEachLoop。' +
+        '动画图里还有 OutputPose、SequencePlayer、BlendSpacePlayer、StateMachine 等动画节点；' +
+        '状态机那一页只放 State / Conduit / StateAlias'
     ),
   member_name: z
     .string()
@@ -79,8 +81,22 @@ const NodeDefinitionSchema = z.object({
         'Event 用 ReceiveBeginPlay / ReceiveTick；EnhancedInputAction 写 Input Action 资产名或路径（IA_Jump）；' +
         'VariableGet 写变量名、组件名（如 Light）或父类变量名；' +
         '别的蓝图上的变量写 蓝图名.变量名（如 WBP_HUD.Health），节点多一根 self 输入接那个对象；' +
-        'Timeline 写 Timeline 自己的名字；控制节点可省略'
+        'Timeline 写 Timeline 自己的名字；控制节点可省略。' +
+        '动画节点：SequencePlayer 等写动画资产，StateMachine / State 写它的名字，' +
+        'SaveCachedPose / UseCachedPose 写缓存名'
     ),
+  settings: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      '动画节点、状态的设置项（细节面板里那些），键是属性名，如 { "PlayRate": 1.2, "bLoopAnimation": false }。' +
+        'blueprint_get_graph 读回来的 settings 原样带回即可'
+    ),
+  aliased_states: z
+    .array(z.string())
+    .optional()
+    .describe('StateAlias 专用：它代表哪些状态（状态名）'),
+  global_alias: z.boolean().optional().describe('StateAlias 专用：代表状态机里的所有状态'),
   timeline: z
     .object({
       length: z.number().optional().describe('总时长（秒）。省略则跟着最后一个关键帧走'),
@@ -187,7 +203,7 @@ const NodeDefinitionSchema = z.object({
     .string()
     .optional()
     .describe(
-      '兜底：直接点名一个 UK2Node 子类（如 K2Node_MakeMap）。' +
+      '兜底：直接点名一个 UK2Node 子类（如 K2Node_MakeMap）或动画节点类（AnimGraphNode_TwoBoneIK）。' +
         '只适用于不需要额外配置就能自己长出引脚的节点'
     ),
   first_index: z.number().int().optional().describe('ForLoop 起始索引'),
@@ -206,8 +222,16 @@ const NodeDefinitionSchema = z.object({
 })
 
 const ConnectionSchema = z.object({
-  from: z.string().describe('源：「节点id.引脚名」，如 "begin.then"'),
-  to: z.string().describe('目标：「节点id.引脚名」，如 "print.execute"')
+  from: z
+    .string()
+    .describe(
+      '源：「节点id.引脚名」，如 "begin.then"。状态机那一页写状态（id 或状态名），入口写 Entry'
+    ),
+  to: z.string().describe('目标：「节点id.引脚名」，如 "print.execute"。状态机那一页写状态'),
+  settings: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('状态机那一页专用：这条转换的设置，如 { "CrossfadeDuration": 0.15 }')
 })
 
 const ApplyGraphSchema = z
@@ -225,7 +249,9 @@ const ApplyGraphSchema = z
       .string()
       .optional()
       .describe(
-        '图表名，默认 EventGraph。必须是已存在的图；新函数图先用 blueprint_create_function 建'
+        '图表名，默认 EventGraph。必须是已存在的图；新函数图先用 blueprint_create_function 建。' +
+          '子图写路径：AnimGraph/Locomotion（状态机）、AnimGraph/Locomotion/Idle（状态里）、' +
+          'AnimGraph/Locomotion/Idle->Walk（转换条件）'
       ),
     clear_existing: z
       .boolean()
@@ -275,9 +301,26 @@ interface ApplyGraphResponse {
     reused?: boolean
     pins: Array<Record<string, unknown>>
   }>
-  diagnostics?: Array<{ severity: string; message: string; node?: string; node_id?: string }>
+  diagnostics?: Array<{
+    severity: string
+    message: string
+    node?: string
+    node_id?: string
+    /** 节点所在的那一页（图路径）。动画蓝图的报错常常不在你写的这一页 */
+    graph?: string
+  }>
   errors?: string[]
   message?: string
+  /** 状态机那一页才有 */
+  graph_kind?: string
+  transitions?: Array<{
+    from: string
+    to: string
+    node_id: string
+    rule_graph?: string
+    created?: boolean
+  }>
+  entry_state?: string
 }
 
 /**
@@ -564,7 +607,13 @@ warnings 里 —— **读一下**，否则你以为写成了 A，图里其实是
 ## 图表必须已存在
 
 graph_name 默认 EventGraph。要写进新的函数图，先用
-blueprint_create_function 建出来。本工具不创建图表。`,
+blueprint_create_function 建出来。本工具不创建图表。
+
+## 动画蓝图
+
+AnimGraph、状态机、状态内部、转换条件都用这个工具写，graph_name 写图路径
+（AnimGraph/Locomotion/Idle->Walk）。状态机那一页的节点是状态、连线是转换。
+写法细节读 ue-blueprint-graph-editing 技能的 references/anim-blueprints.md。`,
 
     inputSchema: ApplyGraphSchema,
 
@@ -619,6 +668,11 @@ blueprint_create_function 建出来。本工具不创建图表。`,
         // 「顶掉了一条已有连线」这种副作用，看不见就等于没发生过
         const sideEffects =
           warnings.length > 0 ? `，另有 ${warnings.length} 处引擎自动调整（见 warnings）` : ''
+        // 状态机那一页写的是状态和转换，不是节点和连线；转换条件在各自的 rule_graph 里另写
+        const isStateMachine = response.graph_kind === 'state_machine'
+        const written = isStateMachine
+          ? `已写入 ${response.created_count} 个新状态、${response.connection_count} 条转换（含入口）`
+          : `已写入 ${response.created_count} 个节点、${response.connection_count} 条连线`
 
         return {
           success: true,
@@ -629,12 +683,14 @@ blueprint_create_function 建出来。本工具不创建图表。`,
           ...(response.removed_count ? { removed_count: response.removed_count } : {}),
           compiled: response.compiled,
           nodes: response.nodes,
+          ...(response.transitions ? { transitions: response.transitions } : {}),
+          ...(response.entry_state ? { entry_state: response.entry_state } : {}),
           ...(diagnostics.length > 0 ? { diagnostics } : {}),
           ...(warnings.length > 0 ? { warnings } : {}),
           // 事务不可用时这次改动撤不回来，如实说
           ...(response.undoable === false ? { undoable: false } : {}),
           summary:
-            `已写入 ${response.created_count} 个节点、${response.connection_count} 条连线` +
+            written +
             (response.compiled
               ? compileErrors > 0
                 ? `，编译有 ${compileErrors} 个错误 —— 看 diagnostics，里面的 node 就是你给的 id`

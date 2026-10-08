@@ -685,6 +685,17 @@ namespace UALPropertyPath
 		FlattenInto(Root->GetClass(), Root, FString(), OutValues, 0, MaxDepth, MaxEntries);
 	}
 
+	void FlattenStruct(
+		const UStruct* Struct,
+		const void* Data,
+		TMap<FString, TSharedPtr<FJsonValue>>& OutValues,
+		int32 MaxDepth,
+		int32 MaxEntries)
+	{
+		OutValues.Reset();
+		FlattenInto(Struct, Data, FString(), OutValues, 0, MaxDepth, MaxEntries);
+	}
+
 	void ListWritableFields(const UObject* Root, const FString& Path, TArray<FString>& OutNames)
 	{
 		OutNames.Reset();

@@ -75,4 +75,17 @@ namespace UALPropertyPath
 		TMap<FString, TSharedPtr<FJsonValue>>& OutValues,
 		int32 MaxDepth = 4,
 		int32 MaxEntries = 200);
+
+	/**
+	 * 同上，但起点是一块结构体内存而不是对象。
+	 *
+	 * 动画节点的设置全在节点对象上那个 `Node` 结构体里；从对象铺的话会连
+	 * 引脚显隐表之类的编辑器字段一起铺出来，把真正的设置淹掉。
+	 */
+	void FlattenStruct(
+		const UStruct* Struct,
+		const void* Data,
+		TMap<FString, TSharedPtr<FJsonValue>>& OutValues,
+		int32 MaxDepth = 4,
+		int32 MaxEntries = 200);
 }

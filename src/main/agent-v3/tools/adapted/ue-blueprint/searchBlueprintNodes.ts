@@ -51,6 +51,19 @@ interface SearchNodesResponse {
     params: Array<{ name: string; type: string; dir: 'Input' | 'Output' }>
   }>
   note?: string
+  /** 动画蓝图才有：动画节点类（它们不是函数，函数表里搜不到） */
+  anim_nodes?: AnimNodeHit[]
+  anim_note?: string
+}
+
+interface AnimNodeHit {
+  /** 填进 apply_graph 的 class */
+  write_as: string
+  raw_class: string
+  title: string
+  summary?: string
+  /** 能写进 settings 的字段，「名字 (类型)」 */
+  settings: string[]
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -75,6 +88,9 @@ is_pure=true 的是纯函数（没有执行引脚，不用接 then/execute）。
 反射写字段的节点 —— 它们只改字段不通知 Slate，值变了屏幕不重画。
 member_name 直接写「类名.函数名」（去掉 U 前缀）填进 blueprint_apply_graph，
 那条路按类名解析，认识引擎里任何一个类。
+
+动画蓝图（带 blueprint_path）还会搜动画节点，回在 anim_nodes 里：write_as 填进
+apply_graph 的 class，settings 列的是能写进节点 settings 的字段。
 
 回来的 name / member_name 是**蓝图里的名字**，可以原样填进 blueprint_apply_graph
 的 member_name。有些函数的 C++ 名不一样（GetActorLocation 在 C++ 里叫
@@ -111,8 +127,27 @@ K2_GetActorLocation），那种情况会额外带一个 cpp_name 字段，**不�
           return { success: false, error: `搜索节点失败：${message}` }
         }
 
+        const animNodes = response.anim_nodes ?? []
+        const animPart =
+          animNodes.length > 0
+            ? {
+                anim_nodes: animNodes,
+                ...(response.anim_note ? { anim_note: response.anim_note } : {})
+              }
+            : {}
+
         // 一条都没有时，"没找到"本身不够用 —— 说清楚下一步怎么办，
         // 否则调用方多半会用同一个词再搜一遍。
+        if (response.match_count === 0 && animNodes.length > 0) {
+          return {
+            success: true,
+            query: response.query,
+            match_count: 0,
+            functions: [],
+            ...animPart,
+            summary: `没有同名函数，找到 ${animNodes.length} 个动画节点，write_as 可直接填进 blueprint_apply_graph 的 class`
+          }
+        }
         if (response.match_count === 0) {
           return {
             success: true,
@@ -138,7 +173,10 @@ K2_GetActorLocation），那种情况会额外带一个 cpp_name 字段，**不�
           total_candidates: response.total_candidates,
           functions: response.functions,
           ...(response.note ? { note: response.note } : {}),
-          summary: `找到 ${response.match_count} 个函数，member_name 可直接填进 blueprint_apply_graph`
+          ...animPart,
+          summary:
+            `找到 ${response.match_count} 个函数，member_name 可直接填进 blueprint_apply_graph` +
+            (animNodes.length > 0 ? `；另有 ${animNodes.length} 个动画节点（anim_nodes）` : '')
         }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) }

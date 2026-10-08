@@ -553,3 +553,101 @@ describe('连不上引擎', () => {
     expect(result.success).toBe(false)
   })
 })
+
+describe('动画蓝图', () => {
+  const schema = (): z.ZodTypeAny =>
+    (createApplyBlueprintGraphTool() as unknown as { inputSchema: z.ZodTypeAny }).inputSchema
+
+  it('settings / 别名指向 / 转换设置过得了 schema —— 被剥掉的话插件收到的是默认值', () => {
+    const parsed = schema().parse({
+      blueprint_path: '/Game/ABP_Hero',
+      graph_name: 'AnimGraph/Locomotion',
+      nodes: [
+        {
+          id: 'walk',
+          class: 'State',
+          member_name: 'Walk',
+          settings: { bAlwaysResetOnEntry: true }
+        },
+        {
+          id: 'any',
+          class: 'StateAlias',
+          member_name: 'ToAny',
+          aliased_states: ['Walk'],
+          global_alias: false
+        }
+      ],
+      connections: [
+        { from: 'Entry', to: 'walk' },
+        { from: 'walk', to: 'walk', settings: { CrossfadeDuration: 0.2 } }
+      ]
+    }) as {
+      nodes: Array<Record<string, unknown>>
+      connections: Array<Record<string, unknown>>
+    }
+
+    expect(parsed.nodes[0].settings).toEqual({ bAlwaysResetOnEntry: true })
+    expect(parsed.nodes[1].aliased_states).toEqual(['Walk'])
+    expect(parsed.nodes[1].global_alias).toBe(false)
+    expect(parsed.connections[1].settings).toEqual({ CrossfadeDuration: 0.2 })
+  })
+
+  it('图路径和 settings 原样发给插件', async () => {
+    mockApply({ ...okResponse, graph_name: 'AnimGraph/Locomotion/Idle' })
+
+    await run({
+      blueprint_path: '/Game/ABP_Hero',
+      graph_name: 'AnimGraph/Locomotion/Idle',
+      nodes: [
+        { id: 'p', class: 'SequencePlayer', member_name: 'Idle', settings: { PlayRate: 1.5 } },
+        { id: 'out', class: 'OutputPose' }
+      ],
+      connections: [{ from: 'p.Pose', to: 'out.Result' }]
+    })
+
+    const write = callRequest.mock.calls.find(([command]) => command === 'blueprint.create_graph')
+    const params = write?.[1] as { graph_name: string; nodes: Array<Record<string, unknown>> }
+    expect(params.graph_name).toBe('AnimGraph/Locomotion/Idle')
+    expect(params.nodes[0].settings).toEqual({ PlayRate: 1.5 })
+  })
+
+  it('状态机那一页按「状态、转换」说，转换和入口跟着回', async () => {
+    mockApply({
+      ok: true,
+      blueprint_path: '/Game/ABP_Hero.ABP_Hero',
+      graph_name: 'AnimGraph/Locomotion',
+      graph_kind: 'state_machine',
+      created_count: 2,
+      connection_count: 3,
+      compiled: true,
+      compile_error_count: 0,
+      nodes: [{ id: 'idle', node_id: 'G1', class: 'AnimStateNode' }],
+      transitions: [
+        {
+          from: 'Idle',
+          to: 'Walk',
+          node_id: 'T1',
+          rule_graph: 'AnimGraph/Locomotion/Idle->Walk',
+          created: true
+        }
+      ],
+      entry_state: 'Idle',
+      diagnostics: []
+    })
+
+    const result = await run({
+      blueprint_path: '/Game/ABP_Hero',
+      graph_name: 'AnimGraph/Locomotion',
+      nodes: [{ id: 'idle', class: 'State', member_name: 'Idle' }],
+      connections: [{ from: 'Entry', to: 'idle' }]
+    })
+
+    expect(result.success).toBe(true)
+    expect(String(result.summary)).toContain('2 个新状态')
+    expect(String(result.summary)).toContain('3 条转换')
+    expect(result.entry_state).toBe('Idle')
+    expect((result.transitions as Array<{ rule_graph: string }>)[0].rule_graph).toBe(
+      'AnimGraph/Locomotion/Idle->Walk'
+    )
+  })
+})
