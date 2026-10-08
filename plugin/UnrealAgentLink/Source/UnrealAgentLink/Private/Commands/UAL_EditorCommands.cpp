@@ -447,7 +447,7 @@ struct FUALSceneCaptureSetup
 	 * 2026-09-26 科幻塔防：关卡美术在自动曝光下调了四轮灯，每张图都发白，最后认定
 	 * 「是截图的偏差」收工 —— 它不知道这张图是不是自动曝光，只能猜。
 	 *
-	 * Exposure：manual（锁住了，明暗可信）/ auto。
+	 * Exposure：manual（锁住了）/ auto。锁住只去掉了自适应那一项差异，明暗仍要和视口对照。
 	 * ExposureSource：viewport（编辑器视口自己的固定曝光）/ post_process_volume /
 	 * project_setting（项目设置里关了自动曝光或设成手动）/ default（引擎默认的自动曝光）。
 	 * 相机组件自己的后期不在这里看 —— PIE 时玩家相机若另设了曝光，以这里为下限参考。
@@ -521,6 +521,65 @@ static void UAL_ResolveExposure(
 		OutSetup.Exposure = TEXT("manual");
 		OutSetup.ExposureSource = TEXT("project_setting");
 	}
+}
+
+/**
+ * 把全局光照和反射的方法对齐到视口在用的那一套。
+ *
+ * 引擎在 SceneCapture 里**默认关掉 Lumen**（5.1 起，`SceneCaptureRendering.cpp`
+ * 「By default, Lumen is disabled in scene captures」）：先套完后期盒子，再把
+ * DynamicGlobalIlluminationMethod / ReflectionMethod 硬改成 None，表面缓存降到 0.5。
+ * 后期盒子里设的也一并被盖掉，只有组件自己的 PostProcessSettings 能改回来。
+ *
+ * 不改的代价：间接光和 Lumen 反射全没了，只剩直射光。2026-10-08 一个夜景城市里，
+ * 视口正常，截图楼面和天空一片死黑（四成像素死黑），而且曝光是锁住的 ——
+ * 截图偏暗就是截图造成的，不是场景。
+ *
+ * 这里按引擎同样的顺序算视口那边的值：项目设置（cvar）打底，罩住机位的后期盒子
+ * 按优先级从低到高逐个覆盖（`World->PostProcessVolumes` 本来就按优先级排好），
+ * 然后写进组件的后期设置。
+ */
+static void UAL_MatchViewLighting(UWorld* World, const FVector& ViewLocation, FPostProcessSettings& PP)
+{
+	static IConsoleVariable* GIMethod = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicGlobalIlluminationMethod"));
+	static IConsoleVariable* ReflMethod = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ReflectionMethod"));
+	EDynamicGlobalIlluminationMethod::Type GI = GIMethod
+		? (EDynamicGlobalIlluminationMethod::Type)GIMethod->GetInt()
+		: EDynamicGlobalIlluminationMethod::None;
+	EReflectionMethod::Type Reflections = ReflMethod
+		? (EReflectionMethod::Type)ReflMethod->GetInt()
+		: EReflectionMethod::None;
+	float SurfaceCacheResolution = 1.0f;
+
+	for (IInterface_PostProcessVolume* Volume : World->PostProcessVolumes)
+	{
+		if (!Volume)
+		{
+			continue;
+		}
+		const FPostProcessVolumeProperties Props = Volume->GetProperties();
+		if (!Props.bIsEnabled || Props.BlendWeight <= 0.f || !Props.Settings)
+		{
+			continue;
+		}
+		if (!Props.bIsUnbound && !Volume->EncompassesPoint(ViewLocation, 0.f, nullptr))
+		{
+			continue;
+		}
+		const FPostProcessSettings& S = *Props.Settings;
+		if (S.bOverride_DynamicGlobalIlluminationMethod) { GI = S.DynamicGlobalIlluminationMethod; }
+		if (S.bOverride_ReflectionMethod) { Reflections = S.ReflectionMethod; }
+		if (S.bOverride_LumenSurfaceCacheResolution) { SurfaceCacheResolution = S.LumenSurfaceCacheResolution; }
+	}
+
+	PP.bOverride_DynamicGlobalIlluminationMethod = true;
+	PP.DynamicGlobalIlluminationMethod = GI;
+	PP.bOverride_ReflectionMethod = true;
+	PP.ReflectionMethod = Reflections;
+	PP.bOverride_LumenSurfaceCacheResolution = true;
+	PP.LumenSurfaceCacheResolution = SurfaceCacheResolution;
+	UE_LOG(LogUALEditor, Log, TEXT("SceneCapture: GI method=%d reflection method=%d surface cache=%.2f"),
+		(int32)GI, (int32)Reflections, SurfaceCacheResolution);
 }
 
 /**
@@ -620,14 +679,24 @@ static bool UAL_SetupSceneCapture(
 		InViewLocation.IsSet() ? TEXT("player") : (bFoundViewport ? TEXT("viewport") : TEXT("fallback"));
 	UAL_ResolveExposure(World, ViewLocation, SourceViewport, bEditorWorldCapture, OutSetup);
 
-	// RenderTarget：RGBA8_SRGB 出来的就是常规 8 位色，直接能编码成 PNG
+	// RenderTarget：普通 RGBA8 + 显示伽马，读回来的字节就是视口屏幕上的那个值。
+	//
+	// 原来用的是 RTF_RGBA8_SRGB，以为「出来就是常规 8 位色」—— 实际明暗和视口对不上：
+	// 亮处差不多，暗部被压得更暗、颜色更艳（典型的多套了一次伽马）。2026-10-08 真机
+	// 同一机位、同一手动曝光下逐个格式测过（平均亮度 / 暗墙亮度，0–255）：
+	//   视口 HighResShot        80.4 / 49.0
+	//   RGBA8_SRGB（原来）      65.5 / 27.4   ← 截图偏暗就是它
+	//   RGBA8_SRGB + 伽马 1.0   65.5 / 27.4
+	//   RGBA8，不设伽马         26.3 /  4.9
+	//   RGBA8 + 伽马 2.2        80.7 / 49.1   ← 和视口一致
 	UTextureRenderTarget2D* RenderTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
 	if (!RenderTarget)
 	{
 		OutError = TEXT("创建 RenderTarget 失败");
 		return false;
 	}
-	RenderTarget->RenderTargetFormat = RTF_RGBA8_SRGB;
+	RenderTarget->RenderTargetFormat = RTF_RGBA8;
+	RenderTarget->TargetGamma = GEngine ? GEngine->GetDisplayGamma() : 2.2f;
 	RenderTarget->ClearColor = FLinearColor::Black;
 	RenderTarget->bAutoGenerateMips = false;
 	RenderTarget->InitAutoFormat(Width, Height);
@@ -650,6 +719,7 @@ static bool UAL_SetupSceneCapture(
 	Capture->bCaptureEveryFrame = false;
 	Capture->bCaptureOnMovement = false;
 	Capture->bAlwaysPersistRenderingState = true;
+	UAL_MatchViewLighting(World, ViewLocation, Capture->PostProcessSettings);
 
 	// 曝光要照抄视口的，否则画面明暗和用户看到的不是一回事。
 	//
@@ -704,6 +774,25 @@ static bool UAL_SetupSceneCapture(
 	OutError = TEXT("SceneCapture 截图仅在编辑器模式可用");
 	return false;
 #endif
+}
+
+/**
+ * 截图落盘的路径：时间戳到毫秒，撞名再加序号，**保证不覆盖已有的文件**。
+ *
+ * 原来只精确到秒。同一秒里拍两张（模型连着调两次、试玩按时间抓帧），后一张
+ * 直接盖掉前一张，而两次都照常回成功、回同一个路径 —— 调用方拿着两份
+ * 「不同」的结果，看到的却是同一张图，没有任何迹象说明前一张已经没了。
+ * 毫秒还不够：同一帧里的两次请求连毫秒都一样，所以再查一次文件在不在。
+ */
+static FString UAL_UniqueScreenshotPath(const FString& Dir, const TCHAR* Prefix, const FString& Suffix)
+{
+	const FString Stamp = FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S_%s"));
+	FString Path = FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s%s.png"), Prefix, *Stamp, *Suffix));
+	for (int32 Index = 2; IFileManager::Get().FileExists(*Path); ++Index)
+	{
+		Path = FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s%s_%d.png"), Prefix, *Stamp, *Suffix, Index));
+	}
+	return Path;
 }
 
 /**
@@ -777,14 +866,10 @@ static bool UAL_FinishSceneCapture(
 	const FString Dir = FPaths::ConvertRelativePathToFull(
 		FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots/UAL")));
 	IFileManager::Get().MakeDirectory(*Dir, true);
-	// 文件名只精确到**秒**。一次试玩里按时间抓的几帧常常落在同一秒内，
-	// 没有这个后缀它们会互相覆盖 —— 而覆盖之后一切照常成功：路径都在、
-	// 文件也在，只是九个路径指向同一张图，拼出来是九格一模一样的画面，
-	// 于是模型得出「整段时间里什么都没动」。调用方必须给得出区分的后缀。
+	// 试玩按时间抓的帧带 NameHint（时间点、序号），方便人看文件名对上是哪一帧；
+	// 不覆盖靠的是 UAL_UniqueScreenshotPath，不再靠调用方给后缀
 	const FString Suffix = NameHint.IsEmpty() ? FString() : FString::Printf(TEXT("_%s"), *NameHint);
-	const FString FileName = FString::Printf(TEXT("UAShot_%s%s.png"),
-		*FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")), *Suffix);
-	const FString FullPath = FPaths::Combine(Dir, FileName);
+	const FString FullPath = UAL_UniqueScreenshotPath(Dir, TEXT("UAShot"), Suffix);
 
 	if (!FFileHelper::SaveArrayToFile(PngWrapper->GetCompressed(100), *FullPath))
 	{
@@ -866,6 +951,11 @@ static constexpr double UAL_ScreenshotCompileWaitSeconds = 10.0;
 static constexpr float UAL_ScreenshotStreamWaitSeconds = 2.0f;
 /** 预热帧默认值（最终那帧之外还要多渲几帧） */
 static constexpr int32 UAL_ScreenshotDefaultWarmupFrames = 4;
+/**
+ * 用 Lumen 时的默认预热帧。截图组件每次新建，Lumen 的表面缓存从零攒起：
+ * 真机同一机位视口 11.8，预热 4 帧 10.2、8 帧 10.5、16 帧 11.6（平均亮度，0–255）
+ */
+static constexpr int32 UAL_ScreenshotLumenWarmupFrames = 16;
 /** 整个作业的兜底截止，防止引擎 tick 停了之后请求永远不回 */
 static constexpr double UAL_ScreenshotJobDeadlineSeconds = 30.0;
 
@@ -888,6 +978,8 @@ struct FUALAsyncCaptureJob
 	/** 请求的预热帧数，只用来回给调用方 */
 	int32 WarmupFrames = 0;
 	int32 WarmupFramesLeft = 0;
+	/** 调用方没指定预热帧数：建好组件后发现用 Lumen 就加到 UAL_ScreenshotLumenWarmupFrames */
+	bool bDefaultWarmup = true;
 	FUALSceneCaptureSetup Setup;
 
 	double StartTime = 0.0;
@@ -1005,6 +1097,14 @@ static bool UAL_TickAsyncCapture(TSharedPtr<FUALAsyncCaptureJob> Job)
 				TEXT("SceneCapture setup failed (%s), falling back to HighResShot"), *SetupError);
 			UAL_StartHighResShot(Job->Width, Job->Height, Job->WorldLabel, Job->RequestId);
 			return false;
+		}
+
+		if (Job->bDefaultWarmup
+			&& Job->Setup.Capture->PostProcessSettings.DynamicGlobalIlluminationMethod == EDynamicGlobalIlluminationMethod::Lumen
+			&& Job->WarmupFrames < UAL_ScreenshotLumenWarmupFrames)
+		{
+			Job->WarmupFrames = UAL_ScreenshotLumenWarmupFrames;
+			Job->WarmupFramesLeft = UAL_ScreenshotLumenWarmupFrames;
 		}
 
 		// GC 保护：组件和 RT 要活过接下来的好几帧
@@ -1161,6 +1261,7 @@ void FUAL_EditorCommands::Handle_TakeScreenshot(const TSharedPtr<FJsonObject>& P
 			{
 				WarmupFrames = FMath::Clamp(static_cast<int32>(RawWarmup), 0, 16);
 			}
+			const bool bDefaultWarmup = !Payload->HasField(TEXT("warmup_frames"));
 
 			TSharedPtr<FUALAsyncCaptureJob> Job = MakeShared<FUALAsyncCaptureJob>();
 			Job->RequestId = RequestId;
@@ -1174,6 +1275,7 @@ void FUAL_EditorCommands::Handle_TakeScreenshot(const TSharedPtr<FJsonObject>& P
 			Job->ViewFOV = ViewFOV;
 			Job->WarmupFrames = WarmupFrames;
 			Job->WarmupFramesLeft = WarmupFrames;
+			Job->bDefaultWarmup = bDefaultWarmup;
 
 			const double Now = FPlatformTime::Seconds();
 			Job->StartTime = Now;
@@ -2592,12 +2694,12 @@ static bool UAL_CaptureActiveWindowToFile(
         TArray64<uint8> CompressedData = ImageWrapper->GetCompressed();
 
         FString CleanName = FPaths::GetCleanFilename(DesiredName);
-        if (CleanName.IsEmpty()) CleanName = FDateTime::Now().ToString(TEXT("UAL_AppShot_%Y%m%d_%H%M%S.png"));
 
         FString OutputDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots/UAL")));
         IFileManager::Get().MakeDirectory(*OutputDir, true);
-        FString OutputPath = DesiredName.IsEmpty() || FPaths::IsRelative(DesiredName) ?
-             FPaths::Combine(OutputDir, CleanName) : DesiredName;
+        // 没点名文件名时自动起名，不能覆盖同一秒里的上一张（见 UAL_UniqueScreenshotPath）
+        FString OutputPath = CleanName.IsEmpty() ? UAL_UniqueScreenshotPath(OutputDir, TEXT("UAL_AppShot"), FString())
+            : (FPaths::IsRelative(DesiredName) ? FPaths::Combine(OutputDir, CleanName) : DesiredName);
 
         // 自动创建目录
 		if (!DesiredName.IsEmpty() && !FPaths::IsRelative(DesiredName))

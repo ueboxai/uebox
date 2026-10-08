@@ -624,8 +624,10 @@ describe('曝光锁没锁', () => {
     })
     const result = await run({})
     expect(String(result.message)).toContain('曝光：手动，来源 post_process_volume')
-    expect(String(result.message)).toContain('偏暗、偏亮')
-    expect(String(result.message)).not.toMatch(/可信|就是玩家看到的/)
+    // 锁了也不担保和视口一样亮（真机上锁了照样偏暗），给的是对照的路
+    expect(String(result.message)).toContain('不保证和视口一样亮')
+    expect(String(result.message)).toContain('show_ui=true')
+    expect(String(result.message)).not.toMatch(/可信|就是玩家看到的|不是截图造成的/)
     expect(String(result.message)).not.toContain('自动曝光')
   })
 

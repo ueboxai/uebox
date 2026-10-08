@@ -318,7 +318,7 @@ export function formatMeasurement(
 ): string {
   const lines: string[] = [
     '',
-    '【测光】（数值 0–100，按磁盘上那张图算，tonemap 之后、玩家看到的值）'
+    '【测光】（数值 0–100，按磁盘上那张截图算，tonemap 之后；截图和视口的亮度不一定一样）'
   ]
 
   if (context.exposure !== 'manual') {
