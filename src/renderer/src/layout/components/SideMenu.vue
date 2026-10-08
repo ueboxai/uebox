@@ -391,11 +391,14 @@ const handleMouseLeave = (): void => {
  * 创建新的对话会话并跳转到虚幻AI助手欢迎页（独立tab）
  * 通过附加唯一的会话ID到查询参数，触发标签key使用fullPath从而创建新标签
  */
-const createNewChat = (projectName?: string): void => {
+const createNewChat = (projectName?: string, projectPath?: string): void => {
   emit('peek-close')
   const sid = generateChatSessionId()
-  // 带上工程名时，这条新会话发第一条消息就会归到那个工程下（见 sessionProjectBinding）
-  const query = projectName ? { sid, project: projectName } : { sid }
+  // 带上工程名时，这条新会话发第一条消息就会归到那个工程下（见 sessionProjectBinding）；
+  // 同名工程有好几个时还会带上路径
+  const query = projectName
+    ? { sid, project: projectName, ...(projectPath ? { projectPath } : {}) }
+    : { sid }
   router.push({ name: 'AssistantWelcome', query })
 }
 

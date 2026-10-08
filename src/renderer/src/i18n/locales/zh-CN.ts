@@ -50,6 +50,7 @@ export default {
     archive: '归档聊天',
     unarchive: '取消归档',
     newChat: '新会话',
+    projectSessionCount: '{count} 个对话',
     newChatInProject: '在这个工程下新建会话',
     unassigned: '对话',
     unassignedHint: '没有关联 UE 工程的对话',

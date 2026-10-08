@@ -8,6 +8,8 @@ import {
   SECTION_PROJECTS_KEY,
   UNASSIGNED_GROUP_KEY,
   collectKnownProjects,
+  listProjectChoices,
+  sessionInProjectGroup,
   filterChatSessions,
   groupChatSessions,
   projectGroupKey,
@@ -265,5 +267,74 @@ describe('chatSessionGrouping', () => {
     const known = collectKnownProjects(sessions, [{ projectName: 'LiveProject' }])
 
     expect(known.map((project) => project.projectName)).toEqual(['LiveProject', 'ShooterGame'])
+  })
+
+  it('lists same-name connected projects separately, told apart by path', () => {
+    const choices = listProjectChoices(
+      [{ projectName: 'Task2' }, { projectName: 'Other' }],
+      [
+        { projectName: 'Task2', projectPath: 'D:/A/Task2' },
+        { projectName: 'Task2', projectPath: 'E:/B/Task2' },
+        { projectName: 'Task2', projectPath: 'd:\\a\\Task2\\Task2.uproject' }
+      ]
+    )
+
+    expect(
+      choices.map((choice) => [choice.project.projectName, choice.connected, choice.detail])
+    ).toEqual([
+      ['Task2', true, 'D:/A/Task2'],
+      ['Task2', true, 'E:/B/Task2'],
+      ['Other', false, undefined]
+    ])
+  })
+
+  it('splits a project name into one group per path only when it has two paths', () => {
+    const sessions = [
+      createSession({
+        id: 'a',
+        updatedAt: 30,
+        project: { projectName: 'Task2', projectPath: 'D:/A/Task2' }
+      }),
+      createSession({
+        id: 'b',
+        updatedAt: 20,
+        project: { projectName: 'task2', projectPath: 'E:/B/Task2' }
+      }),
+      createSession({ id: 'old', updatedAt: 10, project: { projectName: 'Task2' } }),
+      createSession({ id: 'solo', updatedAt: 5, project: { projectName: 'Solo' } })
+    ]
+
+    const groups = groupChatSessions(sessions, {
+      mode: 'project',
+      sortMode: 'recent',
+      connectedProjects: [
+        { projectName: 'Task2', projectPath: 'D:\\A\\Task2\\Task2.uproject' },
+        { projectName: 'Solo', projectPath: 'F:/Solo' }
+      ]
+    })
+    const byIds = groups.map((group) => [
+      group.split,
+      group.connected,
+      group.sessions.map((x) => x.id)
+    ])
+
+    expect(byIds).toEqual([
+      [true, true, ['a']],
+      [false, true, ['solo']],
+      [true, false, ['b']],
+      [true, false, ['old']]
+    ])
+    expect(groups[0].key).not.toBe(groups[2].key)
+    expect(groups[1].key).toBe(projectGroupKey('Solo'))
+
+    expect(sessions.filter((x) => sessionInProjectGroup(x, groups[0])).map((x) => x.id)).toEqual([
+      'a'
+    ])
+    expect(sessions.filter((x) => sessionInProjectGroup(x, groups[3])).map((x) => x.id)).toEqual([
+      'old'
+    ])
+    expect(sessions.filter((x) => sessionInProjectGroup(x, groups[1])).map((x) => x.id)).toEqual([
+      'solo'
+    ])
   })
 })

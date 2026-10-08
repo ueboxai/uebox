@@ -100,6 +100,8 @@ export function ensureSessionWithTitle(
     getSession: (id: string) => chatStore.sessionById(id),
     setProject: (id: string, project: ChatSessionProject | null) =>
       chatStore.setProject(id, project),
-    preferredProjectName: typeof route.query?.project === 'string' ? route.query.project : ''
+    preferredProjectName: typeof route.query?.project === 'string' ? route.query.project : '',
+    preferredProjectPath:
+      typeof route.query?.projectPath === 'string' ? route.query.projectPath : ''
   })
 }

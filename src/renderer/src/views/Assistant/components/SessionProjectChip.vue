@@ -13,7 +13,10 @@ import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
 import { useChatSidebarStore } from '@renderer/store/modules/chatSidebarStore'
 import {
   collectKnownProjects,
-  type ConnectedProjectRef
+  listProjectChoices,
+  projectPathKey,
+  type ConnectedProjectRef,
+  type ProjectChoice
 } from '@renderer/layout/composables/chatSessionGrouping'
 import { listConnectedProjects } from '../composables/ueProjectContext'
 import type { ChatSessionProject } from '@renderer/store/modules/chatSessions'
@@ -84,38 +87,37 @@ const sessionProject = computed<ChatSessionProject | null>(() =>
 
 const projectName = computed<string>(() => sessionProject.value?.projectName || '')
 
-const connectedNames = computed<Set<string>>(
-  () => new Set(connectedProjects.value.map((project) => project.projectName.trim().toLowerCase()))
-)
+/**
+ * 当前会话所属的那个已连接工程。
+ *
+ * 和主进程 `matchConnectedProject` 同一个规矩：戳上有路径就只认路径 ——
+ * 同名的另一个工程连着不算；老戳没路径才退到名字。
+ */
+const matchedConnected = computed<ConnectedProjectRef | undefined>(() => {
+  const project = sessionProject.value
+  if (!project?.projectName) return undefined
+  const path = projectPathKey(project.projectPath)
+  if (path) {
+    return connectedProjects.value.find((item) => projectPathKey(item.projectPath) === path)
+  }
+  const name = project.projectName.trim().toLowerCase()
+  return connectedProjects.value.find((item) => item.projectName.trim().toLowerCase() === name)
+})
 
 /** 当前会话所属的工程此刻是否正连着编辑器 */
-const isConnected = computed<boolean>(() =>
-  projectName.value ? connectedNames.value.has(projectName.value.trim().toLowerCase()) : false
+const isConnected = computed<boolean>(() => Boolean(matchedConnected.value))
+
+const engineVersion = computed<string>(
+  () => matchedConnected.value?.engineVersion || sessionProject.value?.engineVersion || ''
 )
 
-const engineVersion = computed<string>(() => {
-  if (!projectName.value) return ''
-  const live = connectedProjects.value.find(
-    (project) => project.projectName.trim().toLowerCase() === projectName.value.trim().toLowerCase()
+/** 已连着编辑器的工程排最前 —— 多数时候要选的就是它；同名工程按路径各占一行 */
+const projectOptions = computed<ProjectChoice[]>(() =>
+  listProjectChoices(
+    collectKnownProjects(chatStore.displayableSessions, sidebarStore.manualProjects),
+    connectedProjects.value
   )
-  return live?.engineVersion || sessionProject.value?.engineVersion || ''
-})
-
-function isProjectConnected(name: string): boolean {
-  return connectedNames.value.has(name.trim().toLowerCase())
-}
-
-/** 已连着编辑器的工程排最前 —— 多数时候要选的就是它；其余保持原顺序 */
-const projectOptions = computed<ConnectedProjectRef[]>(() => {
-  const all = collectKnownProjects(chatStore.displayableSessions, [
-    ...connectedProjects.value,
-    ...sidebarStore.manualProjects
-  ])
-  return [
-    ...all.filter((project) => isProjectConnected(project.projectName)),
-    ...all.filter((project) => !isProjectConnected(project.projectName))
-  ]
-})
+)
 
 const tooltip = computed<string>(() => {
   if (!projectName.value) return t('assistantTopNav.sessionProject.none')
@@ -174,17 +176,16 @@ function clearProject(): void {
       <AppMenu>
         <AppMenuItemGroup :title="t('assistantTopNav.sessionProject.pick')">
           <AppMenuItem
-            v-for="project in projectOptions"
-            :key="project.projectName"
-            :item-key="project.projectName"
-            @click="assignProject(project)"
+            v-for="option in projectOptions"
+            :key="option.key"
+            :item-key="option.key"
+            @click="assignProject(option.project)"
           >
-            <span :class="{ 'option-connected': isProjectConnected(project.projectName) }">
-              {{ project.projectName }}
-              <template v-if="isProjectConnected(project.projectName)">
-                · {{ t('chatSidebar.connected') }}
-              </template>
+            <span :class="{ 'option-connected': option.connected }">
+              {{ option.project.projectName }}
+              <template v-if="option.connected"> · {{ t('chatSidebar.connected') }} </template>
             </span>
+            <span v-if="option.detail" class="option-detail">{{ option.detail }}</span>
           </AppMenuItem>
           <AppMenuItem v-if="projectOptions.length === 0" disabled>
             {{ t('assistantTopNav.noConnectedProjects') }}
@@ -245,6 +246,16 @@ function clearProject(): void {
   text-overflow: ellipsis;
   // 没有 min-width:0 的话，flex 项不肯缩到内容以下，省略号根本不会出现
   min-width: 0;
+}
+
+.option-detail {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .option-connected {

@@ -52,6 +52,7 @@ import {
   groupChatSessions,
   sessionActivityState,
   sessionGroupKey,
+  sessionInProjectGroup,
   sessionSectionKey,
   type ChatGroupMode,
   type ChatSessionGroup,
@@ -74,8 +75,11 @@ const props = withDefaults(defineProps<Props>(), { activeSessionId: '' })
 
 const emit = defineEmits<{
   (e: 'open', sessionId: string): void
-  /** 开新会话；带上工程名时，这条新会话直接归到那个工程下 */
-  (e: 'new-chat', projectName?: string): void
+  /**
+   * 开新会话；带上工程名时，这条新会话直接归到那个工程下。
+   * 同名工程被拆成几组时再带上路径，否则主进程只能按名字挑一个。
+   */
+  (e: 'new-chat', projectName?: string, projectPath?: string): void
 }>()
 
 const { t } = useI18n()
@@ -286,7 +290,9 @@ watch(
 
     const mode = sidebarStore.groupMode as ChatGroupMode
     sidebarStore.expandGroup(sessionSectionKey(session, mode))
-    sidebarStore.expandGroup(sessionGroupKey(session, mode))
+    // 同名工程按路径拆开后，分组 key 得看整张分组表才知道 —— 先在表里找它
+    const owner = groups.value.find((group) => group.sessions.some((item) => item.id === id))
+    sidebarStore.expandGroup(owner?.key ?? sessionGroupKey(session, mode))
 
     const position = groups.value
       .flatMap((group) => group.sessions)
@@ -307,10 +313,19 @@ function loadMore(): boolean {
 
 defineExpose({ loadMore })
 
+/** 这一组的全部对话（含已归档、含置顶到上面去的）；拆开的同名组只算自己路径下的 */
+function projectGroupSessions(group: ChatSessionGroup): ChatSession[] {
+  return chatStore
+    .sessionsOfProject(group.projectName)
+    .filter((session) => sessionInProjectGroup(session, group))
+}
+
 function groupTooltip(group: ChatSessionGroup): string {
   const parts = [group.projectName]
   if (group.engineVersion) parts.push(`UE ${group.engineVersion}`)
   if (group.projectPath) parts.push(group.projectPath)
+  const count = projectGroupSessions(group).filter((session) => !session.archived).length
+  parts.push(t('chatSidebar.projectSessionCount', { count }))
   return parts.join('\n')
 }
 
@@ -361,9 +376,7 @@ async function openProjectInExplorer(group: ChatSessionGroup): Promise<void> {
 
 /** 归档这个工程下的所有对话（含没在当前页显示出来的） */
 function archiveProjectSessions(group: ChatSessionGroup): void {
-  const sessions = chatStore
-    .sessionsOfProject(group.projectName)
-    .filter((session) => !session.archived)
+  const sessions = projectGroupSessions(group).filter((session) => !session.archived)
   if (sessions.length === 0) return
 
   confirmDialog({
@@ -388,12 +401,14 @@ function archiveProjectSessions(group: ChatSessionGroup): void {
  * 里面的对话不删，只是解除归属、落回「对话」区 —— 删对话得走每条会话自己的删除。
  */
 function removeProject(group: ChatSessionGroup): void {
-  const sessions = chatStore.sessionsOfProject(group.projectName)
+  const sessions = projectGroupSessions(group)
 
   const apply = (): void => {
     for (const session of sessions) {
       chatStore.clearProject(session.id)
     }
+    // 同名的另一组还在，按名字隐藏/取消置顶会把它一起带走
+    if (group.split) return
     sidebarStore.removeManualProject(group.projectName)
     sidebarStore.hideProject(group.projectName)
     if (sidebarStore.isProjectPinned(group.projectName)) {
@@ -488,8 +503,8 @@ function openInNewWindow(sessionId: string): void {
   void detachChatSession(router, sessionId)
 }
 
-function startNewChat(projectName?: string): void {
-  emit('new-chat', projectName)
+function startNewChat(projectName?: string, projectPath?: string): void {
+  emit('new-chat', projectName, projectPath || undefined)
 }
 
 function togglePinned(id: string): void {
@@ -993,7 +1008,9 @@ function getChatInitial(title: string): string {
                         </span>
                       </span>
                     </AppMenuItem>
+                    <!-- 改名是按名字改整批对话的戳，拆开的同名组改不准，不给 -->
                     <AppMenuItem
+                      v-if="!entry.group.split"
                       :key="`project-rename-${entry.group.key}`"
                       :item-key="`project-rename-${entry.group.key}`"
                       @click="openProjectRename(entry.group)"
@@ -1058,7 +1075,12 @@ function getChatInitial(title: string): string {
                 size="small"
                 class="chat-icon-btn"
                 :aria-label="t('chatSidebar.newChatInProject')"
-                @click.stop="startNewChat(entry.group.projectName)"
+                @click.stop="
+                  startNewChat(
+                    entry.group.projectName,
+                    entry.group.split ? entry.group.projectPath : undefined
+                  )
+                "
               >
                 <template #icon>
                   <PhPlus />

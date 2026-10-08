@@ -28,6 +28,12 @@ export interface ChatSessionGroup {
   engineVersion: string
   /** 该工程当前是否正连着编辑器 */
   connected: boolean
+  /**
+   * 同名工程不止一个路径，这一组只装其中一个路径（`projectPath` 就是它；
+   * 为空则是这个名字下没记路径的老会话）。按名字批量操作时要用
+   * `sessionInProjectGroup` 筛，否则会连同名的另一组一起动。
+   */
+  split: boolean
   /** 用户把这个工程置顶了：排在「项目」区最前 */
   pinned: boolean
   sessions: ChatSession[]
@@ -56,7 +62,7 @@ export interface GroupChatSessionsOptions {
  *
  * 按**工程名**（忽略大小写）归组，而不是按路径：同一个工程可能一次带着路径、
  * 一次只有名字（不同来源盖的戳），按路径分会把一个工程劈成两组，
- * 而用户眼里它就是一个工程。
+ * 而用户眼里它就是一个工程。同一个名字真有两个路径时才拆，见 `projectGroupKeyResolver`。
  */
 export function projectGroupKey(projectName: string): string {
   return `project:${projectName.trim().toLowerCase()}`
@@ -179,10 +185,65 @@ function createGroup(
     projectPath: '',
     engineVersion: '',
     connected: false,
+    split: false,
     pinned: false,
     sessions: [],
     ...overrides
   }
+}
+
+interface ProjectGroupKeyResolver {
+  (projectName: string, projectPath: string | undefined): string
+  isSplit: (projectName: string) => boolean
+}
+
+/**
+ * 工程分组 key 的算法：默认按名字，**同一个名字出现了两个以上路径**才按路径拆。
+ *
+ * 只按名字分的话，同一台机器上开两个同名工程（复制一份改改）会被并成一组，
+ * 而主进程认归属是先比路径的 —— 两组对话其实各发往各的编辑器。
+ * 但也不能一律按路径：老会话的戳常常只有名字，一律按路径会把一个工程劈成两组。
+ * 拆开时，没记路径的老会话单独落在名字组里，不去猜它属于哪一个。
+ */
+function projectGroupKeyResolver(
+  sessions: ChatSession[],
+  projects: ConnectedProjectRef[]
+): ProjectGroupKeyResolver {
+  const pathsByName = new Map<string, Set<string>>()
+  const note = (name: string | undefined, path: string | undefined): void => {
+    const nameKey = name?.trim().toLowerCase()
+    const pathKey = projectPathKey(path)
+    if (!nameKey || !pathKey) return
+    const paths = pathsByName.get(nameKey) ?? new Set<string>()
+    paths.add(pathKey)
+    pathsByName.set(nameKey, paths)
+  }
+  for (const session of sessions) note(session.project?.projectName, session.project?.projectPath)
+  for (const project of projects) note(project.projectName, project.projectPath)
+
+  const isSplit = (projectName: string): boolean =>
+    (pathsByName.get(projectName.trim().toLowerCase())?.size ?? 0) > 1
+
+  const resolve = ((projectName: string, projectPath: string | undefined): string => {
+    const base = projectGroupKey(projectName)
+    if (!isSplit(projectName)) return base
+    const pathKey = projectPathKey(projectPath)
+    return pathKey ? `${base}@${pathKey}` : base
+  }) as ProjectGroupKeyResolver
+  resolve.isSplit = isSplit
+  return resolve
+}
+
+/**
+ * 这条会话是不是这个工程分组的。
+ *
+ * 对按名字操作的地方（归档整组、移出整组）用：拆开的分组只认自己的路径。
+ */
+export function sessionInProjectGroup(session: ChatSession, group: ChatSessionGroup): boolean {
+  const name = sessionProjectName(session)
+  if (!name || name.toLowerCase() !== group.projectName.trim().toLowerCase()) return false
+  if (!group.split) return true
+  return projectPathKey(session.project?.projectPath) === projectPathKey(group.projectPath)
 }
 
 /**
@@ -225,13 +286,14 @@ export function groupChatSessions(
     return groups
   }
 
+  const keyOf = projectGroupKeyResolver(sessions, [...connectedProjects, ...manualProjects])
+
   const connectedByKey = new Map<string, ConnectedProjectRef>()
   for (const project of connectedProjects) {
     const name = project.projectName?.trim()
     if (!name) continue
-    const key = projectGroupKey(name)
-    if (hiddenProjectKeys.has(key)) continue
-    connectedByKey.set(key, project)
+    if (hiddenProjectKeys.has(projectGroupKey(name))) continue
+    connectedByKey.set(keyOf(name, project.projectPath), project)
   }
 
   const projectGroups = new Map<string, ChatSessionGroup>()
@@ -244,11 +306,11 @@ export function groupChatSessions(
       continue
     }
 
-    const key = projectGroupKey(projectName)
-    if (hiddenProjectKeys.has(key)) {
+    if (hiddenProjectKeys.has(projectGroupKey(projectName))) {
       unassigned.push(session)
       continue
     }
+    const key = keyOf(projectName, session.project?.projectPath)
 
     const existing = projectGroups.get(key)
     if (existing) {
@@ -266,7 +328,8 @@ export function groupChatSessions(
         projectPath: connected?.projectPath || session.project?.projectPath || '',
         engineVersion: connected?.engineVersion || session.project?.engineVersion || '',
         connected: Boolean(connected),
-        pinned: pinnedProjectKeys.has(key),
+        split: keyOf.isSplit(projectName),
+        pinned: pinnedProjectKeys.has(projectGroupKey(projectName)),
         sessions: [session]
       })
     )
@@ -282,7 +345,8 @@ export function groupChatSessions(
           projectPath: project.projectPath || '',
           engineVersion: project.engineVersion || '',
           connected: true,
-          pinned: pinnedProjectKeys.has(key)
+          split: keyOf.isSplit(project.projectName),
+          pinned: pinnedProjectKeys.has(projectGroupKey(project.projectName))
         })
       )
     }
@@ -293,8 +357,8 @@ export function groupChatSessions(
     const projectName = project.projectName?.trim()
     if (!projectName) continue
 
-    const key = projectGroupKey(projectName)
-    if (hiddenProjectKeys.has(key)) continue
+    if (hiddenProjectKeys.has(projectGroupKey(projectName))) continue
+    const key = keyOf(projectName, project.projectPath)
     if (projectGroups.has(key)) continue
 
     const connected = connectedByKey.get(key)
@@ -305,7 +369,8 @@ export function groupChatSessions(
         projectPath: connected?.projectPath || project.projectPath || '',
         engineVersion: connected?.engineVersion || project.engineVersion || '',
         connected: Boolean(connected),
-        pinned: pinnedProjectKeys.has(key)
+        split: keyOf.isSplit(projectName),
+        pinned: pinnedProjectKeys.has(projectGroupKey(projectName))
       })
     )
   }
@@ -383,4 +448,68 @@ export function sessionActivityState(
   if (isRunning) return 'running'
   if (taskDone) return 'done'
   return 'idle'
+}
+
+/** 「归入项目」下拉里的一行 */
+export interface ProjectChoice {
+  /** 菜单项的 key：有路径用路径，没有退到名字 */
+  key: string
+  project: ConnectedProjectRef
+  connected: boolean
+  /** 同名工程不止一个时，用路径把它们区分开；不重名时为空 */
+  detail?: string
+}
+
+/** 和主进程 `core/projectPathKey.ts` 同一把尺子：大小写、斜杠、结尾斜杠、削 `.uproject` */
+export function projectPathKey(value: string | null | undefined): string {
+  const raw = (value || '').trim().toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '')
+  if (!raw.endsWith('.uproject')) return raw
+  const cut = raw.lastIndexOf('/')
+  return cut > 0 ? raw.slice(0, cut) : raw
+}
+
+/**
+ * 「归入项目」下拉的选项。
+ *
+ * `collectKnownProjects` 按名字去重，那是给侧边栏分组用的；但同一台机器上开两个
+ * 同名工程（复制一份改改）很常见，按名字去重就只剩一个，另一个根本选不到。
+ * 主进程认归属先比路径，所以这里连着的工程按路径各占一行，重名的带上路径区分。
+ * 没连着的已知工程仍按名字列，且和连着的重名时不再重复出现。
+ */
+export function listProjectChoices(
+  known: ConnectedProjectRef[],
+  connected: ConnectedProjectRef[]
+): ProjectChoice[] {
+  const choices: ProjectChoice[] = []
+  const seen = new Set<string>()
+  const connectedNames = new Set<string>()
+
+  for (const project of connected) {
+    const name = project.projectName?.trim()
+    if (!name) continue
+    const key = projectPathKey(project.projectPath) || projectGroupKey(name)
+    if (seen.has(key)) continue
+    seen.add(key)
+    connectedNames.add(name.toLowerCase())
+    choices.push({ key, project: { ...project, projectName: name }, connected: true })
+  }
+
+  for (const project of known) {
+    const name = project.projectName?.trim()
+    if (!name || connectedNames.has(name.toLowerCase())) continue
+    choices.push({ key: projectGroupKey(name), project, connected: false })
+  }
+
+  const nameCount = new Map<string, number>()
+  for (const choice of choices) {
+    const name = choice.project.projectName.toLowerCase()
+    nameCount.set(name, (nameCount.get(name) ?? 0) + 1)
+  }
+  for (const choice of choices) {
+    if ((nameCount.get(choice.project.projectName.toLowerCase()) ?? 0) > 1) {
+      choice.detail = choice.project.projectPath
+    }
+  }
+
+  return choices
 }

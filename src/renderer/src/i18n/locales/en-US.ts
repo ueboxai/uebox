@@ -50,6 +50,7 @@ export default {
     archive: 'Archive chat',
     unarchive: 'Unarchive',
     newChat: 'New chat',
+    projectSessionCount: 'Chats: {count}',
     newChatInProject: 'New chat in this project',
     unassigned: 'Chats',
     unassignedHint: 'Chats not tied to any UE project',

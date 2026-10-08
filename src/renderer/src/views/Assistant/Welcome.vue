@@ -1144,7 +1144,14 @@ function handleComposerSend(payload: ComposerSendPayload): void {
    */
   const sessionProject =
     chatStore.getProject?.(chatSid) ??
-    (pendingProjectName.value ? { projectName: pendingProjectName.value } : null)
+    (pendingProjectName.value
+      ? {
+          projectName: pendingProjectName.value,
+          ...(typeof route.query.projectPath === 'string' && route.query.projectPath.trim()
+            ? { projectPath: route.query.projectPath.trim() }
+            : {})
+        }
+      : null)
 
   const capture = agentV3API.captureEditorSnapshot({
     sessionProject,

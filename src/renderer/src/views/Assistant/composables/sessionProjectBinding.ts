@@ -9,6 +9,8 @@ export interface StampSessionProjectDeps {
    * 侧边栏通过路由参数 `?project=` 传过来。
    */
   preferredProjectName?: string
+  /** 同名工程不止一个时，侧边栏顺带传来的路径（`?projectPath=`） */
+  preferredProjectPath?: string
 }
 
 /** 发过 IPC 的那份会话归属工程。字段是普通值，能被结构化克隆搬动 */
@@ -83,7 +85,10 @@ export function stampSessionProject(deps: StampSessionProjectDeps): ChatSessionP
     return null
   }
 
-  const stamped: ChatSessionProject = { projectName: preferred }
+  const path = deps.preferredProjectPath?.trim()
+  const stamped: ChatSessionProject = path
+    ? { projectName: preferred, projectPath: path }
+    : { projectName: preferred }
   setProject(sessionId, stamped)
   return stamped
 }
