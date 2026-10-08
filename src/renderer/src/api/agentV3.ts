@@ -7,7 +7,7 @@
 
 import type { AgentTurnUsage } from '@core/shared/agentUsage'
 import type { AgentReviewResult, AgentReviewTarget } from '@core/shared/agentReview'
-import type { TeamStateView } from '@core/shared/agentTeam'
+import type { ModelCheckup, TeamStateView } from '@core/shared/agentTeam'
 import type { AgentQuestion, AgentQuestionAction } from '@core/shared/agentQuestion'
 import type { EditorSnapshotCaptureResult } from '@core/shared/editorSnapshot'
 import { unwrapResult } from '@renderer/common/utils'
@@ -487,7 +487,7 @@ export const agentV3API = {
     sessionId: string,
     name: string,
     model: { providerId: string; modelId: string }
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; checkup?: ModelCheckup }> {
     return window.api.agentV3.teamMemberModel({ sessionId, name, ...model })
   },
 

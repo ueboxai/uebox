@@ -118,7 +118,12 @@ import { runWithEditorKey } from '../agent-v3/core/team/editorKey'
 import { createTeamStore, PRODUCER } from '../agent-v3/core/team/teamStore'
 import { createTeamLive } from '../agent-v3/core/team/teamLive'
 import { formatMail } from '../agent-v3/core/team/teamTools'
-import { assignMemberModel } from '../agent-v3/core/team/teamModels'
+import {
+  assignMemberModel,
+  loadTeamModels,
+  recordReopen
+} from '../agent-v3/core/team/teamModels'
+import { createTrackRecord } from '../agent-v3/core/team/trackRecord'
 import { teamModelCandidates, type TeamStateView } from '../../shared/agentTeam'
 import { readSettings as readAiSettings } from '../ai/store'
 import { DEFAULT_GOAL_MAX_ROUNDS, normalizeGoalMaxRounds } from '../../shared/goalRounds'
@@ -132,6 +137,7 @@ import {
   noteWrite,
   startTeamRound,
   teamDirsFor,
+  trackRecordFile,
   type TeamState
 } from '../agent-v3/core/team/teamSession'
 import {
@@ -1650,6 +1656,12 @@ export function registerAgentV3IPC(): void {
         return { success: false, error: `任务板上没有 ${taskId}` }
       }
       await store.patchBoard([{ id: taskId, status: 'todo', reopenedAt: Date.now() }])
+      // 打回是履历里分量最重的一条：记到干这件活的那个模型头上。记不上不影响重开本身
+      await recordReopen(
+        store,
+        taskId,
+        createTrackRecord(trackRecordFile()).add
+      ).catch((error: unknown) => console.warn('[team] 打回没记进履历:', error))
       event.sender.send('agent-v3:team-board', { sessionId })
       return { success: true }
     }
@@ -1674,11 +1686,14 @@ export function registerAgentV3IPC(): void {
       if (!(await loadExecutionOptions(sessionId))?.team) {
         return { success: false, error: '这条会话不是团队模式' }
       }
+      // 先过入职体检：不会调工具的模型换上去也干不了活，当场说清卡在哪比派活时才出错好
+      const models = await loadTeamModels()
       const result = await assignMemberModel(
         createTeamStore(teamDirsFor(sessionId)),
-        teamModelCandidates((await readAiSettings()).providers),
+        models?.candidates ?? teamModelCandidates((await readAiSettings()).providers),
         name,
-        { providerId, modelId }
+        { providerId, modelId },
+        models?.checkup
       )
       if (!result.success) return result
       event.sender.send('agent-v3:team-board', { sessionId })

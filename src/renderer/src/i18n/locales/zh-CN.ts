@@ -2569,7 +2569,10 @@ export default {
         chatModel: '对话模型',
         unavailable: '{model} 现在用不了，它的活先用制作人的模型',
         change: '点击换模型，从它的下一件活开始用',
-        changeFailed: '没能换模型，稍后再试'
+        changeFailed: '没能换模型，稍后再试',
+        checking: '正在给 {model} 做入职体检：看它通不通、会不会调工具…',
+        checkupFailed: '{model} 入职体检没过，没有换：{reason}',
+        checkupNoTools: '让它调一个工具，两次都没调。这样的模型当不了队员'
       },
       receipt: {
         read: '已读',

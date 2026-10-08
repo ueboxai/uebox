@@ -5,7 +5,7 @@
  * 免得界面那头自己抄一份、字段一改就对不上。
  */
 
-import { ROLE_KIND, type ModelConfig, type ProviderKind } from './aiProvider'
+import { ROLE_KIND, type ModelConfig, type ProbeFailure, type ProviderKind } from './aiProvider'
 
 /**
  * 老名册的模型档位。`strong` 跟着制作人，`fast` 走用户绑的对话模型。
@@ -34,6 +34,11 @@ export interface TeamMember {
   modelReason?: string
   /** 模型是谁定的。用户亲手改过的，制作人除非用户开口不该再动 */
   modelBy?: 'producer' | 'user'
+  /**
+   * 岗位的粗类型（策划、搭建、审核……），制作人招人时标。履历按它分开看：
+   * 难的活干砸了不等于这个模型差，同一类活放在一起比才有意义
+   */
+  roleType?: string
   /** 工具命名空间白名单。省略 = 和制作人同一套 */
   namespaces?: string[]
   readOnly: boolean
@@ -52,6 +57,42 @@ export interface TeamModelCandidate extends TeamModel {
   providerName: string
   vision: boolean
   contextWindow?: number
+  /** 官方标价，美元 / 百万 token。只有直连官方端点、模型目录里查得到时才有 */
+  price?: { input: number; output: number }
+}
+
+/**
+ * 入职体检的结果：这个模型在用户这里能不能正常干活。只查能不能用，不评能力。
+ * 设计见 docs/团队选模型与履历设计-2026-10-08.md 5.2 节。
+ */
+export interface ModelCheckup {
+  at: number
+  /** 请求有没有通（Key、地址、额度）。不通时下面两项都不算数 */
+  reachable: boolean
+  /** 让它调一个工具，它调没调 */
+  tools: 'ok' | 'fail'
+  /** 只在它声称能看图时查：给一张纯色图，它说不说得出颜色 */
+  vision?: 'ok' | 'fail'
+  /** 请求失败时的原因，渲染层用 `describeProbeFailure` 翻成人话 */
+  failure?: ProbeFailure
+}
+
+/**
+ * 履历的一笔。只记机器能确定的事实（设计稿 5.5 节）：
+ * - `task`：一件活交回来了，或者没干完（被停下、出错）
+ * - `reopened`：用户在任务板上把这个模型干的一件活打回了
+ */
+export interface TrackRecordEntry {
+  kind: 'task' | 'reopened'
+  at: number
+  model: TeamModel
+  roleType?: string
+  /** 哪个工程。按工程记、跨工程汇总（设计稿 9.2 节） */
+  project?: string
+  /** 只有 `task` 有 */
+  outcome?: 'done' | 'unfinished'
+  /** 只有 `task` 有：这件活干了多久 */
+  ms?: number
 }
 
 /** 给人看的模型名：名单里有就用展示名，没有（来源删了）就用模型 id。制作人的回话和任务板共用 */

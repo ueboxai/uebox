@@ -424,8 +424,8 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 65536
       },
       {
-        "id": "deepseek-v4-flash",
-        "displayName": "DeepSeek V4 Flash",
+        "id": "deepseek-v4-pro",
+        "displayName": "DeepSeek V4 Pro",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
@@ -455,25 +455,6 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsReasoning": true,
         "contextWindow": 1000000,
         "maxOutputTokens": 64000
-      },
-      {
-        "id": "qwen3.7-max",
-        "displayName": "Qwen3.7 Max",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "qwen3.6-flash",
-        "displayName": "Qwen3.6 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 65536
       },
       {
         "id": "qwen3.6-plus",
@@ -665,8 +646,8 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 512000
       },
       {
-        "id": "deepseek-v4-flash",
-        "displayName": "DeepSeek V4 Flash",
+        "id": "deepseek-v4-pro",
+        "displayName": "DeepSeek V4 Pro",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
@@ -674,8 +655,8 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 384000
       },
       {
-        "id": "deepseek-v4-pro",
-        "displayName": "DeepSeek V4 Pro",
+        "id": "deepseek-v4-flash",
+        "displayName": "DeepSeek V4 Flash",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
@@ -716,17 +697,8 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 16384
       },
       {
-        "id": "hunyuan-t1",
-        "displayName": "Hunyuan-T1",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 131072,
-        "maxOutputTokens": 16384
-      },
-      {
-        "id": "hunyuan-turbos",
-        "displayName": "Hunyuan-TurboS",
+        "id": "hunyuan-2.0-instruct",
+        "displayName": "Tencent HY 2.0 Instruct",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": false,
@@ -743,11 +715,20 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 16384
       },
       {
-        "id": "hunyuan-2.0-instruct",
-        "displayName": "Tencent HY 2.0 Instruct",
+        "id": "hunyuan-turbos",
+        "displayName": "Hunyuan-TurboS",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": false,
+        "contextWindow": 131072,
+        "maxOutputTokens": 16384
+      },
+      {
+        "id": "hunyuan-t1",
+        "displayName": "Hunyuan-T1",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
         "contextWindow": 131072,
         "maxOutputTokens": 16384
       },
@@ -800,7 +781,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1024000,
-        "maxOutputTokens": 64000
+        "maxOutputTokens": 64000,
+        "cost": {
+          "input": 0.834,
+          "output": 2.501
+        }
       },
       {
         "id": "hy3",
@@ -826,6 +811,16 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "MiniMax-M3.1-Flash-Preview",
+        "displayName": "MiniMax-M3.1-Flash-Preview",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 512000
+      },
+      {
         "id": "MiniMax-M3",
         "displayName": "MiniMax-M3",
         "supportsVision": true,
@@ -836,8 +831,8 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 512000
       },
       {
-        "id": "MiniMax-M2.7-highspeed",
-        "displayName": "MiniMax-M2.7-highspeed",
+        "id": "MiniMax-M2.7",
+        "displayName": "MiniMax-M2.7",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
@@ -845,8 +840,8 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 131072
       },
       {
-        "id": "MiniMax-M2.7",
-        "displayName": "MiniMax-M2.7",
+        "id": "MiniMax-M2.7-highspeed",
+        "displayName": "MiniMax-M2.7-highspeed",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
@@ -893,7 +888,16 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 1000000
+        "maxOutputTokens": 65536
+      },
+      {
+        "id": "step-router-v1",
+        "displayName": "Step Router v1",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": false,
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
       },
       {
         "id": "step-3.7-flash",
@@ -902,15 +906,6 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 256000,
-        "maxOutputTokens": 256000
-      },
-      {
-        "id": "step-router-v1",
-        "displayName": "Step Router v1",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": false,
         "contextWindow": 256000,
         "maxOutputTokens": 256000
       },
@@ -963,7 +958,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 524288
+        "maxOutputTokens": 524288,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "mimo-v2.6-pro",
@@ -973,7 +972,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.435,
+          "output": 0.87
+        }
       },
       {
         "id": "mimo-v2.6-flash",
@@ -983,7 +986,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "deepseek-v4.1-flash",
@@ -992,7 +999,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "hy4-preview",
@@ -1001,7 +1012,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1024000,
-        "maxOutputTokens": 64000
+        "maxOutputTokens": 64000,
+        "cost": {
+          "input": 0.834,
+          "output": 2.501
+        }
       },
       {
         "id": "glm-5.3-flash",
@@ -1011,7 +1026,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "deepseek-v4-flash-vision-exp",
@@ -1020,7 +1039,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "glm-5.3",
@@ -1029,7 +1052,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "deepseek-v4-flash",
@@ -1038,7 +1065,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "kimi-k3",
@@ -1048,7 +1079,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "hy3",
@@ -1057,7 +1092,133 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.14,
+          "output": 0.58
+        }
+      }
+    ]
+  },
+  {
+    "id": "codebuddy",
+    "displayName": "CodeBuddy / WorkBuddy",
+    "group": "subscription",
+    "kind": "chat",
+    "protocol": "openai-completions",
+    "baseUrl": "https://copilot.tencent.com/v2",
+    "apiKeyUrl": "https://www.codebuddy.cn",
+    "requiresApiKey": true,
+    "hasLogo": true,
+    "supportsOAuth": true,
+    "models": [
+      {
+        "id": "hy4-preview",
+        "displayName": "Hy4 Preview",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "glm-5.3-flash",
+        "displayName": "GLM-5.3 Flash",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "glm-5.3",
+        "displayName": "GLM-5.3",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "hy3",
+        "displayName": "Hy3",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "glm-5.2",
+        "displayName": "GLM-5.2",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "minimax-m3",
+        "displayName": "MiniMax M3",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 204800,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "deepseek-v4-pro",
+        "displayName": "DeepSeek V4 Pro",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "deepseek-v4-flash",
+        "displayName": "DeepSeek V4 Flash",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "kimi-k2.6",
+        "displayName": "Kimi K2.6",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "glm-5.1",
+        "displayName": "GLM-5.1",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "glm-5v-turbo",
+        "displayName": "GLM-5V Turbo",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "minimax-m2.7",
+        "displayName": "MiniMax M2.7",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 204800,
+        "maxOutputTokens": 64000
       }
     ]
   },
@@ -1908,116 +2069,153 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "supportsOAuth": true,
     "models": [
       {
-        "id": "xiaomi/mimo-v2.6-pro",
-        "displayName": "MiMo-V2.6-Pro",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "xiaomi/mimo-v2.6-flash",
-        "displayName": "MiMo-V2.6-Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "anthropic/claude-opus-5.5",
-        "displayName": "Claude Opus 5.5",
+        "id": "anthropic/claude-haiku-5.5",
+        "displayName": "Claude Haiku 5.5",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
       },
       {
-        "id": "openai/gpt-6-sol",
-        "displayName": "GPT-6 Sol",
+        "id": "mistralai/mistral-large-4-0",
+        "displayName": "Mistral Large 4",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "contextWindow": 524288,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.68,
+          "output": 2.09
+        }
       },
       {
-        "id": "openai/gpt-6-luna-pro",
-        "displayName": "GPT-6 Luna Pro",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-6-sol-pro",
-        "displayName": "GPT-6 Sol Pro",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-6-luna",
-        "displayName": "GPT-6 Luna",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "cohere/command-a-plus",
-        "displayName": "Command A+",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 192000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "xiaomi/mimo-v2.6-pro-ultraspeed",
-        "displayName": "MiMo-V2.6-Pro-UltraSpeed",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "x-ai/grok-4.7",
-        "displayName": "Grok 4.7",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 500000,
-        "maxOutputTokens": 450000
-      },
-      {
-        "id": "prism-ml/ternary-bonsai-2-27b",
-        "displayName": "Ternary Bonsai 2 27B",
-        "supportsVision": true,
+        "id": "inclusionai/ling-3.1-flash",
+        "displayName": "Ling 3.1 Flash",
+        "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
         "maxOutputTokens": 32768
       },
       {
-        "id": "z-ai/glm-5.3-flashx",
-        "displayName": "GLM 5.3 FlashX",
+        "id": "unbiased/pareto-26.10-preview",
+        "displayName": "Pareto 26.10 Preview",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": false,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.8,
+          "output": 3.2
+        }
+      },
+      {
+        "id": "apodex/apodex-1.1-mini:free",
+        "displayName": "Apodex 1.1 Mini (free)",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 235929
+      },
+      {
+        "id": "openai/gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "openai/gpt-6.1-sol-pro",
+        "displayName": "GPT-6.1 Sol Pro",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "anthropic/claude-sonnet-5.5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "perceptron/perceptron-mk1.5",
+        "displayName": "Perceptron Mk1.5",
         "supportsVision": true,
         "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
+        "contextWindow": 36864,
+        "maxOutputTokens": 8192,
+        "cost": {
+          "input": 0.15,
+          "output": 1.5
+        }
+      },
+      {
+        "id": "fireworks/ember-1",
+        "displayName": "Ember-1",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 943718,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
+      },
+      {
+        "id": "z-ai/glm-5.3-prime",
+        "displayName": "GLM 5.3 Prime",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2.8,
+          "output": 8.8
+        }
+      },
+      {
+        "id": "upstage/solar-mini4",
+        "displayName": "Solar Mini 4",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 524288,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.05,
+          "output": 0.2
+        }
       }
     ]
   },
@@ -2034,22 +2232,135 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "xiaomi/mimo-v2.6-pro",
-        "displayName": "MiMo V2.6 Pro",
-        "supportsVision": true,
+        "id": "stealth/glyph-cluster",
+        "displayName": "Glyph Cluster",
+        "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
       },
       {
-        "id": "xiaomi/mimo-v2.6-flash",
-        "displayName": "MiMo V2.6 Flash",
+        "id": "anthropic/claude-haiku-5.5",
+        "displayName": "Claude Haiku 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "mistral/mistral-large-4",
+        "displayName": "Mistral Large 4",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 524288,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.68,
+          "output": 2.09
+        }
+      },
+      {
+        "id": "inclusionai/ling-3.1-flash-free",
+        "displayName": "Ling 3.1 Flash (Free)",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
+      },
+      {
+        "id": "inclusionai/ling-3.1-flash",
+        "displayName": "Ling 3.1 Flash",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
+      },
+      {
+        "id": "openai/gpt-6.1-sol-fast",
+        "displayName": "GPT-6.1 Sol (Fast)",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
+      },
+      {
+        "id": "openai/gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "anthropic/claude-sonnet-5.5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "meituan/longcat-2.5-preview",
+        "displayName": "LongCat 2.5 Preview",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
+      },
+      {
+        "id": "alibaba/qwen3.8-max-prime",
+        "displayName": "Qwen 3.8 Max Prime",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 4,
+          "output": 12
+        }
+      },
+      {
+        "id": "fireworks/ember-1",
+        "displayName": "Ember-1",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "anthropic/claude-opus-5.5-fast",
@@ -2058,88 +2369,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "anthropic/claude-opus-5.5",
-        "displayName": "Claude Opus 5.5",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-6-sol",
-        "displayName": "GPT-6 Sol",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-6-luna",
-        "displayName": "GPT-6 Luna",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-6-sol-fast",
-        "displayName": "GPT-6 Sol (Fast)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-6-luna-fast",
-        "displayName": "GPT-6 Luna (Fast)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "xiaomi/mimo-v2.6-pro-ultraspeed",
-        "displayName": "MiMo V2.6 Pro UltraSpeed",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "spacexai/grok-4.7",
-        "displayName": "Grok 4.7",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 500000,
-        "maxOutputTokens": 500000
-      },
-      {
-        "id": "alibaba/qwen3.8-omni-flash",
-        "displayName": "Qwen 3.8 Omni Flash",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "sakana/fugu-max",
-        "displayName": "Fugu Max",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 1000000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 8,
+          "output": 40
+        }
       }
     ]
   },
@@ -2155,6 +2389,28 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "defaultEnvVar": "OPENCODE_API_KEY",
     "hasLogo": true,
     "models": [
+      {
+        "id": "mistral-large-4",
+        "displayName": "Mistral Large 4",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 524288,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.68,
+          "output": 2.09
+        }
+      },
+      {
+        "id": "exo-free",
+        "displayName": "Exo Free",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
       {
         "id": "fledge-alpha-free",
         "displayName": "Fledge Alpha Free",
@@ -2209,7 +2465,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "ling-3.0-flash-fin-free",
@@ -2228,7 +2488,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "deepseek-v4-flash-vision-exp",
@@ -2237,7 +2501,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "glm-5.3",
@@ -2246,25 +2514,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "nemotron-3.5-lightning-free",
-        "displayName": "Nemotron 3.5 Lightning Free",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 262144
-      },
-      {
-        "id": "qwen3.8-max",
-        "displayName": "Qwen3.8 Max",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       }
     ]
   },
@@ -2281,13 +2535,82 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "openai/gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "anthropic/claude-sonnet-5.5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "anthropic/claude-opus-5.5",
+        "displayName": "Claude Opus 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
+      },
+      {
+        "id": "openai/gpt-6-luna",
+        "displayName": "GPT-6 Luna",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "openai/gpt-6-sol",
+        "displayName": "GPT-6 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
         "id": "xai/grok-4.7",
         "displayName": "Grok 4.7",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 500000,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "unbiased/pareto",
@@ -2296,7 +2619,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": false,
         "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2.5,
+          "output": 7.5
+        }
       },
       {
         "id": "openai/gpt-6-astra",
@@ -2305,7 +2632,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "anthropic/claude-fable-5.1",
@@ -2314,7 +2645,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "xai/grok-4.6",
@@ -2323,7 +2658,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 500000,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "alibaba/qwen3.8-max",
@@ -2333,7 +2672,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "anthropic/claude-opus-5",
@@ -2342,53 +2685,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "moonshotai/kimi-k3",
-        "displayName": "Kimi K3",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "openai/gpt-5.6-sol",
-        "displayName": "GPT-5.6 Sol",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-5.6-luna",
-        "displayName": "GPT-5.6 Luna",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai/gpt-5.6-terra",
-        "displayName": "GPT-5.6 Terra",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "xai/grok-4.5",
-        "displayName": "Grok 4.5",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 500000,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       }
     ]
   },
@@ -2405,18 +2706,17 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "gpt-6-sol",
-        "displayName": "GPT-6 Sol",
+        "id": "gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "thinkingLevelMap": {
-          "minimal": null,
-          "xhigh": "xhigh",
-          "max": "max"
-        },
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
       },
       {
         "id": "gpt-6-luna",
@@ -2430,7 +2730,29 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "gpt-6-sol",
+        "displayName": "GPT-6 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "thinkingLevelMap": {
+          "minimal": null,
+          "xhigh": "xhigh",
+          "max": "max"
+        },
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
       },
       {
         "id": "gpt-6-astra",
@@ -2444,25 +2766,37 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
-        "id": "gpt-5.6-sol",
-        "displayName": "GPT-5.6 Sol",
+        "id": "gpt-daybreak-blue-latest",
+        "displayName": "Daybreak Blue",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
       },
       {
-        "id": "gpt-5.6-luna",
-        "displayName": "GPT-5.6 Luna",
+        "id": "gpt-daybreak-red-latest",
+        "displayName": "Daybreak Red",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "contextWindow": 400000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 12.5,
+          "output": 75
+        }
       },
       {
         "id": "gpt-5.6",
@@ -2479,7 +2813,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
+      },
+      {
+        "id": "gpt-5.6-luna",
+        "displayName": "GPT-5.6 Luna",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.2,
+          "output": 1.2
+        }
       },
       {
         "id": "gpt-5.6-terra",
@@ -2488,7 +2839,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 12
+        }
+      },
+      {
+        "id": "gpt-5.6-sol",
+        "displayName": "GPT-5.6 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
       },
       {
         "id": "gpt-5.5-pro",
@@ -2497,7 +2865,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 30,
+          "output": 180
+        }
       },
       {
         "id": "gpt-5.5",
@@ -2506,34 +2878,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gpt-5.4-nano",
-        "displayName": "GPT-5.4 nano",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 400000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gpt-5.4-mini",
-        "displayName": "GPT-5.4 mini",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 400000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gpt-5.4",
-        "displayName": "GPT-5.4",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 30
+        }
       }
     ]
   },
@@ -2550,6 +2899,32 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "claude-sonnet-5-5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
         "id": "claude-opus-5-5",
         "displayName": "Claude Opus 5.5",
         "supportsVision": true,
@@ -2562,7 +2937,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         },
         "adaptiveThinking": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
       },
       {
         "id": "claude-fable-5-1",
@@ -2576,7 +2955,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         },
         "adaptiveThinking": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "claude-opus-5",
@@ -2585,7 +2968,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       },
       {
         "id": "claude-sonnet-5",
@@ -2594,7 +2981,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
       },
       {
         "id": "claude-fable-5",
@@ -2603,7 +2994,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "claude-opus-4-8",
@@ -2612,7 +3007,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       },
       {
         "id": "claude-opus-4-7",
@@ -2621,7 +3020,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       },
       {
         "id": "claude-sonnet-4-6",
@@ -2630,7 +3033,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "claude-opus-4-6",
@@ -2639,7 +3046,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       }
     ]
   },
@@ -2663,17 +3074,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "gemini-3.7-flash",
-        "displayName": "Gemini 3.7 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
       },
       {
         "id": "gemini-flash-latest",
@@ -2683,27 +3088,25 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
       },
       {
-        "id": "gemini-3.6-flash",
-        "displayName": "Gemini 3.6 Flash",
+        "id": "gemini-3.7-flash",
+        "displayName": "Gemini 3.7 Flash",
         "supportsVision": true,
         "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "gemini-3.5-flash-lite",
-        "displayName": "Gemini 3.5 Flash Lite",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
       },
       {
         "id": "gemini-flash-lite-latest",
@@ -2713,7 +3116,39 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.3,
+          "output": 2.5
+        }
+      },
+      {
+        "id": "gemini-3.6-flash",
+        "displayName": "Gemini 3.6 Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
+      },
+      {
+        "id": "gemini-3.5-flash-lite",
+        "displayName": "Gemini 3.5 Flash Lite",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.3,
+          "output": 2.5
+        }
       },
       {
         "id": "gemini-3.5-flash",
@@ -2723,7 +3158,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 1.5,
+          "output": 9
+        }
       },
       {
         "id": "gemini-3.1-flash-lite",
@@ -2733,16 +3172,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "gemma-4-26b-a4b-it",
-        "displayName": "Gemma 4 26B A4B IT",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 32768
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.25,
+          "output": 1.5
+        }
       },
       {
         "id": "gemma-4-31b-it",
@@ -2754,14 +3188,13 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "maxOutputTokens": 32768
       },
       {
-        "id": "gemini-3.1-pro-preview-customtools",
-        "displayName": "Gemini 3.1 Pro Preview Custom Tools",
+        "id": "gemma-4-26b-a4b-it",
+        "displayName": "Gemma 4 26B A4B IT",
         "supportsVision": true,
-        "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
       },
       {
         "id": "gemini-3.1-pro-preview",
@@ -2771,7 +3204,25 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 2,
+          "output": 12
+        }
+      },
+      {
+        "id": "gemini-3.1-pro-preview-customtools",
+        "displayName": "Gemini 3.1 Pro Preview Custom Tools",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 2,
+          "output": 12
+        }
       }
     ]
   },
@@ -2794,7 +3245,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 500000,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "grok-4.6",
@@ -2807,7 +3262,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "xhigh": "xhigh",
           "max": null
         },
-        "contextWindow": 500000
+        "contextWindow": 500000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "grok-4.5",
@@ -2816,7 +3275,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 500000,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "grok-4.3",
@@ -2825,7 +3288,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 30000
+        "maxOutputTokens": 30000,
+        "cost": {
+          "input": 1.25,
+          "output": 2.5
+        }
       },
       {
         "id": "grok-build-0.1",
@@ -2834,7 +3301,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 1,
+          "output": 2
+        }
       },
       {
         "id": "grok-4.20-0309-reasoning",
@@ -2843,7 +3314,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 30000
+        "maxOutputTokens": 30000,
+        "cost": {
+          "input": 1.25,
+          "output": 2.5
+        }
       },
       {
         "id": "grok-4.20-0309-non-reasoning",
@@ -2852,7 +3327,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": false,
         "contextWindow": 1000000,
-        "maxOutputTokens": 30000
+        "maxOutputTokens": 30000,
+        "cost": {
+          "input": 1.25,
+          "output": 2.5
+        }
       },
       {
         "id": "grok-4.20-multi-agent-0309",
@@ -2861,7 +3340,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": false,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 30000
+        "maxOutputTokens": 30000,
+        "cost": {
+          "input": 1.25,
+          "output": 2.5
+        }
       }
     ]
   },
@@ -2878,31 +3361,30 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "mistral-large-4",
+        "displayName": "Mistral Large 4",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 524288,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.68,
+          "output": 2.09
+        }
+      },
+      {
         "id": "zai-glm-5-3",
         "displayName": "GLM-5.3",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "zai-glm-5-2",
-        "displayName": "GLM-5.2",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "mistral-medium-latest",
-        "displayName": "Mistral Medium (latest)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "mistral-medium-2604",
@@ -2911,7 +3393,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.5,
+          "output": 7.5
+        }
+      },
+      {
+        "id": "mistral-medium-latest",
+        "displayName": "Mistral Medium (latest)",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.5,
+          "output": 7.5
+        }
       },
       {
         "id": "mistral-small-latest",
@@ -2919,8 +3418,12 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "contextWindow": 262144,
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "mistral-small-2603",
@@ -2928,8 +3431,12 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "contextWindow": 262144,
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "voxtral-mini-latest",
@@ -2959,7 +3466,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 131042,
-        "maxOutputTokens": 16384
+        "maxOutputTokens": 16384,
+        "cost": {
+          "input": 0.8,
+          "output": 4
+        }
       },
       {
         "id": "qwen/qwen3.6-27b",
@@ -2968,7 +3479,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 131072,
-        "maxOutputTokens": 16384
+        "maxOutputTokens": 16384,
+        "cost": {
+          "input": 0.6,
+          "output": 3
+        }
       }
     ]
   },
@@ -2990,8 +3505,12 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 65536,
-        "maxOutputTokens": 32768
+        "contextWindow": 131072,
+        "maxOutputTokens": 40960,
+        "cost": {
+          "input": 0.99,
+          "output": 1.49
+        }
       }
     ]
   },
@@ -3014,7 +3533,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "zai-org/GLM-5.3-Flash",
@@ -3024,7 +3547,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048575,
-        "maxOutputTokens": 400000
+        "maxOutputTokens": 400000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "zai-org/GLM-5.3",
@@ -3033,7 +3560,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
@@ -3042,7 +3573,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 1.32,
+          "output": 3.96
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -3050,8 +3585,12 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "contextWindow": 1048576,
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "moonshotai/Kimi-K3",
@@ -3061,7 +3600,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "thinkingmachines/Inkling",
@@ -3070,7 +3613,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 524288,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1,
+          "output": 4.05
+        }
       },
       {
         "id": "zai-org/GLM-5.2",
@@ -3078,17 +3625,12 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 512000,
-        "maxOutputTokens": 164000
-      },
-      {
-        "id": "moonshotai/Kimi-K2.7-Code",
-        "displayName": "Kimi K2.7 Code",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "contextWindow": 1048575,
+        "maxOutputTokens": 164000,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "MiniMaxAI/MiniMax-M3",
@@ -3097,7 +3639,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 524288,
-        "maxOutputTokens": 250000
+        "maxOutputTokens": 250000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -3106,7 +3652,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 512300,
-        "maxOutputTokens": 512300
+        "maxOutputTokens": 512300,
+        "cost": {
+          "input": 0.6,
+          "output": 3.6
+        }
       },
       {
         "id": "Qwen/Qwen3.7-Max",
@@ -3115,7 +3665,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": false,
         "contextWindow": 1000000,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 1.25,
+          "output": 3.75
+        }
+      },
+      {
+        "id": "Qwen/Qwen3.6-Plus",
+        "displayName": "Qwen3.6 Plus",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 0.5,
+          "output": 3
+        }
       }
     ]
   },
@@ -3132,13 +3699,17 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "accounts/fireworks/routers/deepseek-flash-latest",
-        "displayName": "DeepSeek Flash Latest",
+        "id": "accounts/fireworks/models/ember-1",
+        "displayName": "Ember-1",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "accounts/fireworks/models/deepseek-v4p1-flash",
@@ -3147,7 +3718,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
+      },
+      {
+        "id": "accounts/fireworks/routers/deepseek-flash-latest",
+        "displayName": "DeepSeek Flash Latest",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "accounts/fireworks/routers/glm-fast-latest",
@@ -3156,7 +3744,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048572,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 2.1,
+          "output": 6.6
+        }
       },
       {
         "id": "accounts/fireworks/routers/glm-5p3-fast",
@@ -3165,16 +3757,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048572,
-        "maxOutputTokens": 262144
-      },
-      {
-        "id": "accounts/fireworks/routers/glm-flash-latest",
-        "displayName": "GLM Flash Latest (GLM 5.3 Flash)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048573,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 2.1,
+          "output": 6.6
+        }
       },
       {
         "id": "accounts/fireworks/models/glm-5p3-flash",
@@ -3183,16 +3770,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048573,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
-        "id": "accounts/fireworks/routers/glm-latest",
-        "displayName": "GLM Latest",
-        "supportsVision": false,
+        "id": "accounts/fireworks/routers/glm-flash-latest",
+        "displayName": "GLM Flash Latest (GLM 5.3 Flash)",
+        "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048573,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "accounts/fireworks/models/glm-5p3",
@@ -3201,16 +3796,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048573,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
-        "id": "accounts/fireworks/routers/deepseek-pro-latest",
-        "displayName": "DeepSeek Pro Latest",
+        "id": "accounts/fireworks/routers/glm-latest",
+        "displayName": "GLM Latest",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "contextWindow": 1048573,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
@@ -3219,7 +3822,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
@@ -3228,16 +3835,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.05,
+          "output": 0.2
+        }
       },
       {
-        "id": "accounts/fireworks/routers/qwen-max-latest",
-        "displayName": "Qwen Max Latest (Qwen3.8 Max)",
+        "id": "accounts/fireworks/models/qwen3p8-max",
+        "displayName": "Qwen3.8 Max",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       }
     ]
   },
@@ -3254,23 +3869,58 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "XiaomiMiMo/MiMo-V2.6-Pro",
+        "displayName": "MiMo-V2.6-Pro",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.43,
+          "output": 0.87
+        }
+      },
+      {
+        "id": "XiaomiMiMo/MiMo-V2.6-Flash",
+        "displayName": "MiMo-V2.6-Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
+      },
+      {
         "id": "deepseek-ai/DeepSeek-V4.1-Flash",
         "displayName": "DeepSeek V4.1 Flash",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.2,
+          "output": 0.6
+        }
       },
       {
-        "id": "zai-org/GLM-5.3-Flash",
-        "displayName": "GLM-5.3-Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
+        "id": "tencent/Hy4-preview",
+        "displayName": "Hy4 preview",
+        "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 64000,
+        "cost": {
+          "input": 0.834,
+          "output": 2.501
+        }
       },
       {
         "id": "Qwen/Qwen3.8-Flash",
@@ -3280,7 +3930,25 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": false,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.113,
+          "output": 0.382
+        }
+      },
+      {
+        "id": "zai-org/GLM-5.3-Flash",
+        "displayName": "GLM-5.3-Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
@@ -3289,16 +3957,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
-      },
-      {
-        "id": "zai-org/GLM-5.3",
-        "displayName": "GLM-5.3",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.44,
+          "output": 1.32
+        }
       },
       {
         "id": "Qwen/Qwen3.8-27B",
@@ -3308,16 +3971,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 32768
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 0.2,
+          "output": 2.5
+        }
       },
       {
-        "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
-        "displayName": "DeepSeek V4 Pro 0813",
+        "id": "zai-org/GLM-5.3",
+        "displayName": "GLM-5.3",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.9,
+          "output": 4
+        }
       },
       {
         "id": "Qwen/Qwen3.8-2.4T-A95B",
@@ -3326,7 +3997,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
+        "displayName": "DeepSeek V4 Pro 0813",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 1.3,
+          "output": 2.6
+        }
       },
       {
         "id": "Qwen/Qwen3.8-Max",
@@ -3336,34 +4024,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": false,
         "contextWindow": 256000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
-        "displayName": "DeepSeek V4 Flash 0731",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 384000
-      },
-      {
-        "id": "thinkingmachines/Inkling-Small",
-        "displayName": "Inkling Small",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 524288,
-        "maxOutputTokens": 1048576
-      },
-      {
-        "id": "moonshotai/Kimi-K3",
-        "displayName": "Kimi K3",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.65,
+          "output": 4.951
+        }
       }
     ]
   },
@@ -3408,7 +4073,20 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 128000,
-        "maxOutputTokens": 64000
+        "maxOutputTokens": 64000,
+        "cost": {
+          "input": 2.5,
+          "output": 10
+        }
+      },
+      {
+        "id": "north-small-translate-09-2026",
+        "displayName": "North Small Translate",
+        "supportsVision": false,
+        "supportsTools": false,
+        "supportsReasoning": false,
+        "contextWindow": 32768,
+        "maxOutputTokens": 16000
       }
     ]
   },
@@ -3431,7 +4109,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "tencent/Hy4-preview",
@@ -3440,7 +4122,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 64000
+        "maxOutputTokens": 64000,
+        "cost": {
+          "input": 0.834,
+          "output": 2.501
+        }
       },
       {
         "id": "zai-org/GLM-5.3-Flash",
@@ -3449,7 +4135,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
@@ -3458,16 +4148,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
-      },
-      {
-        "id": "zai-org/GLM-5.3",
-        "displayName": "GLM-5.3",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.44,
+          "output": 1.32
+        }
       },
       {
         "id": "Qwen/Qwen3.8-27B",
@@ -3476,16 +4161,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 32768
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 0.4,
+          "output": 3
+        }
       },
       {
-        "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
-        "displayName": "DeepSeek V4 Pro 0813",
+        "id": "zai-org/GLM-5.3",
+        "displayName": "GLM-5.3",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "Qwen/Qwen3.8-2.4T-A95B",
@@ -3494,7 +4187,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2.5,
+          "output": 6.25
+        }
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
+        "displayName": "DeepSeek V4 Pro 0813",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 1.32,
+          "output": 3.96
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -3503,7 +4213,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "thinkingmachines/Inkling-Small",
@@ -3512,7 +4226,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 524288,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 0.5,
+          "output": 1.2
+        }
       },
       {
         "id": "moonshotai/Kimi-K3",
@@ -3521,7 +4239,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "thinkingmachines/Inkling",
@@ -3530,7 +4252,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 1,
+          "output": 4.05
+        }
       }
     ]
   },
@@ -3553,7 +4279,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048000,
-        "maxOutputTokens": 1048000
+        "maxOutputTokens": 1048000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "zai-org/GLM-5.3-Flash",
@@ -3562,7 +4292,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1024000,
-        "maxOutputTokens": 1024000
+        "maxOutputTokens": 1024000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "Qwen/Qwen3.8-27B",
+        "displayName": "Qwen3.8 27B",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.45,
+          "output": 3
+        }
       },
       {
         "id": "zai-org/GLM-5.3",
@@ -3571,7 +4318,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1024000,
-        "maxOutputTokens": 1024000
+        "maxOutputTokens": 1024000,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
@@ -3580,7 +4331,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 979000,
-        "maxOutputTokens": 979000
+        "maxOutputTokens": 979000,
+        "cost": {
+          "input": 1.32,
+          "output": 3.96
+        }
       },
       {
         "id": "nvidia/Nemotron-3_5-Lightning",
@@ -3589,7 +4344,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 0.06,
+          "output": 0.24
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -3598,7 +4357,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1024000,
-        "maxOutputTokens": 1024000
+        "maxOutputTokens": 1024000,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "moonshotai/Kimi-K3",
@@ -3607,7 +4370,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 8000
+        "maxOutputTokens": 8000,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "zai-org/GLM-5.2",
@@ -3616,7 +4383,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "moonshotai/Kimi-K2.7-Code",
@@ -3625,7 +4396,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 8000
+        "maxOutputTokens": 8000,
+        "cost": {
+          "input": 0.95,
+          "output": 4
+        }
       },
       {
         "id": "nvidia/Nemotron-3-Ultra-550b-a55b",
@@ -3634,7 +4409,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 1,
+          "output": 3
+        }
       },
       {
         "id": "MiniMaxAI/MiniMax-M3",
@@ -3643,16 +4422,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
-      },
-      {
-        "id": "deepseek-ai/DeepSeek-V4-Pro",
-        "displayName": "DeepSeek V4 Pro",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       }
     ]
   },
@@ -3675,7 +4449,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 32768
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash-Fast",
+        "displayName": "deepseek-ai/DeepSeek-V4.1-Flash-Fast",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 0.6,
+          "output": 2.4
+        }
       },
       {
         "id": "zai-org/GLM-5.3-Flash",
@@ -3684,16 +4475,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "zai-org/GLM-5.3",
-        "displayName": "GLM 5.3",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "zai-org/GLM-5.3-Fast",
@@ -3702,7 +4488,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 2.1,
+          "output": 6.6
+        }
+      },
+      {
+        "id": "zai-org/GLM-5.3",
+        "displayName": "GLM 5.3",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
@@ -3711,7 +4514,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.32,
+          "output": 3.96
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -3720,7 +4527,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.13,
+          "output": 0.26
+        }
       },
       {
         "id": "thinkingmachines/inkling-small",
@@ -3729,7 +4540,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 32768
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 0.5,
+          "output": 1.2
+        }
       },
       {
         "id": "moonshotai/Kimi-K3",
@@ -3738,7 +4553,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "thinkingmachines/inkling",
@@ -3747,16 +4566,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 32768
-      },
-      {
-        "id": "zai-org/GLM-5.2-Fast",
-        "displayName": "GLM 5.2 Fast",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 1,
+          "output": 4.05
+        }
       },
       {
         "id": "zai-org/GLM-5.2",
@@ -3765,16 +4579,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
-        "id": "moonshotai/Kimi-K2.7-Code",
-        "displayName": "Kimi K2.7 Code",
+        "id": "zai-org/GLM-5.2-Fast",
+        "displayName": "GLM 5.2 Fast",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 262000,
-        "maxOutputTokens": 262000
+        "contextWindow": 1048576,
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 2.1,
+          "output": 6.6
+        }
       }
     ]
   },
@@ -3791,13 +4613,109 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "openai-gpt-6-sol",
-        "displayName": "GPT-6 Sol",
+        "id": "claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.125,
+          "output": 0.625
+        }
+      },
+      {
+        "id": "abliteration-abliterated-model-large-v2",
+        "displayName": "Abliterated Large V2",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 3,
+          "output": 5
+        }
+      },
+      {
+        "id": "openai-gpt-61-sol",
+        "displayName": "GPT-6.1 Sol",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2.5,
+          "output": 12.5
+        }
+      },
+      {
+        "id": "xiaomi-mimo-v2-6-flash",
+        "displayName": "MiMo-V2.6-Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.175,
+          "output": 0.35
+        }
+      },
+      {
+        "id": "claude-opus-5-5-fast",
+        "displayName": "Claude Opus 5.5 Fast",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 9.6,
+          "output": 48
+        }
+      },
+      {
+        "id": "claude-sonnet-5-5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2.5,
+          "output": 12.5
+        }
+      },
+      {
+        "id": "aion-labs-aion-3-5",
+        "displayName": "Aion 3.5",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 3.75,
+          "output": 7.5
+        }
+      },
+      {
+        "id": "aion-labs-aion-3-5-mini",
+        "displayName": "Aion 3.5 Mini",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768,
+        "cost": {
+          "input": 0.875,
+          "output": 1.75
+        }
       },
       {
         "id": "openai-gpt-6-luna",
@@ -3806,7 +4724,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.125,
+          "output": 0.625
+        }
+      },
+      {
+        "id": "openai-gpt-6-sol",
+        "displayName": "GPT-6 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2.5,
+          "output": 12.5
+        }
       },
       {
         "id": "claude-opus-5-5",
@@ -3815,7 +4750,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4.8,
+          "output": 24
+        }
       },
       {
         "id": "grok-4-7",
@@ -3824,82 +4763,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 500000,
-        "maxOutputTokens": 200000
-      },
-      {
-        "id": "deepseek-v4-1-flash",
-        "displayName": "DeepSeek V4.1 Flash",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "qwen-3-8-flash",
-        "displayName": "Qwen 3.8 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "mercury-2-5",
-        "displayName": "Mercury 2.5",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 260000,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "openai-gpt-6-astra",
-        "displayName": "GPT-6 Astra",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "openai-gpt-6-astra-pro",
-        "displayName": "GPT-6 Astra Pro",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gemini-3-8-flash",
-        "displayName": "Gemini 3.8 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "claude-fable-5-1",
-        "displayName": "Claude Fable 5.1",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "z-ai-glm-5-3-flash",
-        "displayName": "GLM 5.3 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 200000,
+        "cost": {
+          "input": 2.27,
+          "output": 6.8
+        }
       }
     ]
   },
@@ -3929,112 +4797,160 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "us.openai.gpt-6-luna",
-        "displayName": "GPT-6 Luna (US)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "au.anthropic.claude-opus-5-5",
-        "displayName": "Claude Opus 5.5 (AU)",
+        "id": "eu.anthropic.claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5 (EU)",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.11,
+          "output": 0.55
+        }
       },
       {
-        "id": "global.openai.gpt-6-sol",
-        "displayName": "GPT-6 Sol (Global)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "anthropic.claude-opus-5-5",
-        "displayName": "Claude Opus 5.5",
+        "id": "jp.anthropic.claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5 (JP)",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.11,
+          "output": 0.55
+        }
       },
       {
-        "id": "global.openai.gpt-6-luna",
-        "displayName": "GPT-6 Luna (Global)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "us.openai.gpt-6-sol",
-        "displayName": "GPT-6 Sol (US)",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "eu.anthropic.claude-opus-5-5",
-        "displayName": "Claude Opus 5.5 (EU)",
+        "id": "global.anthropic.claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5 (Global)",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
       },
       {
-        "id": "global.anthropic.claude-opus-5-5",
-        "displayName": "Claude Opus 5.5 (Global)",
+        "id": "anthropic.claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
       },
       {
-        "id": "jp.anthropic.claude-opus-5-5",
-        "displayName": "Claude Opus 5.5 (JP)",
+        "id": "us.anthropic.claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5 (US)",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.11,
+          "output": 0.55
+        }
       },
       {
-        "id": "us.anthropic.claude-opus-5-5",
-        "displayName": "Claude Opus 5.5 (US)",
+        "id": "au.anthropic.claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5 (AU)",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.11,
+          "output": 0.55
+        }
       },
       {
-        "id": "us.openai.gpt-6-astra",
-        "displayName": "GPT-6 Astra (US)",
+        "id": "us.openai.gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol (US)",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2.2,
+          "output": 11
+        }
       },
       {
-        "id": "openai.gpt-6-astra",
-        "displayName": "GPT-6 Astra",
+        "id": "openai.gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2.2,
+          "output": 11
+        }
+      },
+      {
+        "id": "global.openai.gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol (Global)",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "anthropic.claude-sonnet-5-5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "global.anthropic.claude-sonnet-5-5",
+        "displayName": "Claude Sonnet 5.5 (Global)",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "us.anthropic.claude-sonnet-5-5",
+        "displayName": "Claude Sonnet 5.5 (US)",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2.2,
+          "output": 11
+        }
       }
     ]
   },
@@ -4051,13 +4967,43 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "gpt-6-sol",
-        "displayName": "GPT-6 Sol",
+        "id": "claude-haiku-5-5",
+        "displayName": "Claude Haiku 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "gpt-6.1-sol",
+        "displayName": "GPT-6.1 Sol",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "claude-sonnet-5-5",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
       },
       {
         "id": "claude-opus-5-5",
@@ -4066,7 +5012,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
       },
       {
         "id": "gpt-6-luna",
@@ -4075,7 +5025,33 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "gpt-6-sol",
+        "displayName": "GPT-6 Sol",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
+        "id": "grok-4.7",
+        "displayName": "Grok 4.7",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 500000,
+        "maxOutputTokens": 500000
       },
       {
         "id": "gpt-6-astra",
@@ -4084,7 +5060,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "claude-fable-5-1",
@@ -4093,7 +5073,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "grok-4.6",
@@ -4102,7 +5086,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 200000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "claude-opus-5",
@@ -4111,16 +5099,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gpt-5.6-sol",
-        "displayName": "GPT-5.6 Sol",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       },
       {
         "id": "gpt-5.6-luna",
@@ -4129,34 +5112,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gpt-5.6-terra",
-        "displayName": "GPT-5.6 Terra",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1050000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "claude-sonnet-5",
-        "displayName": "Claude Sonnet 5",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "kimi-k2.7-code",
-        "displayName": "Kimi K2.7 Code",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.2,
+          "output": 1.2
+        }
       }
     ]
   },
@@ -4173,13 +5133,43 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "claude-haiku-5-5@default",
+        "displayName": "Claude Haiku 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.5
+        }
+      },
+      {
+        "id": "claude-sonnet-5-5@default",
+        "displayName": "Claude Sonnet 5.5",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 2,
+          "output": 10
+        }
+      },
+      {
         "id": "claude-opus-5-5@default",
         "displayName": "Claude Opus 5.5",
         "supportsVision": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
       },
       {
         "id": "gemini-3.8-flash",
@@ -4189,7 +5179,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
       },
       {
         "id": "claude-fable-5-1@default",
@@ -4198,17 +5192,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gemini-3.7-flash",
-        "displayName": "Gemini 3.7 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 10,
+          "output": 50
+        }
       },
       {
         "id": "gemini-flash-latest",
@@ -4218,7 +5206,25 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 1.5,
+          "output": 9
+        }
+      },
+      {
+        "id": "gemini-3.7-flash",
+        "displayName": "Gemini 3.7 Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
       },
       {
         "id": "xai/grok-4.6",
@@ -4227,7 +5233,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 524288,
-        "maxOutputTokens": 500000
+        "maxOutputTokens": 500000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "claude-opus-5@default",
@@ -4236,27 +5246,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 128000
-      },
-      {
-        "id": "gemini-3.6-flash",
-        "displayName": "Gemini 3.6 Flash",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "gemini-3.5-flash-lite",
-        "displayName": "Gemini 3.5 Flash Lite",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 5,
+          "output": 25
+        }
       },
       {
         "id": "gemini-flash-lite-latest",
@@ -4266,25 +5260,39 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.25,
+          "output": 1.5
+        }
       },
       {
-        "id": "claude-sonnet-5@default",
-        "displayName": "Claude Sonnet 5",
+        "id": "gemini-3.6-flash",
+        "displayName": "Gemini 3.6 Flash",
         "supportsVision": true,
+        "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 128000
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.75,
+          "output": 3.75
+        }
       },
       {
-        "id": "zai-org/glm-5.2-maas",
-        "displayName": "GLM-5.2",
-        "supportsVision": false,
+        "id": "gemini-3.5-flash-lite",
+        "displayName": "Gemini 3.5 Flash Lite",
+        "supportsVision": true,
+        "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.3,
+          "output": 2.5
+        }
       }
     ]
   },
@@ -4301,6 +5309,20 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
+        "id": "qwen3.8-omni-flash",
+        "displayName": "Qwen3.8 Omni Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.47
+        }
+      },
+      {
         "id": "qwen3.8-flash",
         "displayName": "Qwen3.8 Flash",
         "supportsVision": true,
@@ -4308,7 +5330,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.47
+        }
       },
       {
         "id": "qwen3.8-max",
@@ -4318,7 +5344,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
       },
       {
         "id": "deepseek-v4-flash-0731",
@@ -4327,7 +5357,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.2,
+          "output": 0.4
+        }
       },
       {
         "id": "kimi-k3",
@@ -4336,7 +5370,25 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 1048576
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
+      },
+      {
+        "id": "qwen3.7-flash",
+        "displayName": "Qwen3.7 Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.03,
+          "output": 0.13
+        }
       },
       {
         "id": "glm-5.2",
@@ -4345,7 +5397,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "qwen3.7-plus",
@@ -4355,7 +5411,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.4,
+          "output": 1.6
+        }
       },
       {
         "id": "qwen3.7-max",
@@ -4364,7 +5424,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 2.5,
+          "output": 7.5
+        }
       },
       {
         "id": "qwen3.6-flash",
@@ -4374,7 +5438,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.1875,
+          "output": 1.125
+        }
       },
       {
         "id": "qwen3.6-27b",
@@ -4384,7 +5452,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.6,
+          "output": 3.6
+        }
       },
       {
         "id": "qwen3.6-max-preview",
@@ -4393,27 +5465,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "qwen3.6-35b-a3b",
-        "displayName": "Qwen3.6 35B-A3B",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 65536
-      },
-      {
-        "id": "qwen3.6-plus",
-        "displayName": "Qwen3.6 Plus",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 1.3,
+          "output": 7.8
+        }
       }
     ]
   },
@@ -4444,7 +5500,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1000000,
-        "maxOutputTokens": 393216
+        "maxOutputTokens": 393216,
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        }
       },
       {
         "id": "deepseek-v4-pro",
@@ -4453,7 +5513,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 393216
+        "maxOutputTokens": 393216,
+        "cost": {
+          "input": 0.66,
+          "output": 1.98
+        }
       }
     ]
   },
@@ -4477,7 +5541,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 1048576,
+        "cost": {
+          "input": 3,
+          "output": 15
+        }
       },
       {
         "id": "kimi-k2.7-code",
@@ -4487,7 +5555,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.95,
+          "output": 4
+        }
       },
       {
         "id": "kimi-k2.7-code-highspeed",
@@ -4497,7 +5569,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 1.9,
+          "output": 8
+        }
       },
       {
         "id": "kimi-k2.6",
@@ -4507,7 +5583,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.95,
+          "output": 4
+        }
       }
     ]
   },
@@ -4531,7 +5611,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.37,
+          "output": 1.25
+        }
       },
       {
         "id": "glm-5.3-flash",
@@ -4549,7 +5633,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "glm-5.3",
@@ -4566,7 +5654,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "glm-5.2",
@@ -4583,7 +5675,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": "max"
         },
         "contextWindow": 1000000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "glm-5v-turbo",
@@ -4593,7 +5689,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 200000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 5,
+          "output": 22
+        }
       },
       {
         "id": "glm-5.1",
@@ -4602,7 +5702,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 200000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "glm-5",
@@ -4611,20 +5715,28 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 204800,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "glm-4.7-flash",
-        "displayName": "GLM-4.7-Flash",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 200000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1,
+          "output": 3.2
+        }
       },
       {
         "id": "glm-4.7-flashx",
         "displayName": "GLM-4.7-FlashX",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 200000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.07,
+          "output": 0.4
+        }
+      },
+      {
+        "id": "glm-4.7-flash",
+        "displayName": "GLM-4.7-Flash",
         "supportsVision": false,
         "supportsTools": true,
         "supportsReasoning": true,
@@ -4652,7 +5764,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1049000,
-        "maxOutputTokens": 262000
+        "maxOutputTokens": 262000,
+        "cost": {
+          "input": 0.15,
+          "output": 0.5
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
@@ -4661,7 +5777,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.44,
+          "output": 1.32
+        }
       },
       {
         "id": "zai-org/GLM-5.3",
@@ -4670,16 +5790,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1049000,
-        "maxOutputTokens": 262000
-      },
-      {
-        "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
-        "displayName": "DeepSeek V4 Pro 0813",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 262000,
+        "cost": {
+          "input": 1.4,
+          "output": 4.4
+        }
       },
       {
         "id": "Qwen/Qwen3.8-2.4T-A95B",
@@ -4688,7 +5803,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1049000,
-        "maxOutputTokens": 131000
+        "maxOutputTokens": 131000,
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
+        "displayName": "DeepSeek V4 Pro 0813",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 1.32,
+          "output": 3.96
+        }
       },
       {
         "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -4697,7 +5829,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 384000
+        "maxOutputTokens": 384000,
+        "cost": {
+          "input": 0.22,
+          "output": 0.66
+        }
       },
       {
         "id": "moonshotai/Kimi-K3",
@@ -4706,7 +5842,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 262000
+        "maxOutputTokens": 262000,
+        "cost": {
+          "input": 2.7,
+          "output": 13.5
+        }
       },
       {
         "id": "tencent/Hy3",
@@ -4715,7 +5855,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.132,
+          "output": 0.528
+        }
       },
       {
         "id": "meituan-longcat/LongCat-2.0",
@@ -4724,7 +5868,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1049000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.75,
+          "output": 2.95
+        }
       },
       {
         "id": "zai-org/GLM-5.2",
@@ -4733,7 +5881,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1049000,
-        "maxOutputTokens": 262000
+        "maxOutputTokens": 262000,
+        "cost": {
+          "input": 1.302,
+          "output": 4.092
+        }
       },
       {
         "id": "moonshotai/Kimi-K2.7-Code",
@@ -4742,7 +5894,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.85916,
+          "output": 3.8
+        }
       },
       {
         "id": "google/gemma-4-12B-it",
@@ -4751,7 +5907,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": false,
         "contextWindow": 262144,
-        "maxOutputTokens": 262144
+        "maxOutputTokens": 262144,
+        "cost": {
+          "input": 0.1,
+          "output": 0.3
+        }
       }
     ]
   },
@@ -4774,17 +5934,12 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
-        "contextWindow": 1048576,
-        "maxOutputTokens": 512000
-      },
-      {
-        "id": "MiniMax-M2.7-highspeed",
-        "displayName": "MiniMax-M2.7-highspeed",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 204800,
-        "maxOutputTokens": 131072
+        "contextWindow": 1000000,
+        "maxOutputTokens": 512000,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       },
       {
         "id": "MiniMax-M2.7",
@@ -4793,7 +5948,24 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 204800,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
+      },
+      {
+        "id": "MiniMax-M2.7-highspeed",
+        "displayName": "MiniMax-M2.7-highspeed",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 204800,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.6,
+          "output": 2.4
+        }
       },
       {
         "id": "MiniMax-M2.5-highspeed",
@@ -4802,7 +5974,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 204800,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.6,
+          "output": 2.4
+        }
       },
       {
         "id": "MiniMax-M2.5",
@@ -4811,7 +5987,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 204800,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.3,
+          "output": 1.2
+        }
       }
     ]
   },
@@ -4866,7 +6046,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1024000,
-        "maxOutputTokens": 64000
+        "maxOutputTokens": 64000,
+        "cost": {
+          "input": 0.834,
+          "output": 2.501
+        }
       },
       {
         "id": "hy3",
@@ -4901,16 +6085,6 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "hasLogo": true,
     "models": [
       {
-        "id": "doubao-seed-character-260628",
-        "displayName": "Seed Character",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 256000,
-        "maxOutputTokens": 256000
-      },
-      {
         "id": "doubao-seed-2-1-pro-260628",
         "displayName": "Seed 2.1 Pro",
         "supportsVision": true,
@@ -4918,17 +6092,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 256000
-      },
-      {
-        "id": "doubao-seed-evolving",
-        "displayName": "Seed Evolving",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.8906,
+          "output": 4.45301
+        }
       },
       {
         "id": "doubao-seed-2-1-turbo-260628",
@@ -4938,41 +6106,39 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.4453,
+          "output": 2.22651
+        }
       },
       {
-        "id": "doubao-seed-2-0-lite-260428",
-        "displayName": "Seed 2.0 Lite",
+        "id": "doubao-seed-evolving",
+        "displayName": "Seed Evolving",
         "supportsVision": true,
         "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.8906,
+          "output": 4.45301
+        }
       },
       {
-        "id": "doubao-seed-2-0-mini-260428",
-        "displayName": "Seed 2.0 Mini",
+        "id": "doubao-seed-character-260628",
+        "displayName": "Seed Character",
         "supportsVision": true,
         "supportsVideo": true,
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 131072
-      },
-      {
-        "id": "doubao-seed-2-0-code-preview-260215",
-        "displayName": "Seed 2.0 Code",
-        "supportsVision": true,
-        "supportsVideo": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "thinkingLevelMap": {
-          "xhigh": null,
-          "max": null
-        },
-        "contextWindow": 262144,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.11875,
+          "output": 0.29687
+        }
       },
       {
         "id": "doubao-seed-2-0-pro-260215",
@@ -4986,7 +6152,57 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "max": null
         },
         "contextWindow": 256000,
-        "maxOutputTokens": 128000
+        "maxOutputTokens": 128000,
+        "cost": {
+          "input": 0.47499,
+          "output": 2.37494
+        }
+      },
+      {
+        "id": "doubao-seed-2-0-lite-260428",
+        "displayName": "Seed 2.0 Lite",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 256000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.08906,
+          "output": 0.53436
+        }
+      },
+      {
+        "id": "doubao-seed-2-0-mini-260428",
+        "displayName": "Seed 2.0 Mini",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 256000,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.02969,
+          "output": 0.29687
+        }
+      },
+      {
+        "id": "doubao-seed-2-0-code-preview-260215",
+        "displayName": "Seed 2.0 Code",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "thinkingLevelMap": {
+          "xhigh": null,
+          "max": null
+        },
+        "contextWindow": 262144,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.47499,
+          "output": 2.37494
+        }
       }
     ]
   },
@@ -5010,7 +6226,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1000000,
-        "maxOutputTokens": 1000000
+        "maxOutputTokens": 65536,
+        "cost": {
+          "input": 0.959,
+          "output": 2.741
+        }
       },
       {
         "id": "step-3.7-flash",
@@ -5020,7 +6240,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.185,
+          "output": 1.11
+        }
       },
       {
         "id": "step-3.5-flash-2603",
@@ -5029,7 +6253,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.3
+        }
       },
       {
         "id": "step-3.5-flash",
@@ -5038,7 +6266,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 256000,
-        "maxOutputTokens": 256000
+        "maxOutputTokens": 256000,
+        "cost": {
+          "input": 0.1,
+          "output": 0.3
+        }
       },
       {
         "id": "stepaudio-2.5-asr",
@@ -5082,7 +6314,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.435,
+          "output": 0.87
+        }
       },
       {
         "id": "mimo-v2.6-flash",
@@ -5092,7 +6328,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "mimo-v2.6-pro-ultraspeed",
@@ -5102,7 +6342,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 4.35,
+          "output": 8.7
+        }
       },
       {
         "id": "mimo-v2.5-pro-ultraspeed",
@@ -5111,7 +6355,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.305,
+          "output": 2.61
+        }
       },
       {
         "id": "mimo-v2.5",
@@ -5121,7 +6369,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.14,
+          "output": 0.28
+        }
       },
       {
         "id": "mimo-v2.5-pro",
@@ -5130,129 +6382,11 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "contextWindow": 1048576,
-        "maxOutputTokens": 131072
-      }
-    ]
-  },
-  {
-    "id": "codebuddy",
-    "displayName": "CodeBuddy / WorkBuddy",
-    "group": "subscription",
-    "kind": "chat",
-    "protocol": "openai-completions",
-    "baseUrl": "https://copilot.tencent.com/v2",
-    "apiKeyUrl": "https://www.codebuddy.cn",
-    "requiresApiKey": true,
-    "hasLogo": true,
-    "supportsOAuth": true,
-    "models": [
-      {
-        "id": "hy4-preview",
-        "displayName": "Hy4 Preview",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "glm-5.3-flash",
-        "displayName": "GLM-5.3 Flash",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "glm-5.3",
-        "displayName": "GLM-5.3",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "hy3",
-        "displayName": "Hy3",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "glm-5.2",
-        "displayName": "GLM-5.2",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "minimax-m3",
-        "displayName": "MiniMax M3",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 204800,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "deepseek-v4-pro",
-        "displayName": "DeepSeek V4 Pro",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "deepseek-v4-flash",
-        "displayName": "DeepSeek V4 Flash",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 1000000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "kimi-k2.6",
-        "displayName": "Kimi K2.6",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 262144,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "glm-5.1",
-        "displayName": "GLM-5.1",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 200000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "glm-5v-turbo",
-        "displayName": "GLM-5V Turbo",
-        "supportsVision": true,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 200000,
-        "maxOutputTokens": 64000
-      },
-      {
-        "id": "minimax-m2.7",
-        "displayName": "MiniMax M2.7",
-        "supportsVision": false,
-        "supportsTools": true,
-        "supportsReasoning": true,
-        "contextWindow": 204800,
-        "maxOutputTokens": 64000
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 0.435,
+          "output": 0.87
+        }
       }
     ]
   }

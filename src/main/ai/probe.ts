@@ -1,3 +1,7 @@
+import type { Tool } from '@earendil-works/pi-ai'
+import type { TSchema } from 'typebox'
+
+import type { ModelCheckup } from '../../shared/agentTeam'
 import {
   looksLikeEmbeddingModelId,
   type ProbeFailure,
@@ -9,7 +13,7 @@ import { requestEmbeddings } from './embedding'
 import { requestJudgement } from './judge'
 import { requestSpeech } from './speech'
 import { probeStt } from './stt'
-import { completeText, userMessage } from './piCompletion'
+import { complete, completeText, userMessage } from './piCompletion'
 import type { ModelConfig, ProviderConfig } from './types'
 
 /**
@@ -260,5 +264,72 @@ export async function listRemoteModels(
     return { ok: true, models }
   } catch (error) {
     return { ok: false, error: describeProbeError(error) }
+  }
+}
+
+/** 64×64 的纯红图。看图体检问它是什么颜色：答案是确定的，不靠猜 */
+const CHECKUP_RED_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAeUlEQVR4nO3PQQkAMAzAwCqpf1ETMxF7HINABFzm7H7dcEEDWtCAFjSgBQ1oQQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFj13PLIEAOXyUUwAAAABJRU5ErkJggg=='
+
+const CHECKUP_TOOL: Tool = {
+  name: 'ping',
+  description: 'Health check. Call it whenever you are asked to.',
+  parameters: { type: 'object', properties: {}, additionalProperties: false } as unknown as TSchema
+}
+
+/**
+ * 入职体检：这个对话模型在用户这里能不能当队员。
+ *
+ * 只查「能不能用」，不评能力（设计稿 5.2 节）：
+ * - **工具调用**：让它调一个 `ping`。有些中转网关会把工具调用吞掉，配置看着全对、
+ *   一干活就只会说话 —— 这是最常见的坑，所以必查。答错的偶尔是模型自己没听话，
+ *   所以不调的话再问一次，两次都不调才算没过。
+ * - **看图**：只在它声称能看图时查。给一张纯红图问颜色 —— 答案是确定的，
+ *   查的是图到底有没有送到它眼前（有的网关会把图悄悄丢掉）。
+ *
+ * 每项一个最短的请求，花费可以忽略；由调用方缓存结果，不会每次都测。
+ */
+export async function checkupChatModel(
+  provider: ProviderConfig,
+  modelId: string,
+  now: () => number = Date.now
+): Promise<ModelCheckup> {
+  const at = now()
+  const signal = (): AbortSignal => AbortSignal.timeout(PROBE_TIMEOUT_MS)
+  const callsTool = async (): Promise<boolean> => {
+    const message = await complete(provider, modelId, {
+      messages: [userMessage('Call the `ping` tool now. Do not answer with text.')],
+      tools: [CHECKUP_TOOL],
+      signal: signal()
+    })
+    return message.content.some((part) => part.type === 'toolCall')
+  }
+  let tools: ModelCheckup['tools']
+  try {
+    tools = (await callsTool()) || (await callsTool()) ? 'ok' : 'fail'
+  } catch (error) {
+    return { at, reachable: false, tools: 'fail', failure: describeProbeError(error) }
+  }
+
+  const model = provider.models.find((item) => item.id === modelId)
+  if (model?.supportsVision !== true) return { at, reachable: true, tools }
+  try {
+    const answer = await completeText(provider, modelId, {
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', data: CHECKUP_RED_PNG, mimeType: 'image/png' },
+            { type: 'text', text: 'What colour is this image? Answer with one English word.' }
+          ],
+          timestamp: 0
+        }
+      ],
+      signal: signal()
+    })
+    return { at, reachable: true, tools, vision: /red|红/i.test(answer) ? 'ok' : 'fail' }
+  } catch {
+    // 带图的请求被拒（400 之类），就是看不了图
+    return { at, reachable: true, tools, vision: 'fail' }
   }
 }

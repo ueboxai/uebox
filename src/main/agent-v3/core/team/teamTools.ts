@@ -39,9 +39,12 @@ import {
   type TeamStore
 } from './teamStore'
 import { sameTeamModel } from '../../../../shared/agentTeam'
+import { getTargetProjectPath } from '../projectTargetContext'
+import { checkupPassed } from './modelCheckups'
 import {
   canChooseModels,
   describeCandidates,
+  describeCheckup,
   modelLabel,
   routeMember,
   type MemberRoute,
@@ -181,7 +184,15 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
       .boolean()
       .optional()
       .default(false)
-      .describe('只读：写工具根本不在它手上。评审、试玩、找问题这类产出是报告的角色用它')
+      .describe('只读：写工具根本不在它手上。评审、试玩、找问题这类产出是报告的角色用它'),
+    role_type: z
+      .string()
+      .max(20)
+      .optional()
+      .describe(
+        '岗位的粗类型，一两个字的词，如 策划、搭建、美术、程序、审核、试玩。同一类岗位用同一个词：' +
+          '盒子按它把每个模型干过的活分开记，以后招人时你看得到谁干哪类活靠谱'
+      )
   })
   const fullInput = baseInput.extend({
     model: z
@@ -210,11 +221,13 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
       '岗位、人设、工具范围都由你决定，盒子不预设任何角色。' +
       (choosable
         ? '\n\n每个队员可以用不同的模型。看这个岗位的活要多强、量多大、要不要换一家的眼光来查，自己判断；' +
-          '用户在任务板上亲手改过的模型（回话里标着「用户定的」），除非用户开口别再改。可用模型：\n' +
+          '用户在任务板上亲手改过的模型（回话里标着「用户定的」），除非用户开口别再改。' +
+          '某个岗位的活老被用户打回，可以同名再招一次换个模型，回话里跟用户说清依据。' +
+          '挑了你以外的模型，盒子会先给它做一次入职体检（通不通、会不会调工具），没过会告诉你。可用模型：\n' +
           describeCandidates(models)
         : ''),
     input: hireInput,
-    execute: async ({ name, role, model, model_reason, namespaces, read_only }) => {
+    execute: async ({ name, role, model, model_reason, namespaces, read_only, role_type }) => {
       if (name.trim().toLowerCase() === PRODUCER) {
         throw new Error(`"${PRODUCER}" 是留给制作人（你）的名字，换一个`)
       }
@@ -227,12 +240,19 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
         }
       }
       const existing = await deps.store.findMember(name)
-      const choice = pickMemberModel(models, existing, choosable ? model : undefined, model_reason)
+      const choice = await pickMemberModel(
+        models,
+        existing,
+        choosable ? model : undefined,
+        model_reason
+      )
+      const roleType = role_type?.trim() || existing?.roleType
       const member: TeamMember = {
         name: existing?.name ?? name.trim(),
         persona: role,
         tier: existing?.tier ?? 'strong',
         ...choice,
+        ...(roleType ? { roleType } : {}),
         ...(namespaces?.length ? { namespaces } : {}),
         readOnly: Boolean(read_only),
         hiredAt: existing?.hiredAt ?? now()
@@ -268,17 +288,18 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
 /**
  * 招人或改设定时，这个队员的模型怎么定。
  *
- * - 指定了：必须在候选名单里；和制作人不同的要写理由（用户在任务板上看理由）。
+ * - 指定了：必须在候选名单里；和制作人不同的要写理由（用户在任务板上看理由），
+ *   还要过入职体检（`modelCheckups.ts`）—— 不会调工具的模型招进来也干不了活。
  * - 没指定、是新人：钉成制作人此刻的模型。不钉的话用户之后在输入框换模型，
  *   整个团队会悄悄跟着换 —— 招人时定下的就该一直是它。
  * - 没指定、是老队员：不变。老名册里没钉模型的队员照旧按 `tier` 走。
  */
-function pickMemberModel(
+async function pickMemberModel(
   models: TeamModels | undefined,
   existing: TeamMember | undefined,
   requested: string | undefined,
   reason: string | undefined
-): Pick<TeamMember, 'model' | 'modelReason' | 'modelBy'> {
+): Promise<Pick<TeamMember, 'model' | 'modelReason' | 'modelBy'>> {
   const keep = {
     ...(existing?.model ? { model: existing.model } : {}),
     ...(existing?.modelReason ? { modelReason: existing.modelReason } : {}),
@@ -303,6 +324,13 @@ function pickMemberModel(
     throw new Error(
       `给 ${picked.name} 写一句理由（model_reason）：为什么这个岗位用它。用户在任务板上看得到`
     )
+  }
+  // 制作人自己用的那个正在跑，用不着体检
+  if (models.checkup && !sameTeamModel(model, models.producer)) {
+    const checkup = await models.checkup(model)
+    if (!checkupPassed(checkup)) {
+      throw new Error(`${picked.name} 入职体检没过：${describeCheckup(checkup)}。换一个模型`)
+    }
   }
   return { model, ...(why ? { modelReason: why } : {}), modelBy: 'producer' }
 }
@@ -359,12 +387,27 @@ function createSendTool(
     // 回话和记账要说的是这一件实际用的
     let current = member
     let route: MemberRoute = { fellBack: false }
+    let startedAt = Date.now()
+    // 记一笔履历：哪个模型、干哪类活、交没交回来。说不准是哪个模型（老 fast 档）就不记
+    const remember = (outcome: 'done' | 'unfinished'): void => {
+      if (!route.used || !deps.models?.record) return
+      void deps.models
+        .record({
+          kind: 'task',
+          model: route.used,
+          ...(current.roleType ? { roleType: current.roleType } : {}),
+          outcome,
+          ms: Date.now() - startedAt
+        })
+        .catch(() => undefined)
+    }
     const previous = busy.get(key) ?? Promise.resolve()
     const run = previous
       .catch(() => undefined)
       .then(async () => {
         current = (await deps.store.findMember(member.name)) ?? member
         route = await routeMember(deps.models, current)
+        startedAt = Date.now()
         const ledger = new WriteLedger()
         ctx.setAbortNote?.(() => formatInterruptedWrites(ledger.list(), member.readOnly))
         // 上次被停在半截工具调用上的话，那条调用没有结果 —— 摘掉，不然它一睁眼
@@ -396,14 +439,23 @@ function createSendTool(
       })
     busy.set(key, run)
     try {
-      const result = await run
+      let result: SubAgentResult
+      try {
+        result = await run
+      } catch (error) {
+        remember('unfinished')
+        throw error
+      }
+      remember('done')
       // 按台账记下它实际改了什么 —— `team_status` 的「最近改动」读它，不靠队员自己说
       await deps.store
         .recordActivity({
           who: member.name,
           what: message.split('\n').find((line) => line.trim()) ?? '',
           writes: result.writes ? summarizeDoneWrites(result.writes) : '',
-          ...(route.used ? { model: route.used } : {})
+          ...(route.used ? { model: route.used } : {}),
+          // 用户以后在任务板上打回这件活时，履历要记到同一个工程上
+          ...(getTargetProjectPath() ? { project: getTargetProjectPath() } : {})
         })
         .catch(() => undefined)
       const snapshot = await autoSnapshot(deps, member.name, message, result)

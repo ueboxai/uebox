@@ -109,6 +109,8 @@ export interface TeamActivity {
    * （见 docs/团队选模型与履历设计-2026-10-08.md）。老记录和没钉模型的老队员没有
    */
   model?: TeamModel
+  /** 在哪个工程里干的。用户打回这件活时，履历记到同一个工程上 */
+  project?: string
 }
 
 /** 每个团队目录一条写入链，所有 store 实例共用（见 `createTeamStore` 里的 `serial`） */

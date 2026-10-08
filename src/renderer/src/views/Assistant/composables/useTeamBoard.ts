@@ -19,12 +19,14 @@ import { useI18n } from 'vue-i18n'
 import type { SettingsView } from '@core/shared/aiProvider'
 import {
   teamModelCandidates,
+  teamModelLabel,
   type TeamModel,
   type TeamModelCandidate,
   type TeamStateView
 } from '@core/shared/agentTeam'
 import { agentV3API } from '@renderer/api/agentV3'
 import { aiProviderAPI } from '@renderer/api/aiProvider'
+import { describeProbeFailure } from '@renderer/views/System/Preferences/panels/AIProviders/probeCopy'
 import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
 import { message } from '@renderer/utils/messageManager'
 
@@ -118,13 +120,31 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
     }
   }
   const active = computed(() => team.value !== null)
+  const modelChoices = computed(() =>
+    modelSettings.value ? teamModelCandidates(modelSettings.value.providers) : []
+  )
   watch(active, (on) => on && void loadModels(), { immediate: true })
 
+  // 换之前主进程要给新模型做一次入职体检（几秒到十几秒），这段时间得让用户知道在等什么
   const setMemberModel = async (name: string, model: TeamModel): Promise<void> => {
     const sessionId = agentSessionId.value
     if (!sessionId) return
-    const result = await agentV3API.teamMemberModel(sessionId, name, model).catch(() => null)
-    if (!result?.success) message.error(t('assistant.teamBoard.model.changeFailed'))
+    const label = teamModelLabel(modelChoices.value, model)
+    const close = message.loading(t('assistant.teamBoard.model.checking', { model: label }), 0)
+    const result = await agentV3API
+      .teamMemberModel(sessionId, name, model)
+      .catch(() => null)
+      .finally(close)
+    if (result?.success) return
+    if (result?.checkup) {
+      const checkup = result.checkup
+      const reason = !checkup.reachable
+        ? describeProbeFailure(checkup.failure)
+        : t('assistant.teamBoard.model.checkupNoTools')
+      message.error(t('assistant.teamBoard.model.checkupFailed', { model: label, reason }))
+      return
+    }
+    message.error(t('assistant.teamBoard.model.changeFailed'))
   }
 
   return {
@@ -133,9 +153,7 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
     refresh,
     reopen,
     end,
-    modelChoices: computed(() =>
-      modelSettings.value ? teamModelCandidates(modelSettings.value.providers) : []
-    ),
+    modelChoices,
     modelsLoaded: computed(() => modelSettings.value !== null),
     loadModels,
     setMemberModel

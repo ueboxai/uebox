@@ -23,7 +23,7 @@ import type {
 } from '../shared/assetDependency'
 import type { AgentTurnUsage } from '../shared/agentUsage'
 import type { EditorHealthResult } from '../shared/editorHealth'
-import type { TeamStateView } from '../shared/agentTeam'
+import type { ModelCheckup, TeamStateView } from '../shared/agentTeam'
 import type { AgentReviewResult, AgentReviewTarget } from '../shared/agentReview'
 import type { SideChatContext } from '../shared/sideChat'
 import type { ChatSyncPatch } from '../shared/chatWindowSync'
@@ -3310,13 +3310,13 @@ declare global {
         sessionId: string
         taskId: string
       }) => Promise<{ success: boolean; error?: string }>
-      /** 给一个队员换模型，记成用户定的。正在跑也行：它下一件活开始用 */
+      /** 给一个队员换模型，记成用户定的。先过入职体检，没过带回 checkup。正在跑也行：它下一件活开始用 */
       teamMemberModel: (args: {
         sessionId: string
         name: string
         providerId: string
         modelId: string
-      }) => Promise<{ success: boolean; error?: string }>
+      }) => Promise<{ success: boolean; error?: string; checkup?: ModelCheckup }>
       /** 结束团队模式。正在跑的时候不行（errorKey 'running'）；任务板和队员留在盘上 */
       teamEnd: (args: {
         sessionId: string

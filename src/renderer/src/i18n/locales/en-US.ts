@@ -2637,7 +2637,11 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         chatModel: 'chat model',
         unavailable: "{model} isn't available right now; its work uses the producer's model",
         change: 'Click to change the model. It applies from its next task',
-        changeFailed: "Couldn't change the model. Try again later"
+        changeFailed: "Couldn't change the model. Try again later",
+        checking: 'Checking {model}: is it reachable, and can it call tools…',
+        checkupFailed: "{model} didn't pass the check, so the model wasn't changed: {reason}",
+        checkupNoTools:
+          "Asked twice to call a tool, it didn't. A model like that can't work as a teammate"
       },
       receipt: {
         read: 'read',

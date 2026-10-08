@@ -4,12 +4,33 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../ai/store', () => ({ readSettings: vi.fn() }))
+// 体检缓存和履历的目录：二期的用例各指一个临时目录；其余用例也落在系统临时目录，别写进仓库
+const paths = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  dir: `${(require('node:os') as typeof import('node:os')).tmpdir()}/team-models-test-default`
+}))
+vi.mock('./teamSession', () => ({
+  teamModelsDir: () => paths.dir,
+  trackRecordFile: () => `${paths.dir}/track-record.jsonl`
+}))
+const findCatalogEntry = vi.hoisted(() => vi.fn())
+vi.mock('../../../ai/catalog', () => ({ findCatalogEntry }))
+const checkupChatModel = vi.hoisted(() => vi.fn())
+vi.mock('../../../ai/probe', () => ({ checkupChatModel }))
 
 import { teamModelCandidates, type TeamModel } from '../../../../shared/agentTeam'
 import type { SubAgentResult } from '../../tools/builtin/task'
 import { createTeamStore, type TeamStore } from './teamStore'
 import { createTeamTools, type RunMemberInput, type TeamToolDeps } from './teamTools'
-import { assignMemberModel, loadTeamModels, routeMember, type TeamModels } from './teamModels'
+import {
+  assignMemberModel,
+  describeCandidates,
+  loadTeamModels,
+  recordReopen,
+  routeMember,
+  type TeamModels
+} from './teamModels'
+import { createTrackRecord } from './trackRecord'
 import { buildTeamStatus } from './teamStatus'
 
 const CLAUDE: TeamModel = { providerId: 'anthropic', modelId: 'claude-opus-5-5' }
@@ -414,5 +435,206 @@ describe('派活时能不能用，和任务板同一条规矩', () => {
       models.isAvailable({ providerId: 'deepseek', modelId: 'deepseek-ocr' })
     ).resolves.toBe(false)
     await expect(models.isAvailable(GPT)).resolves.toBe(false)
+  })
+})
+
+describe('二期：简历、体检、履历', () => {
+  let dir: string
+  let store: TeamStore
+  let runs: RunMemberInput[]
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'team-models-p2-'))
+    paths.dir = join(dir, 'team-models')
+    store = createTeamStore({ stateDir: join(dir, 'state'), workspaceDir: join(dir, 'ws') })
+    await store.ensure()
+    runs = []
+    findCatalogEntry.mockReset()
+    checkupChatModel.mockReset()
+    const { readSettings } = await import('../../../ai/store')
+    vi.mocked(readSettings).mockResolvedValue({
+      version: 1,
+      roles: {},
+      providers: [
+        { ...PROVIDERS[0], baseUrl: 'https://api.anthropic.com' },
+        { ...PROVIDERS[1], baseUrl: 'https://my-proxy.example/v1' },
+        { ...PROVIDERS[2], baseUrl: 'https://api.openai.com/v1' }
+      ]
+    } as never)
+  })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  function tools(
+    models: TeamModels,
+    run?: TeamToolDeps['runMember']
+  ): (name: string, args: unknown) => Promise<string> {
+    const list = createTeamTools({
+      store,
+      objective: '做一个跳台关卡',
+      namespaces: ['ue.actor'],
+      models,
+      runMember:
+        run ??
+        (async (input) => {
+          runs.push(input)
+          return { text: '好了', messageCount: 1 }
+        }),
+      runAcceptance: async () => 'VERDICT: PASS'
+    })
+    const byName = Object.fromEntries(list.map((tool) => [tool.name, tool]))
+    return async (name, args) => {
+      const result = await byName[name]!.execute('call-1', args as never)
+      return result.content.map((c) => ('text' in c ? c.text : '')).join('')
+    }
+  }
+
+  it('标价只认直连官方的：地址和内置目录对不上的（中转网关）不标', async () => {
+    findCatalogEntry.mockImplementation((id: string) =>
+      id === 'anthropic'
+        ? {
+            baseUrl: 'https://api.anthropic.com',
+            models: [{ id: 'claude-opus-5-5', cost: { input: 5, output: 25 } }]
+          }
+        : id === 'deepseek'
+          ? {
+              baseUrl: 'https://api.deepseek.com',
+              models: [{ id: 'deepseek-chat', cost: { input: 0.3, output: 1.2 } }]
+            }
+          : undefined
+    )
+    const models = (await loadTeamModels(CLAUDE))!
+    expect(models.candidates.map((c) => c.price)).toEqual([
+      { input: 5, output: 25 },
+      undefined,
+      undefined
+    ])
+    expect(describeCandidates(models)).toContain(
+      'Claude Opus 5.5（Anthropic，能看图，上下文 1M，官方标价 $5/$25 每百万 token（输入/输出）） ← 你自己用的'
+    )
+  })
+
+  it('简历里写上履历和体检没过的原因', async () => {
+    const record = createTrackRecord(join(paths.dir, 'track-record.jsonl'))
+    await record.add({ kind: 'task', at: 1, model: DEEPSEEK, roleType: '搭建', outcome: 'done' })
+    await record.add({ kind: 'reopened', at: 2, model: DEEPSEEK, roleType: '搭建' })
+    checkupChatModel.mockResolvedValue({ at: 3, reachable: true, tools: 'fail' })
+    const first = (await loadTeamModels(CLAUDE))!
+    await first.checkup!(GPT)
+    const lines = describeCandidates((await loadTeamModels(CLAUDE))!).split('\n')
+    expect(lines).toContain('    在用户项目里：搭建 1 件（被用户打回 1）')
+    expect(lines).toContain('    体检没过：让它调一个工具，两次都没调')
+    expect(lines.indexOf('    体检没过：让它调一个工具，两次都没调')).toBe(
+      lines.findIndex((line) => line.startsWith('- openai/gpt-6')) + 1
+    )
+  })
+
+  it('招人挑了体检没过的模型：拒掉、说清原因，名册不动；挑制作人自己那个不体检', async () => {
+    checkupChatModel.mockResolvedValue({ at: 1, reachable: true, tools: 'fail' })
+    const call = tools((await loadTeamModels(CLAUDE))!)
+    await expect(
+      call('team_hire', { name: '审核', role: '查', model: 'openai/gpt-6', model_reason: '换一家' })
+    ).rejects.toThrow('gpt-6 入职体检没过：让它调一个工具，两次都没调。换一个模型')
+    expect(await store.findMember('审核')).toBeUndefined()
+    await call('team_hire', { name: '策划', role: '想', model: 'anthropic/claude-opus-5-5' })
+    expect(checkupChatModel).toHaveBeenCalledOnce()
+  })
+
+  it('岗位类型记在名册上；交回来、没干完都记进履历，带上类型和实际用的模型', async () => {
+    checkupChatModel.mockResolvedValue({ at: 1, reachable: true, tools: 'ok' })
+    let fail = false
+    const call = tools((await loadTeamModels(CLAUDE))!, async () => {
+      if (fail) throw new Error('stopped')
+      return { text: '好了', messageCount: 1 }
+    })
+    await call('team_hire', {
+      name: '搭建',
+      role: '搭',
+      role_type: '搭建',
+      model: 'deepseek/deepseek-chat',
+      model_reason: '量大'
+    })
+    expect(await store.findMember('搭建')).toMatchObject({ roleType: '搭建' })
+    // 改设定不提类型：类型不变
+    await call('team_hire', { name: '搭建', role: '搭得更快' })
+    expect(await store.findMember('搭建')).toMatchObject({ roleType: '搭建' })
+
+    await call('team_send', { to: '搭建', message: '一' })
+    fail = true
+    await expect(call('team_send', { to: '搭建', message: '二' })).rejects.toThrow('stopped')
+    await new Promise((r) => setTimeout(r, 20))
+    const entries = await createTrackRecord(join(paths.dir, 'track-record.jsonl')).all()
+    expect(entries).toEqual([
+      expect.objectContaining({ kind: 'task', model: DEEPSEEK, roleType: '搭建', outcome: 'done' }),
+      expect.objectContaining({
+        kind: 'task',
+        model: DEEPSEEK,
+        roleType: '搭建',
+        outcome: 'unfinished'
+      })
+    ])
+  })
+
+  it('用户打回一件活：记到当时干这件活的模型头上，不是它现在的模型', async () => {
+    await store.putMember({
+      name: '搭建',
+      persona: 'a',
+      tier: 'strong',
+      model: GPT,
+      roleType: '搭建',
+      readOnly: false,
+      hiredAt: 1
+    })
+    await store.recordActivity({
+      who: '搭建',
+      what: '搭',
+      writes: '',
+      model: DEEPSEEK,
+      project: 'D:/A'
+    })
+    await store.patchBoard([{ id: 't1', title: '灰盒', owner: '搭建', status: 'done' }])
+    await store.patchBoard([{ id: 't2', title: '没人管的', status: 'done' }])
+    const added: unknown[] = []
+    const add = async (entry: unknown): Promise<void> => {
+      added.push(entry)
+    }
+    await recordReopen(store, 't1', add, () => 9)
+    await recordReopen(store, 't2', add, () => 9)
+    await recordReopen(store, 'nope', add, () => 9)
+    expect(added).toEqual([
+      { kind: 'reopened', at: 9, model: DEEPSEEK, roleType: '搭建', project: 'D:/A' }
+    ])
+  })
+
+  it('用户在任务板上换模型：体检没过就不换，带回结论', async () => {
+    await store.putMember({
+      name: '审核',
+      persona: 'a',
+      tier: 'strong',
+      model: CLAUDE,
+      readOnly: true,
+      hiredAt: 1
+    })
+    const candidates = teamModelCandidates(PROVIDERS)
+    const failed = {
+      at: 1,
+      reachable: false,
+      tools: 'fail' as const,
+      failure: { code: 'unauthorized' as const }
+    }
+    await expect(
+      assignMemberModel(store, candidates, '审核', GPT, async () => failed)
+    ).resolves.toEqual({
+      success: false,
+      error: expect.stringContaining('体检没过'),
+      checkup: failed
+    })
+    expect((await store.findMember('审核'))?.model).toEqual(CLAUDE)
+    await expect(
+      assignMemberModel(store, candidates, '审核', GPT, async () => ({
+        at: 1,
+        reachable: true,
+        tools: 'ok'
+      }))
+    ).resolves.toEqual({ success: true })
   })
 })

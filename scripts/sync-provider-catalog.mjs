@@ -1856,8 +1856,24 @@ export function pickModels(models, providerId, onlyProtocol) {
         : {}),
       ...(positiveInt(model.limit?.output)
         ? { maxOutputTokens: positiveInt(model.limit.output) }
-        : {})
+        : {}),
+      // 官方标价（美元 / 百万 token）。工作室招人时给制作人看「贵不贵」，规则见 costOf
+      ...costOf(model)
     }))
+}
+
+/**
+ * 上游 `cost` 里的输入、输出单价。缺一项、不是数就不写字段，不替上游补 0。
+ *
+ * 两项都是 0 的也不写：上游给订阅套餐（Kimi for Coding 这类）和本地模型都写 0，
+ * 意思是「不按 token 计价」，不是「免费」。写进去制作人会当成白送的去挑。
+ */
+function costOf(model) {
+  const input = model.cost?.input
+  const output = model.cost?.output
+  const ok = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0
+  if (!ok(input) || !ok(output) || (input === 0 && output === 0)) return {}
+  return { cost: { input, output } }
 }
 
 /**

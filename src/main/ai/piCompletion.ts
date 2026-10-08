@@ -3,7 +3,8 @@ import {
   createModels,
   type AssistantMessage,
   type Message,
-  type ThinkingLevel
+  type ThinkingLevel,
+  type Tool
 } from '@earendil-works/pi-ai'
 import { thinkingOffFields, toPiProvider } from '../agent-v3/core/piModel'
 import {
@@ -87,6 +88,8 @@ export interface CompletionRequest {
   system?: string
   /** 对话消息。单轮直接给一条 user */
   messages: Message[]
+  /** 给模型的工具。只用来探它会不会调工具（入职体检），工具本身不会被执行 */
+  tools?: Tool[]
   signal?: AbortSignal
   temperature?: number
   maxTokens?: number
@@ -156,7 +159,8 @@ export async function complete(
   const { models, model } = resolveModel(provider, modelId)
   const context = {
     ...(request.system ? { systemPrompt: request.system } : {}),
-    messages: request.messages
+    messages: request.messages,
+    ...(request.tools ? { tools: request.tools } : {})
   }
   const options = {
     ...(request.signal ? { signal: request.signal } : {}),

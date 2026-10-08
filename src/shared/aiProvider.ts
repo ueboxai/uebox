@@ -454,6 +454,13 @@ export interface ModelConfig {
   /** 单次回复的最大输出 token。同样只影响估算与压缩留白，不填走缺省 */
   maxOutputTokens?: number
   /**
+   * 官方标价，美元 / 百万 token。只有内置目录里的模型有（models.dev 提供），用户手填的没有。
+   *
+   * 只代表**直连官方端点**的价钱：经第三方网关、订阅套餐卖的同一个模型，价钱是另一回事。
+   * 目前只给工作室招人时的简历用（`team/teamModels.ts` 的 `attachPrices`），那里会核对地址。
+   */
+  cost?: { input: number; output: number }
+  /**
    * 实时语音模型使用的音色 ID。
    *
    * 这里保留 string 而不是封死成当前内置清单：models.json 允许用户直接编辑，

@@ -48,6 +48,19 @@ export function newTeamState(objective: string): TeamState {
   return { objective, verdict: null, deliveries: 0, nudges: 0 }
 }
 
+/**
+ * 跟着用户走、不跟着某个团队走的那两份账：入职体检、履历（见 `teamModels.ts`）。
+ * 不放在 `team/` 下面：那里一个会话一个目录，目录名是会话 id
+ */
+export function teamModelsDir(): string {
+  return join(app.getPath('userData'), 'team-models')
+}
+
+/** 履历（`trackRecord.ts`） */
+export function trackRecordFile(): string {
+  return join(teamModelsDir(), 'track-record.jsonl')
+}
+
 export function teamDirsFor(sessionId: string): TeamDirs {
   const base = safeSessionFileBase(sessionId)
   return {

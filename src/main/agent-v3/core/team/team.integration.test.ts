@@ -5,7 +5,7 @@
  * 回话回到制作人上下文、队员的记忆落盘。模型说什么由脚本决定（fauxProvider），
  * 验的是盒子这一侧的装配有没有接对。
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +34,18 @@ vi.mock('../../capabilities/skills', async (importOriginal) => ({
 vi.mock('../../../appSettingsManager', () => ({
   appSettingsManager: { getSettings: () => ({ agentToolSearchEnabled: false }) }
 }))
-vi.mock('electron', () => ({ app: { getPath: () => '' } }))
+// 体检缓存和履历落在 userData 下：指到临时目录，别写进仓库
+const userData = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { mkdtempSync } = require('node:fs') as typeof import('node:fs')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { tmpdir } = require('node:os') as typeof import('node:os')
+  return mkdtempSync(`${tmpdir()}/team-e2e-userdata-`)
+})
+vi.mock('electron', () => ({ app: { getPath: () => userData } }))
+// 招人挑了制作人以外的模型要过入职体检：这里不真发请求，直接给过
+const checkup = vi.hoisted(() => vi.fn(async () => ({ at: 0, reachable: true, tools: 'ok' })))
+vi.mock('../../../ai/probe', () => ({ checkupChatModel: checkup }))
 // 招人时的候选模型从这里读：制作人自己那个，再加一个便宜的
 const aiSettings = vi.hoisted(() => ({ providers: [] as unknown[], roles: {} }))
 vi.mock('../../../ai/store', async (importOriginal) => ({
@@ -50,7 +61,10 @@ import { createUnrealAgent } from '../createAgent'
 import { createTeamStore } from './teamStore'
 
 const root = mkdtempSync(join(tmpdir(), 'team-e2e-'))
-afterAll(() => rmSync(root, { recursive: true, force: true }))
+afterAll(() => {
+  rmSync(root, { recursive: true, force: true })
+  rmSync(userData, { recursive: true, force: true })
+})
 
 const faux = fauxProvider({ tokensPerSecond: 100000 })
 const models = createModels()
@@ -179,6 +193,8 @@ describe('工作室模式装配', () => {
     expect(member.system).not.toContain('<team_mode>')
     expect(write).toHaveBeenCalledOnce()
 
+    // 挑了制作人以外的模型：先体检过了才招
+    expect(checkup).toHaveBeenCalledOnce()
     // 队员钉在制作人给它挑的模型上
     expect(resolveModel.mock.calls.map((call) => call[0]?.pin)).toContainEqual({
       providerId: 'faux',
@@ -193,6 +209,21 @@ describe('工作室模式装配', () => {
     expect(text).toContain('材质师（Cheap） 回话')
     expect(text).toContain('草地材质做好了')
     expect(text).toContain('write_state')
+
+    // 这件活记进了履历：哪个模型、交回来了
+    const record = readFileSync(join(userData, 'team-models', 'track-record.jsonl'), 'utf8')
+    expect(
+      record
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+    ).toEqual([
+      expect.objectContaining({
+        kind: 'task',
+        model: { providerId: 'faux', modelId: 'cheap' },
+        outcome: 'done'
+      })
+    ])
 
     // 队员的记忆落盘了：下次派活它记得这件
     const history = await store.history('材质师')
