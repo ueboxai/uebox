@@ -4,6 +4,7 @@ import {
   SoftPathResolver,
   derivePackRoot,
   deriveSoftPathFromRealPath,
+  projectContentSoftPath,
   type SoftPathResolverFs
 } from './softPathResolver'
 
@@ -242,5 +243,28 @@ describe('deriveSoftPathFromRealPath', () => {
     expect(deriveSoftPathFromRealPath(P('Pack', 'Content', '贴图', 'T_木纹.uasset'))).toBe(
       '/Game/贴图/T_木纹'
     )
+  })
+})
+
+describe('projectContentSoftPath', () => {
+  it('工程 Content 里的文件按磁盘位置给软路径（包头旧名字不算数）', () => {
+    // KitBash3D 香港包：包头写 /Game/Textures/2k/...，文件在 Content/hongkong/Textures/
+    expect(
+      projectContentSoftPath(
+        String.raw`I:\UE Project\kb3d_hongkong\Content\hongkong\Textures\KB3D_HOK_Steel_arm.uasset`
+      )
+    ).toBe('/Game/hongkong/Textures/KB3D_HOK_Steel_arm')
+  })
+
+  it('插件的 Content 不归它管，挂载点不是 /Game', () => {
+    expect(
+      projectContentSoftPath('D:/Proj/Plugins/Foo/Content/Meshes/SM_Rock.uasset')
+    ).toBe('')
+  })
+
+  it('不在 Content 下的文件（资产库自己的存储）返回空串', () => {
+    expect(
+      projectContentSoftPath('I:/库/FPS/assetData/1789-abc/Game/Poly/SM_Box.uasset')
+    ).toBe('')
   })
 })

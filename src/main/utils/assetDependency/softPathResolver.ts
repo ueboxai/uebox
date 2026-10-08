@@ -57,6 +57,26 @@ const normalizePackageLikeSuffix = (suffix: string): string => {
 }
 
 /**
+ * 文件就躺在某个**工程**的 Content 目录里时，它的软路径以磁盘位置为准。
+ *
+ * UE 加载包看的是挂载点 + 相对路径，包头里记的 FolderName 只是创建时的旧名字。
+ * KitBash3D 香港包的贴图包头写着 `/Game/Textures/2k/...`，文件却在
+ * `Content/hongkong/Textures/` —— 材质按后者引用，引擎照常能开；资产库按包头记录，
+ * 导入时贴图被拷进 `/Game/Textures/2k/`，材质找不到贴图，整座城成了白模。
+ *
+ * 插件的 Content（挂载点是插件名，不是 /Game）和不在 Content 下的文件返回空串，
+ * 交给包头去判断。
+ */
+export const projectContentSoftPath = (realPath: string): string => {
+  if (!realPath || typeof realPath !== 'string') return ''
+  const normalized = realPath.replace(/\\/g, '/')
+  const at = normalized.lastIndexOf('/Content/')
+  if (at === -1) return ''
+  if (/\/Plugins\//i.test(normalized.slice(0, at + 1))) return ''
+  return deriveSoftPathFromRealPath(normalized.slice(at))
+}
+
+/**
  * 从磁盘路径反推 UE 软路径（`/Game/...`）
  */
 export const deriveSoftPathFromRealPath = (realPath: string): string => {

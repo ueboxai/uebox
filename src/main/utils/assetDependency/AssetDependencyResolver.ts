@@ -93,6 +93,16 @@ export class AssetDependencyResolver {
   private readonly softPathCache = new Map<string, string>()
   private readonly softPathResolver: SoftPathResolver
   private readonly dependencyGraph = new Map<string, Set<string>>()
+  /**
+   * 至少被一个资产**硬引用**过的依赖文件。
+   *
+   * 软引用（材质里没接线的贴图槽、骨架的预览网格……）找不到时 UE 照样能开，
+   * City Sample 的载具和人群自带一堆这种指向原工程的软引用。只按硬引用拦截，
+   * 否则整套素材一个都导不进去。
+   */
+  private readonly strongPaths = new Set<string>()
+  /** 只被软引用过、而且没找到的依赖文件 —— 后来若被硬引用到，要补报缺失 */
+  private readonly missingSoftOnly = new Set<string>()
   private readonly errors: DependencyError[] = []
   private readonly processor = new UnrealAssetProcessor() // 复用单一实例，避免每批次重新创建
 
@@ -125,6 +135,8 @@ export class AssetDependencyResolver {
     if (!this.config.persistStateAcrossRuns) {
       this.processedPaths.clear()
       this.dependencyGraph.clear()
+      this.strongPaths.clear()
+      this.missingSoftOnly.clear()
 
       if (this.config.enableCache) {
         this.softPathCache.clear()
@@ -324,6 +336,8 @@ export class AssetDependencyResolver {
 
     for (const asset of uassetAssets) {
       if (!asset.imports || !Array.isArray(asset.imports)) continue
+      // 没给 importsStrong 的（库里的老记录）按老行为：全部当硬引用
+      const strong = Array.isArray(asset.importsStrong) ? new Set(asset.importsStrong) : null
 
       for (const importPath of asset.imports) {
         // 跳过已存在的softPath
@@ -335,6 +349,11 @@ export class AssetDependencyResolver {
           )
           if (realPath) {
             realPathsSet.add(realPath)
+            if (!strong || strong.has(importPath)) {
+              this.strongPaths.add(realPath)
+              // 先被软引用、按「可缺」放过了，现在有资产硬引用它 —— 补报
+              if (this.missingSoftOnly.delete(realPath)) this.reportMissing(realPath)
+            }
           }
         }
       }
@@ -417,7 +436,9 @@ export class AssetDependencyResolver {
             return []
           }
           const imports = asPathList(metadata?.metadata?.imports)
-          const importsStrong = asPathList(metadata?.metadata?.importsStrong)
+          // 处理器没给就保持 undefined —— 空数组的意思是「全是软引用」，两者不能混
+          const rawStrong = metadata?.metadata?.importsStrong
+          const importsStrong = rawStrong === undefined ? undefined : asPathList(rawStrong)
 
           const basename = path.basename(filePath)
 
@@ -457,17 +478,29 @@ export class AssetDependencyResolver {
           assets.push(asset)
         }
       } catch (error) {
-        // 不能只写日志：这条依赖没进工程，用户那边的资产就是残的。
-        // 走 errorCallback 交给调用方，让它记进结果里（评审第 7 轮）
-        this.handleError({
-          type: 'file_not_found',
-          message: `依赖文件不可读或解析失败: ${filePath}`,
-          affectedPaths: [filePath]
-        })
+        // 只被软引用的依赖缺了不拦截：UE 打开时同样会跳过它
+        if (!this.strongPaths.has(filePath)) {
+          this.missingSoftOnly.add(filePath)
+          console.warn(`[AssetDependencyResolver] 软引用的依赖不存在，跳过: ${filePath}`)
+          continue
+        }
+        this.reportMissing(filePath)
       }
     }
 
     return assets
+  }
+
+  /**
+   * 不能只写日志：这条依赖没进工程，用户那边的资产就是残的。
+   * 走 errorCallback 交给调用方，让它记进结果里（评审第 7 轮）
+   */
+  private reportMissing(filePath: string): void {
+    this.handleError({
+      type: 'file_not_found',
+      message: `依赖文件不可读或解析失败: ${filePath}`,
+      affectedPaths: [filePath]
+    })
   }
 
   /**
@@ -604,6 +637,8 @@ export class AssetDependencyResolver {
     this.softPathResolver.clear()
     this.processedPaths.clear()
     this.dependencyGraph.clear()
+    this.strongPaths.clear()
+    this.missingSoftOnly.clear()
     this.errors.length = 0
   }
 

@@ -122,6 +122,62 @@ describe('AssetDependencyResolver 的跨次调用状态', () => {
     expect(found).toContain(skeleton)
   })
 
+  describe('缺失的依赖只按硬引用拦截', () => {
+    // City Sample 的挡风玻璃材质软引用了原工程里的 /Game/Effect/... 贴图，骨架软引用了
+    // MetaHuman 的预览网格 —— 素材包里本来就没有，UE 打开照样正常。以前这些一律算
+    // 「依赖不完整」，13 辆车和整套人群一个都导不进去
+    const run = async (
+      importsStrong: string[] | undefined,
+      extra: AssetDependencyInfo[] = []
+    ): Promise<{ found: string[]; missing: string[] }> => {
+      const found: string[] = []
+      const missing: string[] = []
+      const resolver = new AssetDependencyResolver({
+        persistStateAcrossRuns: true,
+        onAssetFound: (asset) => {
+          found.push(asset.originPath)
+        },
+        errorCallback: (error) => {
+          if (error.type === 'file_not_found') missing.push(...error.affectedPaths)
+        }
+      })
+      const main = {
+        ...makeAsset(animRun, '/Game/Anims/A_Run'),
+        imports: ['/Game/Chars/SK_Hero', '/Game/Chars/SK_Gone'],
+        importsStrong
+      }
+      await resolver.resolveDependencies([main])
+      for (const asset of extra) await resolver.resolveDependencies([asset])
+      return { found, missing }
+    }
+
+    it('只被软引用的依赖缺了不报，存在的依赖照常拷', async () => {
+      const { found, missing } = await run(['/Game/Chars/SK_Hero'])
+      expect(missing).toEqual([])
+      expect(found).toContain(skeleton)
+    })
+
+    it('硬引用的依赖缺了照样报', async () => {
+      const { missing } = await run(['/Game/Chars/SK_Hero', '/Game/Chars/SK_Gone'])
+      expect(missing.map((p) => path.basename(p))).toEqual(['SK_Gone.uasset'])
+    })
+
+    it('没有强弱信息的老记录按老行为全部拦截', async () => {
+      const { missing } = await run(undefined)
+      expect(missing.map((p) => path.basename(p))).toEqual(['SK_Gone.uasset'])
+    })
+
+    it('先被软引用放过、后被别的资产硬引用时补报', async () => {
+      const later = {
+        ...makeAsset(animWalk, '/Game/Anims/A_Walk'),
+        imports: ['/Game/Chars/SK_Gone'],
+        importsStrong: ['/Game/Chars/SK_Gone']
+      }
+      const { missing } = await run(['/Game/Chars/SK_Hero'], [later])
+      expect(missing.map((p) => path.basename(p))).toEqual(['SK_Gone.uasset'])
+    })
+  })
+
   it('clearCache 之后重新解析', async () => {
     const found: string[] = []
     const resolver = new AssetDependencyResolver({

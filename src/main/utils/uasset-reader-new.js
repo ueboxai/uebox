@@ -3472,16 +3472,13 @@ Object.freeze(ReaderUasset)
  */
 
 /* 默认配置常量 */
-/* .uasset 文件通常有 BulkData，元数据较小，使用 256MB 限制 */
+/* 读到 BulkData 起点为止的上限；超过时退回只读包头，见 calculateMetadataSize */
 var DEFAULT_MAX_METADATA_SIZE_UASSET = 1024 * 1024 * 1024
-/* .umap 地图文件没有 BulkData，元数据可能很大，使用 1GB 限制 */
 var DEFAULT_MAX_METADATA_SIZE_UMAP = 1024 * 1024 * 1024
 var MIN_HEADER_SIZE = 64
 
 /**
- * 根据文件扩展名获取默认的元数据大小限制
- * .umap 地图文件没有 BulkData，元数据可能很大，使用 1GB 限制
- * .uasset 文件通常有 BulkData，元数据较小，使用 256MB 限制
+ * 根据文件扩展名获取默认的元数据大小限制（两者目前都是 1GB）
  *
  * @param {string} filePath - 文件路径
  * @returns {number} 默认的最大元数据大小
@@ -3598,10 +3595,19 @@ async function calculateMetadataSize(fd, fileSize, maxSize) {
 
     if (bulkDataOffset && bulkDataOffset > 0n && bulkDataOffset < BigInt(fileSize)) {
       var readSize = Number(bulkDataOffset)
-      if (readSize > maxSize) {
-        return new Error('Metadata too large: ' + readSize + ' bytes (max: ' + maxSize + ')')
+      if (readSize <= maxSize) {
+        return readSize
       }
-      return readSize
+      /*
+       * 导出对象把大数据直接序列化在自己体内时（比如烘焙光照的 _BuiltData），
+       * BulkDataStartOffset 会贴着文件尾，算出来的"元数据"就是整个文件。
+       * 名字表、导入导出表、软引用、资产注册数据都在包头里，只读包头即可。
+       */
+      var headerSize = headerInfo.TotalHeaderSize
+      if (headerSize > 0 && headerSize <= maxSize && headerSize <= fileSize) {
+        return headerSize
+      }
+      return new Error('Metadata too large: ' + readSize + ' bytes (max: ' + maxSize + ')')
     }
 
     // 如果 BulkDataStartOffset 无效，回退策略

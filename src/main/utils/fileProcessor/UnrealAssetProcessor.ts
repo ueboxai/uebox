@@ -8,6 +8,7 @@ import { analyzeFromFile } from '../uasset-reader-new'
 import { PathManager } from '../PathManager'
 import { getSharp } from '../sharpLoader'
 import { projectThumbnailCandidates } from '../projectPath'
+import { projectContentSoftPath } from '../assetDependency/softPathResolver'
 
 /**
  * `processUproject` 的返回形状。登记工程要读 name / assetKey / engineAssociation /
@@ -335,6 +336,13 @@ export class UnrealAssetProcessor extends BaseFileProcessor {
 
     let softPath = ''
     const pathDerivedSoftPath = this.deriveSoftPathFromRealPath(realPath)
+
+    // 工程 Content 里的文件以磁盘位置为准，包头的 FolderName 可能是旧名字
+    const fromProjectContent = projectContentSoftPath(realPath)
+    if (fromProjectContent && fromProjectContent.endsWith(endsWith)) {
+      this.softPathCache.set(cacheKey, fromProjectContent)
+      return fromProjectContent
+    }
 
     try {
       // 第一步：优先尝试 FolderName
