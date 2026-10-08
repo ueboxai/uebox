@@ -1,6 +1,6 @@
 ---
 name: ue-content-import-organize
-description: Bring external files into the project, find and inspect existing assets, batch-rename or relocate them, enforce a naming convention, trace dependencies and referencers, clean up redirectors, and migrate assets with their dependencies to another project. Use when the user wants files imported, the content folder tidied or restructured, names normalised, "what uses this" answered, or assets moved to another project. Do not use for placing things in the level, or for editing a material's node graph.
+description: Bring external files into the project, find and inspect existing assets, batch-rename or relocate them, enforce a naming convention, trace dependencies and referencers, clean up redirectors, migrate assets with their dependencies to another project, and read or edit DataTable rows (数据表、配置表). Use when the user wants files imported, the content folder tidied or restructured, names normalised, "what uses this" answered, assets moved to another project, or values in a DataTable changed (改表里的数值、加一行、删行). Do not use for placing things in the level, or for editing a material's node graph.
 ---
 
 # Content import and organisation
@@ -58,7 +58,7 @@ FBX and GLB carry their textures inside the file, and the names are whatever the
 AI-generated models are almost always `Color`, `Normal`, `Roughness`, `Metallic`. Import two such
 models into one folder and the engine behaves **asymmetrically**: the meshes get deduplicated
 (`model` → `model_1`), the textures do not. The second file's textures are skipped without an
-error because the target names already exist, so every model's material points at the *first*
+error because the target names already exist, so every model's material points at the _first_
 model's textures. Different UV layouts then sample the wrong texture and the surfaces render as
 scrambled fragments. `imported_count` still reports success.
 
@@ -221,6 +221,22 @@ sitting on the base, or at a corner — which is what you need before placing mo
 **Read `referencers` before moving or deleting anything.** A non-zero count means other assets
 point at it — say which ones, and let the user decide, rather than breaking references silently.
 
+## DataTables: read the columns, then change in one batch
+
+`ue_datatable_describe` gives the columns with their types (enum columns list their allowed
+values), every row name, and the values of the rows you ask for. Read it first: column names in
+Blueprint structs carry a hidden GUID suffix, and the tool only accepts what describe shows.
+
+`ue_datatable_edit` takes a list of ops — `set` cells, `add` a row (`copy_from` an existing one,
+then override the differences), `remove`, `rename`. "所有剑攻击力加 10%" is describe → compute
+→ one `set` per row in the same call. A failing op rolls back the whole batch, and the batch is
+one step on the undo stack. Save with `ue_save` afterwards.
+
+If describe returns `source_file`, the table was imported from CSV/JSON and the next reimport
+overwrites edits made in the editor. Ask the user before touching it: edit the table here, or
+change the source file and reimport. Columns themselves belong to the row struct and cannot be
+changed here; composite tables cannot be edited — edit the parent table that owns the row.
+
 ## Renaming and moving — always as a batch, always dry-run first
 
 `ue_content_move` takes a **list**. One pair is fine, but never loop it: the engine loads every
@@ -239,7 +255,7 @@ reference it, and whether the destination is taken. Show that to the user, then 
 or `auto_rename` only when the user says so.
 
 After a real run the rewritten referencers are saved (`saved_count`), but the redirectors it
-left behind are **not** cleaned up — `redirectors_fixed` is always 0; see *Redirectors* below.
+left behind are **not** cleaned up — `redirectors_fixed` is always 0; see _Redirectors_ below.
 If `dirty_after` is non-zero, those are packages modified outside the command and were
 deliberately left alone. Every item is read back: `failed` means the asset is not at the
 destination, whatever the engine claimed.
@@ -264,7 +280,7 @@ for a location check. Pass `use_project_rules: false` to audit against Epic alon
 
 **Their customized prefixes are reported, not applied.** If the user changed a prefix, the
 summary names the change and says explicitly that the audit did not use it. Forwarding a prefix
-makes the plugin forget the old one, so every *correctly* named asset of that type comes back as
+makes the plugin forget the old one, so every _correctly_ named asset of that type comes back as
 "missing prefix" with a doubled suggestion (`T_Rock` → `TX_T_Rock`) and no warning marker. To
 audit by their convention, confirm with the user first, then pass it yourself via `rules` keyed
 by engine class name (`Texture2D`, not `Texture`) — and warn them that their already-correct
@@ -277,7 +293,7 @@ Rules of engagement:
   displace, so passing `rules: { SoundWave: "S_" }` only adds coverage. Ask the user what they
   use, then audit again.
 - **There is a second list.** After the violations, the summary lists assets whose prefix is
-  *correct* but which still break the user's own rules. They are not counted in the violation
+  _correct_ but which still break the user's own rules. They are not counted in the violation
   total; feed them to the move the same way.
 - **`conflict_unknown` means we could not check.** When a suggested name was rewritten by the
   user's rules, the plugin never queried the registry for that name, so "is it taken" has no
@@ -310,21 +326,21 @@ Rules of engagement:
 
 `ue_content_dependencies` walks the asset registry (no loading) from an asset **or a folder**:
 
-- `direction: "referencers"` on a folder → `referencers.external` is everything *outside* the
+- `direction: "referencers"` on a folder → `referencers.external` is everything _outside_ the
   folder that points in. Deleting the folder breaks those; moving it is safe (redirectors).
 - `direction: "dependencies"` on a folder → `dependencies.external` is what the folder pulls in
   from outside. That is the extra baggage a migration must carry.
 - `dependencies.missing` are references to packages that no longer exist — the "Failed to load"
   errors on open. Report them; the fix is a human decision.
 - `direction: "unreferenced"` lists assets nothing points at. Registry-only: assets loaded by
-  path from code or config are invisible to it, so it is a *candidate* list, never a delete list.
+  path from code or config are invisible to it, so it is a _candidate_ list, never a delete list.
 
 For "why is this so big" keep using `ue_asset_size_map`; for one asset's direct neighbours
 `ue_content_describe` is still the quickest.
 
 ## Migrating to another project
 
-`ue_content_migrate` is the right-click *Migrate*: copies the assets plus their dependency
+`ue_content_migrate` is the right-click _Migrate_: copies the assets plus their dependency
 closure into another project's `Content`, preserving folder structure. `destination` takes the
 `.uproject`, the project folder, or its `Content` folder. Levels bring their One-File-Per-Actor
 packages automatically.
@@ -348,8 +364,8 @@ confirm nobody does first (`ue_content_dependencies` with `direction: "reference
 `paths` to limit the run to a few redirectors or one folder instead of scanning all of `/Game`.
 
 A real run (`dry_run: false`) **opens a modal "Redirector Update Report" window in the editor on
-UE 5.4+ that a human must click** — its default button is *Keep Redirectors*, so tell the user
-to pick *Delete Unreferenced Redirectors*. Warn the user before running; if nobody clicks within
+UE 5.4+ that a human must click** — its default button is _Keep Redirectors_, so tell the user
+to pick _Delete Unreferenced Redirectors_. Warn the user before running; if nobody clicks within
 10 minutes the call times out with the outcome unknown (the engine finishes when they click), so
 re-run `dry_run: true` to read back instead of repeating the fixup. When the editor cannot show
 the window (script mode, no renderer) the plugin refuses with 409 and `details.how_to`. The engine

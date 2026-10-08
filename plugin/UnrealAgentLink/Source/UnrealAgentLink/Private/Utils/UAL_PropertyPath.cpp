@@ -151,6 +151,28 @@ namespace UALPropertyPath
 		}
 
 		/**
+		 * 按名字找字段，认 C++ 名也认编辑器里显示的名字。
+		 *
+		 * 蓝图里建的结构体（UserDefinedStruct）字段的真名长这样：
+		 * `Damage_2_8F3A1C...`，编辑器里只显示 `Damage`。只按真名找，调用方写
+		 * `Damage` 永远找不到 —— 而它没有任何途径知道后面那串 GUID。
+		 * `CustomFindProperty` 是引擎给这件事留的口子，UserDefinedStruct 覆写了它。
+		 */
+		FProperty* FindField(const UStruct* Struct, const FString& Name)
+		{
+			if (!Struct)
+			{
+				return nullptr;
+			}
+			const FName Key(*Name);
+			if (FProperty* Prop = Struct->FindPropertyByName(Key))
+			{
+				return Prop;
+			}
+			return Struct->CustomFindProperty(Key);
+		}
+
+		/**
 		 * 按属性类型转文本：对象引用所在的每一层（数组/集合元素、Map 键值、结构体成员）
 		 * 都补全资产路径。以前只在最外层是对象或对象数组时补，
 		 * `{"StaticMaterials":[{"MaterialInterface":"/Game/M_X"}]}` 这种嵌套一层的
@@ -215,8 +237,9 @@ namespace UALPropertyPath
 					for (const auto& Pair : Value->AsObject()->Values)
 					{
 						const FString MemberName = UAL_JsonKey(Pair.Key);
-						const FProperty* Member = StructProp->Struct->FindPropertyByName(FName(*MemberName));
-						Parts.Add(FString::Printf(TEXT("%s=%s"), *MemberName, *ToPropertyTextFor(Member, Pair.Value)));
+						const FProperty* Member = FindField(StructProp->Struct, MemberName);
+						Parts.Add(FString::Printf(TEXT("%s=%s"),
+							Member ? *Member->GetName() : *MemberName, *ToPropertyTextFor(Member, Pair.Value)));
 					}
 					return FString::Printf(TEXT("(%s)"), *FString::Join(Parts, TEXT(",")));
 				}
@@ -285,7 +308,8 @@ namespace UALPropertyPath
 			{
 				if (It->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible))
 				{
-					Out.Add(It->GetName());
+					// 显示名：蓝图结构体的真名带 GUID 后缀，建议给那个没人看得懂
+					Out.Add(It->GetAuthoredName());
 				}
 			}
 		}
@@ -313,8 +337,9 @@ namespace UALPropertyPath
 		 * @param bGrowArrays 写入时为 true，允许把数组撑到需要的长度；读取时为 false
 		 */
 		bool Walk(
-			UObject* RootMutable,
-			const UObject* RootConst,
+			const UStruct* RootStruct,
+			void* RootContainer,
+			UObject* RootOwner,
 			const TArray<FSegment>& Segments,
 			bool bGrowArrays,
 			const UStruct*& OutStruct,
@@ -322,23 +347,21 @@ namespace UALPropertyPath
 			UObject*& OutOwner,
 			FString& OutError)
 		{
-			const UObject* Current = RootMutable ? RootMutable : RootConst;
-			if (!Current)
+			if (!RootStruct || !RootContainer)
 			{
 				OutError = TEXT("root object is null");
 				return false;
 			}
 
-			OutStruct = Current->GetClass();
-			// const_cast 只用于 bGrowArrays=false 的读路径，那条路上不会写回去
-			OutContainer = const_cast<UObject*>(Current);
-			OutOwner = RootMutable;
+			OutStruct = RootStruct;
+			OutContainer = RootContainer;
+			OutOwner = RootOwner;
 
 			for (int32 Index = 0; Index < Segments.Num() - 1; ++Index)
 			{
 				const FSegment& Segment = Segments[Index];
 
-				FProperty* Prop = OutStruct->FindPropertyByName(FName(*Segment.Name));
+				FProperty* Prop = FindField(OutStruct, Segment.Name);
 				if (!Prop)
 				{
 					OutError = UnknownFieldError(Segment.Name, OutStruct);
@@ -413,7 +436,17 @@ namespace UALPropertyPath
 			OutError = TEXT("root object is null");
 			return false;
 		}
+		return SetInStruct(Root->GetClass(), Root, Root, Path, Value, OutError);
+	}
 
+	bool SetInStruct(
+		const UStruct* RootStruct,
+		void* RootData,
+		UObject* RootOwner,
+		const FString& Path,
+		const TSharedPtr<FJsonValue>& Value,
+		FString& OutError)
+	{
 		TArray<FSegment> Segments;
 		if (!ParsePath(Path, Segments, OutError))
 		{
@@ -423,13 +456,13 @@ namespace UALPropertyPath
 		const UStruct* Struct = nullptr;
 		void* Container = nullptr;
 		UObject* Owner = nullptr;
-		if (!Walk(Root, nullptr, Segments, /*bGrowArrays=*/true, Struct, Container, Owner, OutError))
+		if (!Walk(RootStruct, RootData, RootOwner, Segments, /*bGrowArrays=*/true, Struct, Container, Owner, OutError))
 		{
 			return false;
 		}
 
 		const FSegment& Last = Segments.Last();
-		FProperty* Prop = Struct->FindPropertyByName(FName(*Last.Name));
+		FProperty* Prop = FindField(Struct, Last.Name);
 		if (!Prop)
 		{
 			OutError = UnknownFieldError(Last.Name, Struct);
@@ -497,8 +530,11 @@ namespace UALPropertyPath
 			Text = TEXT("");
 		}
 
-		Root->Modify();
-		if (!ImportTextCompat(Prop, *Text, ValueAddr, Owner ? Owner : Root))
+		if (RootOwner)
+		{
+			RootOwner->Modify();
+		}
+		if (!ImportTextCompat(Prop, *Text, ValueAddr, Owner ? Owner : RootOwner))
 		{
 			OutError = FString::Printf(
 				TEXT("could not write '%s' into '%s' (%s). Check the value's type and format."),
@@ -517,7 +553,11 @@ namespace UALPropertyPath
 			OutError = TEXT("root object is null");
 			return nullptr;
 		}
+		return GetInStruct(Root->GetClass(), Root, Path, OutError);
+	}
 
+	TSharedPtr<FJsonValue> GetInStruct(const UStruct* RootStruct, const void* RootData, const FString& Path, FString& OutError)
+	{
 		TArray<FSegment> Segments;
 		if (!ParsePath(Path, Segments, OutError))
 		{
@@ -527,13 +567,14 @@ namespace UALPropertyPath
 		const UStruct* Struct = nullptr;
 		void* Container = nullptr;
 		UObject* Owner = nullptr;
-		if (!Walk(nullptr, Root, Segments, /*bGrowArrays=*/false, Struct, Container, Owner, OutError))
+		// const_cast 只用于 bGrowArrays=false 的读路径，那条路上不会写回去
+		if (!Walk(RootStruct, const_cast<void*>(RootData), nullptr, Segments, /*bGrowArrays=*/false, Struct, Container, Owner, OutError))
 		{
 			return nullptr;
 		}
 
 		const FSegment& Last = Segments.Last();
-		FProperty* Prop = Struct->FindPropertyByName(FName(*Last.Name));
+		FProperty* Prop = FindField(Struct, Last.Name);
 		if (!Prop)
 		{
 			OutError = UnknownFieldError(Last.Name, Struct);
@@ -600,7 +641,7 @@ namespace UALPropertyPath
 					continue;
 				}
 
-				const FString Path = Prefix.IsEmpty() ? Prop->GetName() : Prefix + TEXT(".") + Prop->GetName();
+				const FString Path = Prefix.IsEmpty() ? Prop->GetAuthoredName() : Prefix + TEXT(".") + Prop->GetAuthoredName();
 				const void* ValueAddr = Prop->ContainerPtrToValuePtr<void>(Container);
 
 				// 数组：逐个元素铺开，键带下标，正好是 SetByPath 认的写法
@@ -722,7 +763,7 @@ namespace UALPropertyPath
 		const UStruct* Struct = nullptr;
 		void* Container = nullptr;
 		UObject* Owner = nullptr;
-		if (Walk(nullptr, Root, Segments, /*bGrowArrays=*/false, Struct, Container, Owner, Error))
+		if (Walk(Root->GetClass(), const_cast<UObject*>(Root), nullptr, Segments, /*bGrowArrays=*/false, Struct, Container, Owner, Error))
 		{
 			CollectFieldNames(Struct, OutNames);
 		}

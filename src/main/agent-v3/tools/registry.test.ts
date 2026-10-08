@@ -453,6 +453,8 @@ describe('buildAllTools', () => {
       'ue.content',
       // C++ 工作流（cpp.*）。目前只有只读的探测与模块列举，
       'ue.cpp',
+      // 数据表（datatable.*）：读列和行、批量改。C++ 实现，替代现写 Python
+      'ue.datatable',
       'ue.editor',
       // 输入映射查询（input.*）。键位是运行时状态不是配置 ——
       // 挂着哪些输入上下文由游戏逻辑随时增删，

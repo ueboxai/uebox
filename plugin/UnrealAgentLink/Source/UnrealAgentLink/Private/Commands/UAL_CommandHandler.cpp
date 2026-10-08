@@ -9,6 +9,7 @@
 #include "UAL_ContentBrowserCommands.h"
 #include "UAL_ContentOrganizeCommands.h"
 #include "UAL_ContentSafetyCommands.h"
+#include "UAL_DataTableCommands.h"
 #include "UAL_CppCommands.h"
 #include "UAL_MaterialCommands.h"
 #include "UAL_MeshCommands.h"
@@ -155,6 +156,7 @@ void FUAL_CommandHandler::RegisterCommands()
 	FUAL_ContentBrowserCommands::RegisterCommands(CommandMap);
 	FUAL_ContentOrganizeCommands::RegisterCommands(CommandMap);
 	FUAL_ContentSafetyCommands::RegisterCommands(CommandMap);
+	FUAL_DataTableCommands::RegisterCommands(CommandMap);
 	FUAL_CppCommands::RegisterCommands(CommandMap);
 	FUAL_MaterialCommands::RegisterCommands(CommandMap);
 	FUAL_MeshCommands::RegisterCommands(CommandMap);

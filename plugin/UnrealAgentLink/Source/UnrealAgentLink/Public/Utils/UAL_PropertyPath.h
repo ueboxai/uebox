@@ -51,6 +51,26 @@ namespace UALPropertyPath
 	TSharedPtr<FJsonValue> GetByPath(const UObject* Root, const FString& Path, FString& OutError);
 
 	/**
+	 * 同 SetByPath，但起点是一块结构体内存而不是对象。
+	 *
+	 * DataTable 的一行就是这样一块内存（`FindRowUnchecked` 拿到的 uint8*），
+	 * 不是 UObject，走不了 SetByPath。
+	 *
+	 * @param RootOwner 这块内存归哪个对象管。写之前对它 Modify（进撤销），
+	 *                  也作为 ImportText 解析对象引用时的外层。可以为空
+	 */
+	bool SetInStruct(
+		const UStruct* RootStruct,
+		void* RootData,
+		UObject* RootOwner,
+		const FString& Path,
+		const TSharedPtr<FJsonValue>& Value,
+		FString& OutError);
+
+	/** 同 GetByPath，起点是一块结构体内存 */
+	TSharedPtr<FJsonValue> GetInStruct(const UStruct* RootStruct, const void* RootData, const FString& Path, FString& OutError);
+
+	/**
 	 * 列出某个容器下所有可写字段的名字，用来拼「你是不是想写 XXX」。
 	 * Path 为空表示列 Root 自己的顶层字段。
 	 */

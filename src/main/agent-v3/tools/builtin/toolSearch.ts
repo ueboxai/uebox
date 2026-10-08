@@ -196,6 +196,7 @@ const DOMAIN_TERMS: Record<string, string> = {
   'ue.content': '内容浏览器 工程资产 内容 资产 content asset',
   'ue.content.import': '导入 导入资产 fbx 贴图 外部文件 入库 import ingest',
   'ue.content.organize': '整理 重命名 移动 删除 重定向 清理 organize rename move delete redirector',
+  'ue.datatable': '数据表 表格 配置表 行 列 数值 datatable data table row column csv',
   'ue.content.audit': '体检 依赖 引用 占用 体积 排行 报错日志 audit dependency size reference log',
   'ue.editor': '编辑器 截图 保存 撤销 运行 测试 重启 editor screenshot save undo playtest restart',
   'ue.editor.autoplay':

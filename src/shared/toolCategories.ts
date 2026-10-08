@@ -47,7 +47,7 @@ export const TOOL_CATEGORIES: readonly ToolCategory[] = [
   { id: 'blueprint', namespaces: ['ue.blueprint'] },
   { id: 'material', namespaces: ['ue.material'] },
   { id: 'scene', namespaces: ['ue.actor', 'ue.level', 'ue.landscape'] },
-  { id: 'content', namespaces: ['ue.content'] },
+  { id: 'content', namespaces: ['ue.content', 'ue.datatable'] },
   { id: 'editor', namespaces: ['ue.editor', 'ue.input'] },
   { id: 'ui', namespaces: ['ue.widget'] },
   { id: 'cinematic', namespaces: ['ue.sequencer', 'ue.animation', 'ue.mesh'] },

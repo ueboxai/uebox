@@ -75,6 +75,7 @@ import { assetGuidelinesTool } from './adapted/ue-editor/assetGuidelines'
 import { pcgTools } from './ue-pcg'
 import { sequencerTools } from './ue-sequencer'
 import { inspectTools } from './ue-inspect'
+import { dataTableTools } from './ue-datatable'
 
 // ── V2 工具工厂 ──────────────────────────────────────────────────────────
 import * as noteTools from '../../agent-v3/tools/adapted/note'
@@ -1164,6 +1165,10 @@ export function listToolRisks(): Record<string, ToolRisk> {
     table[tool.name] = tool.unrealBox.risk
   }
 
+  for (const tool of dataTableTools()) {
+    table[tool.name] = tool.unrealBox.risk
+  }
+
   table[assetGuidelinesTool.name] = assetGuidelinesTool.unrealBox.risk
 
   for (const tool of engineTools) {
@@ -1332,6 +1337,8 @@ export function buildAllTools(deps: BuildToolsDeps = {}): UnrealAgentTool<never>
     // 内容浏览器整理（content.naming_audit / batch_move / dependencies / migrate）。
     // 同样走 C++；ue_content_move 从 REGISTRATIONS 里的单资产适配件换成了这里的批量版
     ...contentOrganizeTools(),
+    // 数据表（datatable.*）：读列和行、批量改格子 / 加删改名行。走 C++，不让模型现写 Python
+    ...dataTableTools(),
     // 资产自带的「资产指南」（CitySample 那几个「缺失项目设置」弹框）：查 + 一次改好
     assetGuidelinesTool as unknown as UnrealAgentTool<never>,
     // C++ 工作流（cpp.*）。目前只有两个只读工具：探测编译能力、列模块。
