@@ -16,8 +16,15 @@
 import { computed, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { TeamStateView } from '@core/shared/agentTeam'
+import type { SettingsView } from '@core/shared/aiProvider'
+import {
+  teamModelCandidates,
+  type TeamModel,
+  type TeamModelCandidate,
+  type TeamStateView
+} from '@core/shared/agentTeam'
 import { agentV3API } from '@renderer/api/agentV3'
+import { aiProviderAPI } from '@renderer/api/aiProvider'
 import { useChatSessionsStore } from '@renderer/store/modules/chatSessions'
 import { message } from '@renderer/utils/messageManager'
 
@@ -30,6 +37,14 @@ export interface UseTeamBoard {
   reopen: (taskId: string) => Promise<void>
   /** 结束团队模式。任务板和队员留在盘上，下次 /team 接得上 */
   end: () => Promise<void>
+  /** 队员能换成哪些模型。和制作人招人时的候选是同一份名单 */
+  modelChoices: ComputedRef<TeamModelCandidate[]>
+  /** 读过模型设置没有。没读过时不能断言「这个模型用不了」 */
+  modelsLoaded: ComputedRef<boolean>
+  /** 重读模型设置。用户打开换模型菜单时调，免得刚在设置页加的模型不在里面 */
+  loadModels: () => Promise<void>
+  /** 给队员换模型，下一件活开始用 */
+  setMemberModel: (name: string, model: TeamModel) => Promise<void>
 }
 
 export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
@@ -94,5 +109,35 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
     )
   }
 
-  return { team, active: computed(() => team.value !== null), refresh, reopen, end }
+  const modelSettings = ref<SettingsView | null>(null)
+  const loadModels = async (): Promise<void> => {
+    try {
+      modelSettings.value = await aiProviderAPI.getSettings()
+    } catch {
+      // 读不到就保留上一次的名单；一次都没读到时面板不显示模型
+    }
+  }
+  const active = computed(() => team.value !== null)
+  watch(active, (on) => on && void loadModels(), { immediate: true })
+
+  const setMemberModel = async (name: string, model: TeamModel): Promise<void> => {
+    const sessionId = agentSessionId.value
+    if (!sessionId) return
+    const result = await agentV3API.teamMemberModel(sessionId, name, model).catch(() => null)
+    if (!result?.success) message.error(t('assistant.teamBoard.model.changeFailed'))
+  }
+
+  return {
+    team,
+    active,
+    refresh,
+    reopen,
+    end,
+    modelChoices: computed(() =>
+      modelSettings.value ? teamModelCandidates(modelSettings.value.providers) : []
+    ),
+    modelsLoaded: computed(() => modelSettings.value !== null),
+    loadModels,
+    setMemberModel
+  }
 }

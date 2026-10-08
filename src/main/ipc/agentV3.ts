@@ -118,7 +118,9 @@ import { runWithEditorKey } from '../agent-v3/core/team/editorKey'
 import { createTeamStore, PRODUCER } from '../agent-v3/core/team/teamStore'
 import { createTeamLive } from '../agent-v3/core/team/teamLive'
 import { formatMail } from '../agent-v3/core/team/teamTools'
-import type { TeamStateView } from '../../shared/agentTeam'
+import { assignMemberModel } from '../agent-v3/core/team/teamModels'
+import { teamModelCandidates, type TeamStateView } from '../../shared/agentTeam'
+import { readSettings as readAiSettings } from '../ai/store'
 import { DEFAULT_GOAL_MAX_ROUNDS, normalizeGoalMaxRounds } from '../../shared/goalRounds'
 import { buildCrashNotice, type EditorWatchEvent } from '../agent-v3/core/team/editorWatch'
 import { startTeamEditorWatch } from './teamEditorWatch'
@@ -1648,6 +1650,37 @@ export function registerAgentV3IPC(): void {
         return { success: false, error: `任务板上没有 ${taskId}` }
       }
       await store.patchBoard([{ id: taskId, status: 'todo', reopenedAt: Date.now() }])
+      event.sender.send('agent-v3:team-board', { sessionId })
+      return { success: true }
+    }
+  )
+
+  /**
+   * 用户在任务板上给一个队员换模型。
+   *
+   * 这一轮正跑着也允许：派活在轮到它开工那一刻才读名册定模型，所以正在干的那件不受影响，
+   * 下一件就用新的。记成「用户定的」，制作人改设定时会看到、除非用户开口不再改。
+   */
+  ipcMain.handle(
+    'agent-v3:team-member-model',
+    async (
+      event,
+      args: { sessionId?: string; name?: string; providerId?: string; modelId?: string }
+    ) => {
+      const { sessionId, name, providerId, modelId } = args ?? {}
+      if (!sessionId || !name || !providerId || !modelId) {
+        return { success: false, error: 'sessionId、name、providerId、modelId 都要给' }
+      }
+      if (!(await loadExecutionOptions(sessionId))?.team) {
+        return { success: false, error: '这条会话不是团队模式' }
+      }
+      const result = await assignMemberModel(
+        createTeamStore(teamDirsFor(sessionId)),
+        teamModelCandidates((await readAiSettings()).providers),
+        name,
+        { providerId, modelId }
+      )
+      if (!result.success) return result
       event.sender.send('agent-v3:team-board', { sessionId })
       return { success: true }
     }

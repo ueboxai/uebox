@@ -5,17 +5,103 @@
  * 免得界面那头自己抄一份、字段一改就对不上。
  */
 
+import { ROLE_KIND, type ModelConfig, type ProviderKind } from './aiProvider'
+
+/**
+ * 老名册的模型档位。`strong` 跟着制作人，`fast` 走用户绑的对话模型。
+ * 现在招人直接钉具体模型（`TeamMember.model`），这两档只为读得懂老名册留着。
+ */
 export type MemberTier = 'strong' | 'fast'
+
+/** 一个具体模型：哪个来源下的哪个模型。和会话钉的模型同一个形状 */
+export interface TeamModel {
+  providerId: string
+  modelId: string
+}
 
 export interface TeamMember {
   name: string
   /** 人设和职责，由制作人现场写。盒子不给模板 */
   persona: string
   tier: MemberTier
+  /**
+   * 它用哪个模型。招人时由制作人挑，用户可以在任务板上改。
+   * 老名册没有这一项，按 `tier` 走。派活那一刻它用不了（来源删了、模型下架了），
+   * 这一件活改用制作人的模型，名册不动 —— 用户把来源补回来就又能用
+   */
+  model?: TeamModel
+  /** 制作人为什么给它这个模型，一句话。用户在任务板上悬停看得到 */
+  modelReason?: string
+  /** 模型是谁定的。用户亲手改过的，制作人除非用户开口不该再动 */
+  modelBy?: 'producer' | 'user'
   /** 工具命名空间白名单。省略 = 和制作人同一套 */
   namespaces?: string[]
   readOnly: boolean
   hiredAt: number
+}
+
+export function sameTeamModel(a: TeamModel | undefined, b: TeamModel | undefined): boolean {
+  return !!a && !!b && a.providerId === b.providerId && a.modelId === b.modelId
+}
+
+/** 招人时能挑的一个模型，以及它的简历：只写事实，不写评价 */
+export interface TeamModelCandidate extends TeamModel {
+  /** 给制作人填的 id：`来源/模型`。招人工具的参数就收这个 */
+  key: string
+  name: string
+  providerName: string
+  vision: boolean
+  contextWindow?: number
+}
+
+/** 给人看的模型名：名单里有就用展示名，没有（来源删了）就用模型 id。制作人的回话和任务板共用 */
+export function teamModelLabel(
+  candidates: readonly TeamModelCandidate[],
+  model: TeamModel
+): string {
+  return candidates.find((c) => sameTeamModel(c, model))?.name ?? model.modelId
+}
+
+/**
+ * 队员能用的模型：对话类来源下的模型，去掉明确标了不能调工具的。
+ *
+ * 和输入框模型下拉框同一个来源、同一个顺序（设置页里的顺序），用户在两处看到的是同一份名单。
+ * 不能调工具的去掉，是因为队员干的每件活都靠工具；能力位没填的照留 —— 用户手填的模型
+ * 多半没填这一位，按「不知道」处理，不按「不能」处理。
+ */
+export function teamModelCandidates(
+  providers: readonly {
+    id: string
+    displayName?: string
+    kind: ProviderKind
+    models: readonly Pick<
+      ModelConfig,
+      'id' | 'displayName' | 'supportsTools' | 'supportsVision' | 'contextWindow'
+    >[]
+  }[]
+): TeamModelCandidate[] {
+  const list: TeamModelCandidate[] = []
+  for (const provider of providers) {
+    if (provider.kind !== ROLE_KIND.agent) continue
+    const providerName = provider.displayName?.trim() || provider.id
+    for (const model of provider.models) {
+      if (model.supportsTools === false) continue
+      if (list.some((c) => c.providerId === provider.id && c.modelId === model.id)) continue
+      // 模型 id 常带斜杠（`anthropic/claude-…`），拼出来可能和别的来源撞上；撞了加序号，不丢模型
+      const base = `${provider.id}/${model.id}`
+      const key = list.some((c) => c.key === base) ? `${base}#${list.length + 1}` : base
+      list.push({
+        key,
+        providerId: provider.id,
+        modelId: model.id,
+        name: model.displayName?.trim() || model.id,
+        providerName,
+        vision: model.supportsVision === true,
+        ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+      })
+    }
+  }
+  return list
 }
 
 export const TASK_STATUSES = ['todo', 'doing', 'done', 'blocked'] as const

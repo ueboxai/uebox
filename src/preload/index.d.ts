@@ -3305,6 +3305,13 @@ declare global {
         sessionId: string
         taskId: string
       }) => Promise<{ success: boolean; error?: string }>
+      /** 给一个队员换模型，记成用户定的。正在跑也行：它下一件活开始用 */
+      teamMemberModel: (args: {
+        sessionId: string
+        name: string
+        providerId: string
+        modelId: string
+      }) => Promise<{ success: boolean; error?: string }>
       /** 结束团队模式。正在跑的时候不行（errorKey 'running'）；任务板和队员留在盘上 */
       teamEnd: (args: {
         sessionId: string

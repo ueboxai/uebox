@@ -35,6 +35,12 @@ vi.mock('../../../appSettingsManager', () => ({
   appSettingsManager: { getSettings: () => ({ agentToolSearchEnabled: false }) }
 }))
 vi.mock('electron', () => ({ app: { getPath: () => '' } }))
+// 招人时的候选模型从这里读：制作人自己那个，再加一个便宜的
+const aiSettings = vi.hoisted(() => ({ providers: [] as unknown[], roles: {} }))
+vi.mock('../../../ai/store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../ai/store')>()),
+  readSettings: async () => aiSettings
+}))
 vi.mock('../compactionCheckpoint', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../compactionCheckpoint')>()),
   loadCheckpoint: async () => null
@@ -89,6 +95,14 @@ beforeEach(() => {
     })
     return models.streamSimple(model, context, options)
   }
+  aiSettings.providers = [
+    {
+      id: 'faux',
+      displayName: 'Faux',
+      kind: 'chat',
+      models: [{ id: faux.getModel().id }, { id: 'cheap', displayName: 'Cheap' }]
+    }
+  ]
   resolveModel.mockResolvedValue({
     selection: {
       providerId: 'faux',
@@ -122,7 +136,13 @@ describe('工作室模式装配', () => {
       fauxAssistantMessage([
         fauxToolCall(
           'team_hire',
-          { name: '材质师', role: '负责所有材质', model: 'fast', namespaces: ['ue.material'] },
+          {
+            name: '材质师',
+            role: '负责所有材质',
+            model: 'faux/cheap',
+            model_reason: '活简单，用便宜的',
+            namespaces: ['ue.material']
+          },
           { id: 'h' }
         )
       ]),
@@ -159,15 +179,18 @@ describe('工作室模式装配', () => {
     expect(member.system).not.toContain('<team_mode>')
     expect(write).toHaveBeenCalledOnce()
 
-    // fast 档的队员走对话模型
-    expect(resolveModel.mock.calls.map((call) => call[0]?.role)).toContain('chat')
+    // 队员钉在制作人给它挑的模型上
+    expect(resolveModel.mock.calls.map((call) => call[0]?.pin)).toContainEqual({
+      providerId: 'faux',
+      modelId: 'cheap'
+    })
 
     // 回话回到制作人上下文，附带记账记出来的写操作
     const reply = agent.state.messages.find(
       (m) => m.role === 'toolResult' && (m as { toolName?: string }).toolName === 'team_send'
     ) as { content: Array<{ text?: string }> }
     const text = reply.content.map((c) => c.text ?? '').join('')
-    expect(text).toContain('材质师 回话')
+    expect(text).toContain('材质师（Cheap） 回话')
     expect(text).toContain('草地材质做好了')
     expect(text).toContain('write_state')
 

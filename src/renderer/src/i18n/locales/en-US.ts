@@ -2629,6 +2629,15 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       producer: 'Producer',
       fast: 'fast',
       readOnly: 'read-only',
+      model: {
+        reason: 'Why the producer picked it: {reason}',
+        byUser: 'set by you',
+        followProducer: 'same as producer',
+        chatModel: 'chat model',
+        unavailable: "{model} isn't available right now; its work uses the producer's model",
+        change: 'Click to change the model. It applies from its next task',
+        changeFailed: "Couldn't change the model. Try again later"
+      },
       receipt: {
         read: 'read',
         delivered: 'delivered',

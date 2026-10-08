@@ -33,11 +33,20 @@ import {
   PRODUCER,
   TASK_STATUSES,
   type BoardTask,
-  type MemberTier,
   type TeamMail,
   type TeamMember,
+  type TeamModel,
   type TeamStore
 } from './teamStore'
+import { sameTeamModel } from '../../../../shared/agentTeam'
+import {
+  canChooseModels,
+  describeCandidates,
+  modelLabel,
+  routeMember,
+  type MemberRoute,
+  type TeamModels
+} from './teamModels'
 
 export const TEAM_TOOL_NAMES = [
   'team_hire',
@@ -59,6 +68,8 @@ export interface RunMemberInput {
   ledger: WriteLedger
   /** 跑完（含被停下）时交回它的全部消息，下次派活时接着用 */
   keepMessages: (messages: AgentMessage[]) => void
+  /** 钉给它的模型。不给 = 老规矩（制作人的模型，或老 `fast` 档的对话模型），见 `routeMember` */
+  pin?: TeamModel
 }
 
 export interface TeamToolDeps {
@@ -83,6 +94,8 @@ export interface TeamToolDeps {
   live?: TeamLive
   /** 团队的根会话 id。`team_status` 用它从锁表里挑出本团队的锁；没有就不给 `team_status` */
   sessionId?: string
+  /** 队员能用哪些模型（`teamModels.ts`）。没有（老测试）就不让挑，队员跟着制作人 */
+  models?: TeamModels
 }
 
 // ── 任务板 ──────────────────────────────────────────────────────────────
@@ -150,7 +163,9 @@ export function createBoardTool(store: TeamStore): UnrealAgentTool<BoardTask[]> 
 // ── 招人 ────────────────────────────────────────────────────────────────
 
 function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<TeamMember> {
-  const hireInput = z.object({
+  const models = deps.models
+  const choosable = canChooseModels(models)
+  const baseInput = z.object({
     name: z.string().min(1).max(40).describe('队员名，之后派活用它。同名再招一次就是改它的设定'),
     role: z
       .string()
@@ -158,11 +173,6 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
       .describe(
         '它的人设和职责，由你来写。它只知道这里写的、你派给它的、以及工作区和任务板上的东西'
       ),
-    model: z
-      .enum(['strong', 'fast'])
-      .optional()
-      .default('strong')
-      .describe('strong = 和你同一档模型；fast = 用户绑的对话模型，便宜快，适合简单重复的活'),
     namespaces: z
       .array(z.string())
       .optional()
@@ -173,6 +183,22 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
       .default(false)
       .describe('只读：写工具根本不在它手上。评审、试玩、找问题这类产出是报告的角色用它')
   })
+  const fullInput = baseInput.extend({
+    model: z
+      .string()
+      .optional()
+      .describe('它用哪个模型，填工具说明里列的 id。新招的省略 = 和你同一个；改设定时省略 = 不变'),
+    model_reason: z
+      .string()
+      .max(120)
+      .optional()
+      .describe('为什么给它这个模型，一句话。用户在任务板上看得到；挑了和你不同的模型时必填')
+  })
+  /*
+   * 只有一个能用的模型时，参数里干脆不出现 model —— 没得选就不让制作人想。
+   * 两种形状给同一个类型：少的那种只是 model / model_reason 永远是 undefined
+   */
+  const hireInput = (choosable ? fullInput : baseInput) as unknown as typeof fullInput
 
   return defineTool<typeof hireInput, TeamMember>({
     name: 'team_hire',
@@ -181,9 +207,14 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
     concurrency: 'sequential',
     description:
       '招一个队员，或者改一个已有队员的设定。队员常驻：它记得你之前派给它的所有活。' +
-      '岗位、人设、工具范围都由你决定，盒子不预设任何角色。',
+      '岗位、人设、工具范围都由你决定，盒子不预设任何角色。' +
+      (choosable
+        ? '\n\n每个队员可以用不同的模型。看这个岗位的活要多强、量多大、要不要换一家的眼光来查，自己判断；' +
+          '用户在任务板上亲手改过的模型（回话里标着「用户定的」），除非用户开口别再改。可用模型：\n' +
+          describeCandidates(models)
+        : ''),
     input: hireInput,
-    execute: async ({ name, role, model, namespaces, read_only }) => {
+    execute: async ({ name, role, model, model_reason, namespaces, read_only }) => {
       if (name.trim().toLowerCase() === PRODUCER) {
         throw new Error(`"${PRODUCER}" 是留给制作人（你）的名字，换一个`)
       }
@@ -196,26 +227,84 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
         }
       }
       const existing = await deps.store.findMember(name)
+      const choice = pickMemberModel(models, existing, choosable ? model : undefined, model_reason)
       const member: TeamMember = {
         name: existing?.name ?? name.trim(),
         persona: role,
-        tier: model as MemberTier,
+        tier: existing?.tier ?? 'strong',
+        ...choice,
         ...(namespaces?.length ? { namespaces } : {}),
         readOnly: Boolean(read_only),
         hiredAt: existing?.hiredAt ?? now()
       }
       await deps.store.putMember(member)
       const roster = await deps.store.roster()
+      const flags = [
+        ...(choosable && member.model
+          ? [
+              `${modelLabel(models, member.model)}` +
+                (member.modelBy === 'user'
+                  ? '，用户定的'
+                  : member.modelReason
+                    ? `：${member.modelReason}`
+                    : '')
+            ]
+          : []),
+        ...(!member.model && member.tier === 'fast' ? ['fast'] : []),
+        ...(member.readOnly ? ['只读'] : []),
+        ...(member.namespaces ? [`工具：${member.namespaces.join('/')}`] : [])
+      ]
       return {
         text:
-          `${existing ? '已更新' : '已招入'} ${member.name}（${member.tier}` +
-          `${member.readOnly ? '，只读' : ''}` +
-          `${member.namespaces ? `，工具：${member.namespaces.join('/')}` : ''}）。` +
-          `\n团队现在 ${roster.length} 人：${roster.map((m) => m.name).join('、')}`,
+          `${existing ? '已更新' : '已招入'} ${member.name}` +
+          (flags.length ? `（${flags.join('；')}）` : '') +
+          `。\n团队现在 ${roster.length} 人：${roster.map((m) => m.name).join('、')}`,
         details: member
       }
     }
   })
+}
+
+/**
+ * 招人或改设定时，这个队员的模型怎么定。
+ *
+ * - 指定了：必须在候选名单里；和制作人不同的要写理由（用户在任务板上看理由）。
+ * - 没指定、是新人：钉成制作人此刻的模型。不钉的话用户之后在输入框换模型，
+ *   整个团队会悄悄跟着换 —— 招人时定下的就该一直是它。
+ * - 没指定、是老队员：不变。老名册里没钉模型的队员照旧按 `tier` 走。
+ */
+function pickMemberModel(
+  models: TeamModels | undefined,
+  existing: TeamMember | undefined,
+  requested: string | undefined,
+  reason: string | undefined
+): Pick<TeamMember, 'model' | 'modelReason' | 'modelBy'> {
+  const keep = {
+    ...(existing?.model ? { model: existing.model } : {}),
+    ...(existing?.modelReason ? { modelReason: existing.modelReason } : {}),
+    ...(existing?.modelBy ? { modelBy: existing.modelBy } : {})
+  }
+  const why = reason?.trim()
+  if (!requested?.trim()) {
+    if (existing) return keep
+    return models?.producer ? { model: models.producer, modelBy: 'producer' } : {}
+  }
+  const picked = models?.candidates.find((c) => c.key === requested.trim())
+  if (!models || !picked) {
+    throw new Error(
+      `没有「${requested}」这个模型。可选：${models?.candidates.map((c) => c.key).join('、') ?? '（无）'}`
+    )
+  }
+  const model: TeamModel = { providerId: picked.providerId, modelId: picked.modelId }
+  if (sameTeamModel(model, existing?.model)) {
+    return why ? { ...keep, modelReason: why } : keep
+  }
+  if (!why && !sameTeamModel(model, models.producer)) {
+    throw new Error(
+      `给 ${picked.name} 写一句理由（model_reason）：为什么这个岗位用它。用户在任务板上看得到`
+    )
+  }
+  return { model, ...(why ? { modelReason: why } : {}), modelBy: 'producer' }
 }
 
 // ── 派活 ────────────────────────────────────────────────────────────────
@@ -266,10 +355,16 @@ function createSendTool(
     }
   ): Promise<{ result: SubAgentResult; text: string }> => {
     const key = member.name.toLowerCase()
+    // 轮到它开工那一刻再定用哪个模型：排队期间用户可能在任务板上换了。
+    // 回话和记账要说的是这一件实际用的
+    let current = member
+    let route: MemberRoute = { fellBack: false }
     const previous = busy.get(key) ?? Promise.resolve()
     const run = previous
       .catch(() => undefined)
       .then(async () => {
+        current = (await deps.store.findMember(member.name)) ?? member
+        route = await routeMember(deps.models, current)
         const ledger = new WriteLedger()
         ctx.setAbortNote?.(() => formatInterruptedWrites(ledger.list(), member.readOnly))
         // 上次被停在半截工具调用上的话，那条调用没有结果 —— 摘掉，不然它一睁眼
@@ -281,10 +376,11 @@ function createSendTool(
         deps.live?.setAssignment(member.name, message)
         try {
           return await deps.runMember({
-            member,
+            member: current,
             message: inbox ? `${inbox}\n\n${message}` : message,
             history,
             ledger,
+            ...(route.pin ? { pin: route.pin } : {}),
             ...(ctx.signal ? { signal: ctx.signal } : {}),
             // 界面给这类进度统一加「团队：」前缀，这里只标是哪个队员
             onProgress: (text) => ctx.report({ text: `${member.name} · ${text}` }),
@@ -306,14 +402,16 @@ function createSendTool(
         .recordActivity({
           who: member.name,
           what: message.split('\n').find((line) => line.trim()) ?? '',
-          writes: result.writes ? summarizeDoneWrites(result.writes) : ''
+          writes: result.writes ? summarizeDoneWrites(result.writes) : '',
+          ...(route.used ? { model: route.used } : {})
         })
         .catch(() => undefined)
       const snapshot = await autoSnapshot(deps, member.name, message, result)
       return {
         result,
         text:
-          `${member.name} 回话：\n${result.text}\n\n${formatWriteAudit(result)}` +
+          `${member.name}${describeRoute(deps.models, current, route)} 回话：\n` +
+          `${result.text}\n\n${formatWriteAudit(result)}` +
           (snapshot ? `\n${snapshot}` : '')
       }
     } finally {
@@ -378,6 +476,22 @@ function createSendTool(
       }
     }
   })
+}
+
+/**
+ * 回话抬头里带上这件活是哪个模型干的：用户可能在任务板上改过，制作人得知道现在是谁在干。
+ * 只有一个模型可用时不提 —— 说了也没得选。
+ */
+function describeRoute(
+  models: TeamModels | undefined,
+  member: TeamMember,
+  route: MemberRoute
+): string {
+  if (route.fellBack && member.model) {
+    return `（它的模型 ${modelLabel(models, member.model)} 现在用不了，这件活改用你的模型）`
+  }
+  if (!canChooseModels(models) || !route.used) return ''
+  return `（${modelLabel(models, route.used)}${member.modelBy === 'user' ? '，用户定的' : ''}）`
 }
 
 // ── 留言 ────────────────────────────────────────────────────────────────
@@ -658,7 +772,8 @@ export function createTeamTools(
             store: deps.store,
             sessionId: deps.sessionId,
             ...(deps.live ? { live: deps.live } : {}),
-            ...(deps.snapshots ? { snapshots: deps.snapshots } : {})
+            ...(deps.snapshots ? { snapshots: deps.snapshots } : {}),
+            ...(deps.models ? { models: deps.models } : {})
           })
         ]
       : [])

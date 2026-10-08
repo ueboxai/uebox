@@ -2561,6 +2561,15 @@ export default {
       producer: '制作人',
       fast: '快档',
       readOnly: '只读',
+      model: {
+        reason: '制作人选它的理由：{reason}',
+        byUser: '你定的',
+        followProducer: '跟制作人',
+        chatModel: '对话模型',
+        unavailable: '{model} 现在用不了，它的活先用制作人的模型',
+        change: '点击换模型，从它的下一件活开始用',
+        changeFailed: '没能换模型，稍后再试'
+      },
       receipt: {
         read: '已读',
         delivered: '已送达',

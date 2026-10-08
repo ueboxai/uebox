@@ -27,6 +27,7 @@ import { contentInventory, formatCounts } from './inventory'
 import type { TeamSnapshots } from './snapshots'
 import type { TeamLive } from './teamLive'
 import type { TeamStore } from './teamStore'
+import { canChooseModels, modelLabel, type TeamModels } from './teamModels'
 
 /** 「进行中」多久没更新就提醒一句可能是过期备注 */
 const STALE_TASK_MS = 15 * 60_000
@@ -37,6 +38,8 @@ export interface TeamStatusDeps {
   /** 团队的根会话 id。锁表里本团队的锁主都以它开头 */
   sessionId: string
   snapshots?: TeamSnapshots
+  /** 队员能用的模型。给了（制作人那份）就在名册上标出各自用哪个；只有一个模型时不标 */
+  models?: TeamModels
   now?: () => number
 }
 
@@ -91,9 +94,14 @@ export async function buildTeamStatus(deps: TeamStatusDeps): Promise<string> {
         '【谁在干什么】',
         ...roster.map((member) => {
           const job = busy.get(member.name.toLowerCase())
+          // 用户可能在任务板上换过模型，制作人看名册时要知道现在是谁在干
+          const who =
+            canChooseModels(deps.models) && member.model
+              ? `${member.name}（${modelLabel(deps.models, member.model)}${member.modelBy === 'user' ? '，用户定的' : ''}）`
+              : member.name
           return job
-            ? `- ${member.name}：在干「${firstLine(job.text)}」（已 ${Math.max(1, Math.round((t - job.since) / 60_000))} 分钟）`
-            : `- ${member.name}：空闲${deps.live?.isRunning(member.name) ? '' : '（要它干活用 team_send）'}`
+            ? `- ${who}：在干「${firstLine(job.text)}」（已 ${Math.max(1, Math.round((t - job.since) / 60_000))} 分钟）`
+            : `- ${who}：空闲${deps.live?.isRunning(member.name) ? '' : '（要它干活用 team_send）'}`
         })
       ].join('\n')
     )

@@ -223,8 +223,12 @@
           v-if="teamBoard.team.value"
           :team="teamBoard.team.value"
           :running="isGenerating"
+          :model-choices="teamBoard.modelChoices.value"
+          :models-loaded="teamBoard.modelsLoaded.value"
           @reopen="teamBoard.reopen"
           @end="teamBoard.end"
+          @open-models="teamBoard.loadModels"
+          @set-model="teamBoard.setMemberModel"
         />
         <InputComposer
           :is-generating="isGenerating"

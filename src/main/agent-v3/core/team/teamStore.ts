@@ -26,11 +26,12 @@ import {
   type MemberTier,
   type TaskStatus,
   type TeamMail,
-  type TeamMember
+  type TeamMember,
+  type TeamModel
 } from '../../../../shared/agentTeam'
 
 export { PRODUCER, TASK_STATUSES }
-export type { BoardTask, MemberTier, TaskStatus, TeamMail, TeamMember }
+export type { BoardTask, MemberTier, TaskStatus, TeamMail, TeamMember, TeamModel }
 
 export type BoardPatch = Partial<Omit<BoardTask, 'updatedAt'>> & { id: string }
 
@@ -103,7 +104,15 @@ export interface TeamActivity {
   what: string
   /** 写操作台账的摘要，例如「material_create ×3（M_Rock、M_Metal…）」 */
   writes: string
+  /**
+   * 这件活实际是哪个模型干的。以后按结果看哪个模型干什么靠谱，要从这里起账
+   * （见 docs/团队选模型与履历设计-2026-10-08.md）。老记录和没钉模型的老队员没有
+   */
+  model?: TeamModel
 }
+
+/** 每个团队目录一条写入链，所有 store 实例共用（见 `createTeamStore` 里的 `serial`） */
+const writeChains = new Map<string, Promise<unknown>>()
 
 export function createTeamStore(
   dirs: TeamDirs,
@@ -118,11 +127,15 @@ export function createTeamStore(
   const historyFile = (name: string): string =>
     join(dirs.stateDir, 'members', `${memberFileBase(name)}.json`)
 
-  // 并行派活时几个队员会同时改任务板。读-改-写串起来，免得后写的盖掉先写的
-  let chain: Promise<unknown> = Promise.resolve()
+  // 并行派活时几个队员会同时改任务板。读-改-写串起来，免得后写的盖掉先写的。
+  // 链按目录共用而不是按实例：界面那头（重开、换模型）每次另造一个 store，
+  // 它和正在跑的制作人写的是同一批文件、同一个 .tmp
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
-    const next = chain.then(fn, fn)
-    chain = next.catch(() => undefined)
+    const next = (writeChains.get(dirs.stateDir) ?? Promise.resolve()).then(fn, fn)
+    writeChains.set(
+      dirs.stateDir,
+      next.catch(() => undefined)
+    )
     return next
   }
   const changed = <T>(value: T): T => {

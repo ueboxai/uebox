@@ -7,12 +7,7 @@
     不另开页面 —— 它是这条会话的一部分（见 docs/AI游戏工作室设计-2026-09-25.md 第 3 节）。
   -->
   <section class="team-board" :aria-label="t('assistant.teamBoard.title')">
-    <button
-      type="button"
-      class="team-board-head"
-      :aria-expanded="expanded"
-      @click="expanded = !expanded"
-    >
+    <button type="button" class="team-board-head" :aria-expanded="expanded" @click="toggle">
       <PhUsersThree class="head-icon" />
       <span class="head-title">{{ t('assistant.teamBoard.title') }}</span>
       <span class="head-meta">
@@ -39,7 +34,42 @@
       <ul v-if="team.members.length" class="members">
         <li v-for="member in team.members" :key="member.name" :title="member.persona">
           <span class="member-name">{{ member.name }}</span>
-          <span v-if="member.tier === 'fast'" class="member-flag">
+          <!-- 它用的模型。只有一个模型可选时不显示：没得换，显示了也是噪音 -->
+          <AppDropdown
+            v-if="showModels"
+            :trigger="['click']"
+            @update:open="(open: boolean) => open && emit('open-models')"
+          >
+            <button
+              type="button"
+              class="member-model"
+              :class="{ unavailable: isUnavailable(member) }"
+              :title="modelTitle(member)"
+            >
+              <PhWarning v-if="isUnavailable(member)" class="member-model-icon" />
+              {{ memberModelLabel(member) }}
+              <PhCaretDown class="member-model-icon" />
+            </button>
+            <template #overlay>
+              <AppMenu :selected-keys="member.model ? [modelKey(member.model)] : []">
+                <AppMenuItemGroup
+                  v-for="group in modelGroups"
+                  :key="group.providerName"
+                  :title="group.providerName"
+                >
+                  <AppMenuItem
+                    v-for="choice in group.choices"
+                    :key="choice.key"
+                    :item-key="choice.key"
+                    @click="pickModel(member, choice)"
+                  >
+                    {{ choice.name }}
+                  </AppMenuItem>
+                </AppMenuItemGroup>
+              </AppMenu>
+            </template>
+          </AppDropdown>
+          <span v-if="!showModels && member.tier === 'fast' && !member.model" class="member-flag">
             {{ t('assistant.teamBoard.fast') }}
           </span>
           <span v-if="member.readOnly" class="member-flag">
@@ -126,15 +156,24 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { PhCaretDown, PhUsersThree } from '@phosphor-icons/vue'
+import { PhCaretDown, PhUsersThree, PhWarning } from '@phosphor-icons/vue'
 
 import AppButton from '@renderer/components/AppButton.vue'
+import AppDropdown from '@renderer/components/AppDropdown.vue'
+import AppMenu from '@renderer/components/AppMenu.vue'
+import AppMenuItem from '@renderer/components/AppMenuItem.vue'
+import AppMenuItemGroup from '@renderer/components/AppMenuItemGroup.vue'
 import AppTag from '@renderer/components/AppTag.vue'
 import {
   PRODUCER,
+  sameTeamModel,
+  teamModelLabel,
   type BoardTask,
   type TaskStatus,
   type TeamMail,
+  type TeamMember,
+  type TeamModel,
+  type TeamModelCandidate,
   type TeamStateView,
   type TeamVerdict
 } from '@core/shared/agentTeam'
@@ -143,16 +182,30 @@ const props = defineProps<{
   team: TeamStateView
   /** 这条会话正在跑：这时候不能结束团队模式（这一轮收尾会把团队状态写回去） */
   running?: boolean
+  /** 队员能换成哪些模型。和制作人招人时的候选同一份 */
+  modelChoices?: TeamModelCandidate[]
+  /** 模型设置读到过没有。没读到时不能说某个模型「用不了」 */
+  modelsLoaded?: boolean
 }>()
 const emit = defineEmits<{
   /** 用户把一项卡住的改回待办 */
   reopen: [taskId: string]
   /** 用户结束团队模式 */
   end: []
+  /** 用户展开了面板或打开了换模型菜单：重读一次模型设置 */
+  'open-models': []
+  /** 用户给队员换了模型 */
+  'set-model': [name: string, model: TeamModel]
 }>()
 const { t } = useI18n()
 
 const expanded = ref(false)
+
+/** 展开时顺手重读模型名单：用户可能刚在设置页增删过来源，模型名和「用不了」要跟上 */
+function toggle(): void {
+  expanded.value = !expanded.value
+  if (expanded.value) emit('open-models')
+}
 
 type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -250,6 +303,74 @@ function statusHint(status: TaskStatus): string | undefined {
 
 function who(name: string): string {
   return name === PRODUCER ? t('assistant.teamBoard.producer') : name
+}
+
+// ── 队员的模型 ──────────────────────────────────────────────────────────
+
+const choices = computed(() => props.modelChoices ?? [])
+
+/** 只有一个模型可选时不显示：没得换（同招人工具不让制作人挑） */
+const showModels = computed(() => choices.value.length > 1)
+
+/** 菜单按来源分组，顺序同设置页 */
+const modelGroups = computed(() => {
+  const groups: { providerName: string; choices: TeamModelCandidate[] }[] = []
+  for (const choice of choices.value) {
+    const last = groups[groups.length - 1]
+    if (last?.providerName === choice.providerName) last.choices.push(choice)
+    else groups.push({ providerName: choice.providerName, choices: [choice] })
+  }
+  return groups
+})
+
+function findChoice(model: TeamModel): TeamModelCandidate | undefined {
+  return choices.value.find((choice) => sameTeamModel(choice, model))
+}
+
+function modelKey(model: TeamModel): string {
+  return findChoice(model)?.key ?? `${model.providerId}/${model.modelId}`
+}
+
+function modelName(model: TeamModel): string {
+  return teamModelLabel(choices.value, model)
+}
+
+/**
+ * 面板上显示的模型名。老名册里没钉模型的队员照旧按档位走（主进程 `routeMember`），
+ * 这里照实说它跟着谁；用户点开选一个，就钉上了
+ */
+function memberModelLabel(member: TeamMember): string {
+  if (member.model) return modelName(member.model)
+  return member.tier === 'fast'
+    ? t('assistant.teamBoard.model.chatModel')
+    : t('assistant.teamBoard.model.followProducer')
+}
+
+/** 名单里已经没有它了：派活时这件会改用制作人的模型（主进程 `routeMember`） */
+function isUnavailable(member: TeamMember): boolean {
+  return !!props.modelsLoaded && !!member.model && !findChoice(member.model)
+}
+
+/** 悬停说明：用不了的说用不了；否则说是谁定的、为什么，再说怎么换 */
+function modelTitle(member: TeamMember): string {
+  if (!member.model) return t('assistant.teamBoard.model.change')
+  if (isUnavailable(member)) {
+    return t('assistant.teamBoard.model.unavailable', { model: modelName(member.model) })
+  }
+  const lines = [
+    member.modelBy === 'user'
+      ? t('assistant.teamBoard.model.byUser')
+      : member.modelReason
+        ? t('assistant.teamBoard.model.reason', { reason: member.modelReason })
+        : '',
+    t('assistant.teamBoard.model.change')
+  ]
+  return lines.filter(Boolean).join('\n')
+}
+
+function pickModel(member: TeamMember, choice: TeamModelCandidate): void {
+  if (member.model && sameTeamModel(member.model, choice)) return
+  emit('set-model', member.name, { providerId: choice.providerId, modelId: choice.modelId })
 }
 
 /** 回执：读到了、塞进去了还没读、还在信箱里 */
@@ -366,6 +487,37 @@ function receipt(mail: TeamMail): string {
 .member-flag {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+}
+
+.member-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+    border-radius: var(--radius-sm);
+  }
+
+  &.unavailable {
+    color: var(--color-warning-text);
+  }
+}
+
+.member-model-icon {
+  flex-shrink: 0;
 }
 
 .tasks {
