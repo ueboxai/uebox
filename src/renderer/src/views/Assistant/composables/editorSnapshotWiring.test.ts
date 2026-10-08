@@ -106,7 +106,9 @@ describe('提交那一刻抓取', () => {
     const body = handler.slice(0, handler.indexOf('\n}\n'))
 
     expect(body.indexOf('const runningSessionId')).toBeLessThan(body.indexOf('await '))
-    expect(body.replace(/\s+/g, ' ')).toContain('payload.attachments, runningSessionId )')
+    expect(body.replace(/\s+/g, ' ')).toContain(
+      'payload.attachments, runningSessionId, payload.restore )'
+    )
     expect(body).toContain('if (!steered) payload.restore?.()')
   })
 
