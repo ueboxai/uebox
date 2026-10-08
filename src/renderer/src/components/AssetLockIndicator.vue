@@ -39,7 +39,9 @@
         </div>
         <ul>
           <li v-for="lock in group.locks" :key="`${lock.connectionId ?? ''}-${lock.path}`">
-            <span class="lock-path" :title="lockTitle(lock.path)">{{ displayName(lock.path) }}</span>
+            <span class="lock-path" :title="lockTitle(lock.path)">{{
+              displayName(lock.path)
+            }}</span>
             <button
               v-if="ownerSession(lock.owner)"
               class="lock-owner"
@@ -110,7 +112,9 @@ watch(
   async ([open]) => {
     if (!open || !connectionKey.value) return
     try {
-      const projects = listConnectedProjects((await window.api.websocket.getProjects()) as unknown[])
+      const projects = listConnectedProjects(
+        (await window.api.websocket.getProjects()) as unknown[]
+      )
       projectNames.value = Object.fromEntries(
         projects.map((p) => [p.connectionId, { name: p.projectName, path: p.projectPath }])
       )
@@ -183,7 +187,6 @@ const sessionLabel = (owner: string): string => {
     chatSessions.sessionByAgentSessionId(owner) || chatSessions.sessionById(owner) || null
   return session?.title || t('assetLock.unknownSession')
 }
-
 </script>
 
 <style scoped lang="less">

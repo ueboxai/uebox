@@ -26,10 +26,7 @@
 
 import { useAgentStreamStore } from '@renderer/store/modules/agentStream'
 import { useChatMessagesStore } from '@renderer/store/modules/chatMessages'
-import {
-  useChatSessionsStore,
-  type ChatImageDraft
-} from '@renderer/store/modules/chatSessions'
+import { useChatSessionsStore, type ChatImageDraft } from '@renderer/store/modules/chatSessions'
 import { forgetSteerDraft, takeSteerDraft } from './steerDrafts'
 import { usePendingApprovalsStore } from '@renderer/store/modules/pendingApprovals'
 import type { AgentTurnUsage } from '@core/shared/agentUsage'

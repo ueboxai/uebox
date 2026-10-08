@@ -68,12 +68,8 @@ export async function speakToFile(
       )
     onSynthesize()
     const chunks: Buffer[] = []
-    await requestSpeech(
-      provider,
-      modelId,
-      text,
-      signal ?? new AbortController().signal,
-      (chunk) => chunks.push(Buffer.from(chunk.base64, 'base64'))
+    await requestSpeech(provider, modelId, text, signal ?? new AbortController().signal, (chunk) =>
+      chunks.push(Buffer.from(chunk.base64, 'base64'))
     ).catch((error: unknown) => {
       // Box Plan 的额度 / 订阅 / 授权错误：错误码后面挂着说清下一步的原话，给它
       const cause = error instanceof Error ? error.cause : undefined

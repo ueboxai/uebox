@@ -1980,7 +1980,11 @@ async function main() {
                         ? pickJudgeModels(source.models)
                         : item.group === 'stt'
                           ? pickSttModels(source.models)
-                          : pickModels(source.models, item.id, item.onlyMatchingProtocol && protocol)
+                          : pickModels(
+                              source.models,
+                              item.id,
+                              item.onlyMatchingProtocol && protocol
+                            )
     const hasLogo = skipLogos
       ? existsSync(join(LOGO_DIR, `${item.id}.svg`))
       : isCheck

@@ -237,7 +237,9 @@ describe('插话没成时放回来', () => {
     payload.restore()
     await flushPromises()
 
-    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('第一句\n\n已经在打第二句')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(
+      '第一句\n\n已经在打第二句'
+    )
     wrapper.unmount()
   })
 })

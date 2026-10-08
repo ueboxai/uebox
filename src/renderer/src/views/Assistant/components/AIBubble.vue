@@ -71,10 +71,7 @@
             <div v-if="!block.textSynthetic" class="timeline-steer-bubble">
               {{ block.text }}
             </div>
-            <div
-              class="timeline-steer-status"
-              :class="{ applied: block.applied }"
-            >
+            <div class="timeline-steer-status" :class="{ applied: block.applied }">
               <!--
                 还排着的才给撤回：已生效的抽不回来（它在 transcript 里，
                 抽掉等于篡改历史），跑完的那条也没有队可撤。
@@ -833,12 +830,7 @@ function onQuestionAnswer(
  * 手上有主进程给的号。少判一条就会画出一个点了必然失败的按钮。
  */
 function canCancelSteer(block: AgentTimelineSteerBlock): boolean {
-  return (
-    props.status === 'typing' &&
-    !block.applied &&
-    !!block.steerId &&
-    !!block.sessionId
-  )
+  return props.status === 'typing' && !block.applied && !!block.steerId && !!block.sessionId
 }
 
 function steerStatusLabel(block: AgentTimelineSteerBlock): string {

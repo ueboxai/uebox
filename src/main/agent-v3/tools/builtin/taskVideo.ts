@@ -199,8 +199,7 @@ export function taskVideoTools(): UnrealAgentTool[] {
           '../../../services/taskVideo/audio'
         )
         const binding = await resolveSpeechBinding()
-        if (!binding)
-          throw new Error('未配置语音合成模型。请到偏好设置 → 模型来源配置语音合成。')
+        if (!binding) throw new Error('未配置语音合成模型。请到偏好设置 → 模型来源配置语音合成。')
         const { app } = await import('electron')
         const { join } = await import('node:path')
         const dir = join(app.getPath('music'), 'UnrealBox', 'speech')

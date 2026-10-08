@@ -118,11 +118,7 @@ import { runWithEditorKey } from '../agent-v3/core/team/editorKey'
 import { createTeamStore, PRODUCER } from '../agent-v3/core/team/teamStore'
 import { createTeamLive } from '../agent-v3/core/team/teamLive'
 import { formatMail } from '../agent-v3/core/team/teamTools'
-import {
-  assignMemberModel,
-  loadTeamModels,
-  recordReopen
-} from '../agent-v3/core/team/teamModels'
+import { assignMemberModel, loadTeamModels, recordReopen } from '../agent-v3/core/team/teamModels'
 import { createTrackRecord } from '../agent-v3/core/team/trackRecord'
 import { teamModelCandidates, type TeamStateView } from '../../shared/agentTeam'
 import { readSettings as readAiSettings } from '../ai/store'
@@ -1657,11 +1653,9 @@ export function registerAgentV3IPC(): void {
       }
       await store.patchBoard([{ id: taskId, status: 'todo', reopenedAt: Date.now() }])
       // 打回是履历里分量最重的一条：记到干这件活的那个模型头上。记不上不影响重开本身
-      await recordReopen(
-        store,
-        taskId,
-        createTrackRecord(trackRecordFile()).add
-      ).catch((error: unknown) => console.warn('[team] 打回没记进履历:', error))
+      await recordReopen(store, taskId, createTrackRecord(trackRecordFile()).add).catch(
+        (error: unknown) => console.warn('[team] 打回没记进履历:', error)
+      )
       event.sender.send('agent-v3:team-board', { sessionId })
       return { success: true }
     }

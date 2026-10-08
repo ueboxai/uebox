@@ -79,12 +79,7 @@ import {
 import { releaseAll, runWithLockOwner, teamRootOf } from './assetLock'
 import { AUDITOR_HARD_JUDGES, isAuditorTool, type GoalVerdict } from './goalLoop'
 import { buildAcceptancePrompt, buildMemberFraming, buildProducerBrief } from './team/teamPrompt'
-import {
-  memberFileBase,
-  type TeamMember,
-  type TeamModel,
-  type TeamStore
-} from './team/teamStore'
+import { memberFileBase, type TeamMember, type TeamModel, type TeamStore } from './team/teamStore'
 import { loadTeamModels, type TeamModels } from './team/teamModels'
 import type { TeamSnapshots } from './team/snapshots'
 import type { TeamLive } from './team/teamLive'

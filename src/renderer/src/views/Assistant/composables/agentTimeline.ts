@@ -255,10 +255,7 @@ function isSameTimelineBlock(previous: AgentTimelineBlock, next: AgentTimelineBl
   }
 
   if (previous.kind === 'steer' && next.kind === 'steer') {
-    return (
-      previous.text === next.text &&
-      previous.applied === next.applied
-    )
+    return previous.text === next.text && previous.applied === next.applied
   }
 
   return (

@@ -27,7 +27,8 @@ const VT_MISSING: GuidelineCheckResponse = {
     {
       name: 'CitySampleVehicleGuideline_VT',
       asset: '/Game/CitySampleVehicles/AssetGuidelines/CitySampleVehicleGuideline_VT',
-      class: '/Game/CitySampleVehicles/AssetGuidelines/CitySampleVehicleGuideline_VT.CitySampleVehicleGuideline_VT_C',
+      class:
+        '/Game/CitySampleVehicles/AssetGuidelines/CitySampleVehicleGuideline_VT.CitySampleVehicleGuideline_VT_C',
       settings: [
         {
           section: '/Script/Engine.RendererSettings',
@@ -69,7 +70,9 @@ const NOTHING_LEFT: GuidelineCheckResponse = {
   guidelines: [
     {
       ...VT_MISSING.guidelines[0],
-      settings: [{ ...VT_MISSING.guidelines[0].settings[0], current: 'True', status: 'pending_restart' }]
+      settings: [
+        { ...VT_MISSING.guidelines[0].settings[0], current: 'True', status: 'pending_restart' }
+      ]
     }
   ],
   unmet_settings: 0,
@@ -96,7 +99,9 @@ describe('guidelineScanRoots', () => {
   })
 
   it('直接放在 /Game 下的资产只扫它自己，不扫整个工程；非 /Game 路径忽略', () => {
-    expect(guidelineScanRoots(['/Game/BP_Root.BP_Root', '/MyPlugin/X/Y', ''])).toEqual(['/Game/BP_Root'])
+    expect(guidelineScanRoots(['/Game/BP_Root.BP_Root', '/MyPlugin/X/Y', ''])).toEqual([
+      '/Game/BP_Root'
+    ])
   })
 })
 
@@ -113,7 +118,11 @@ describe('summaries', () => {
 
   it('导入回执：全都满足时不说话', () => {
     expect(
-      describeGuidelinesForImport({ ...VT_MISSING, guidelines: [VT_MISSING.guidelines[1]], unmet_settings: 0 })
+      describeGuidelinesForImport({
+        ...VT_MISSING,
+        guidelines: [VT_MISSING.guidelines[1]],
+        unmet_settings: 0
+      })
     ).toBeNull()
   })
 
@@ -218,7 +227,10 @@ describe('ue_asset_guidelines', () => {
   })
 
   it('老插件没有这条命令：说人话，不甩 Unknown method', async () => {
-    callRequest.mockResolvedValueOnce({ ok: false, error: 'Unknown method: project.check_asset_guidelines' })
+    callRequest.mockResolvedValueOnce({
+      ok: false,
+      error: 'Unknown method: project.check_asset_guidelines'
+    })
     await expect(assetGuidelinesTool.execute('c1', { action: 'check' })).rejects.toThrow('插件太旧')
   })
 })

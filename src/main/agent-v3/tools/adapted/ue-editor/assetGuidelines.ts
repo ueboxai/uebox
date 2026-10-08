@@ -102,8 +102,10 @@ export interface PluginEnableResult {
 // 给模型的文字
 // ────────────────────────────────────────────────────────────────────────────
 
-const isUnmetSetting = (s: GuidelineSetting): boolean => s.status === 'missing' || s.status === 'bad_file'
-const isUnmetPlugin = (p: GuidelinePlugin): boolean => p.status === 'missing' || p.status === 'not_installed'
+const isUnmetSetting = (s: GuidelineSetting): boolean =>
+  s.status === 'missing' || s.status === 'bad_file'
+const isUnmetPlugin = (p: GuidelinePlugin): boolean =>
+  p.status === 'missing' || p.status === 'not_installed'
 
 function describeSetting(s: GuidelineSetting): string {
   const what = `[${s.section}] ${s.key} = ${s.required}`
@@ -120,7 +122,8 @@ function describeSetting(s: GuidelineSetting): string {
 }
 
 function describePlugin(p: GuidelinePlugin): string {
-  const name = p.friendly_name && p.friendly_name !== p.name ? `${p.friendly_name}（${p.name}）` : p.name
+  const name =
+    p.friendly_name && p.friendly_name !== p.name ? `${p.friendly_name}（${p.name}）` : p.name
   switch (p.status) {
     case 'missing':
       return `插件 ${name} 没开`
@@ -159,7 +162,10 @@ const NEXT_STEP =
   '用户同意后调 ue_asset_guidelines(action="apply")（不在当前工具列表里就先 search_tools(names=["ue_asset_guidelines"]) 加载），再调 ue_restart_editor。' +
   '不要建议点编辑器弹框里的「移除指南」——那会改用户的资产文件。'
 
-export function summarizeGuidelineCheck(res: GuidelineCheckResponse, scannedPaths?: string[]): string {
+export function summarizeGuidelineCheck(
+  res: GuidelineCheckResponse,
+  scannedPaths?: string[]
+): string {
   const unmet = describeGuidelines(res.guidelines, 'unmet')
   const pending = describeGuidelines(res.guidelines, 'pending')
   const lines: string[] = []
@@ -256,20 +262,27 @@ export function summarizeGuidelineApply(
 
   for (const r of apply.results) {
     if (r.result === 'written') {
-      lines.push(`✅ [${r.section}] ${r.key} = ${r.on_disk ?? r.required}（${r.file}，已从磁盘读回）`)
+      lines.push(
+        `✅ [${r.section}] ${r.key} = ${r.on_disk ?? r.required}（${r.file}，已从磁盘读回）`
+      )
     } else if (r.result === 'conflict') {
-      lines.push(`❌ [${r.section}] ${r.key}：两张指南要的值不一样（${r.guideline} 要 ${r.required}，${r.error ?? ''}），没改，要问用户用哪个`)
+      lines.push(
+        `❌ [${r.section}] ${r.key}：两张指南要的值不一样（${r.guideline} 要 ${r.required}，${r.error ?? ''}），没改，要问用户用哪个`
+      )
     } else {
       lines.push(`❌ [${r.section}] ${r.key} = ${r.required}：${r.error ?? '没写进去'}`)
     }
   }
   for (const p of plugins) {
-    const name = p.friendly_name && p.friendly_name !== p.name ? `${p.friendly_name}（${p.name}）` : p.name
+    const name =
+      p.friendly_name && p.friendly_name !== p.name ? `${p.friendly_name}（${p.name}）` : p.name
     lines.push(p.ok ? `✅ 已在工程里开启插件 ${name}` : `❌ 插件 ${name}：${p.error ?? '没开成'}`)
   }
 
   if (okCount > 0) {
-    lines.push('这些设置要重启编辑器才生效。告诉用户，问好之后调 ue_restart_editor（它会先提醒保存）。')
+    lines.push(
+      '这些设置要重启编辑器才生效。告诉用户，问好之后调 ue_restart_editor（它会先提醒保存）。'
+    )
   }
   if (after && after.unmet_settings + after.unmet_plugins > 0) {
     lines.push('改完再查，仍没满足的：', ...describeGuidelines(after.guidelines, 'unmet'))
@@ -308,17 +321,20 @@ export async function checkAssetGuidelines(paths?: string[]): Promise<GuidelineC
   }
 }
 
-async function enablePlugin(p: GuidelineApplyResponse['plugins_to_enable'][number]): Promise<PluginEnableResult> {
+async function enablePlugin(
+  p: GuidelineApplyResponse['plugins_to_enable'][number]
+): Promise<PluginEnableResult> {
   const base = { name: p.name, friendly_name: p.friendly_name }
   if (p.status === 'not_installed') {
     return { ...base, ok: false, error: '本机没装这个插件，只能用户自己装（Fab 或插件作者）' }
   }
   try {
-    const res = await callUeRaw<{ ok?: boolean; success?: boolean; error?: string; message?: string }>(
-      'system.manage_plugin',
-      { plugin_name: p.name, action: 'Enable' },
-      { timeoutMs: 30_000 }
-    )
+    const res = await callUeRaw<{
+      ok?: boolean
+      success?: boolean
+      error?: string
+      message?: string
+    }>('system.manage_plugin', { plugin_name: p.name, action: 'Enable' }, { timeoutMs: 30_000 })
     if (res.ok === false || res.success === false) {
       return { ...base, ok: false, error: res.error || res.message || '编辑器没开成' }
     }
@@ -335,7 +351,9 @@ async function enablePlugin(p: GuidelineApplyResponse['plugins_to_enable'][numbe
 const Input = z.object({
   action: z
     .enum(['check', 'apply'])
-    .describe('check：查哪些资产指南没满足（只读）；apply：把没满足的设置写进工程、开插件（要用户同意）'),
+    .describe(
+      'check：查哪些资产指南没满足（只读）；apply：把没满足的设置写进工程、开插件（要用户同意）'
+    ),
   paths: z
     .array(z.string())
     .optional()
@@ -349,7 +367,11 @@ const Input = z.object({
     .describe('apply 用：只修这几张指南（check 结果里的名字）。不给就修全部')
 })
 
-type Details = { check?: GuidelineCheckResponse; apply?: GuidelineApplyResponse; plugins?: PluginEnableResult[] }
+type Details = {
+  check?: GuidelineCheckResponse
+  apply?: GuidelineApplyResponse
+  plugins?: PluginEnableResult[]
+}
 
 export const assetGuidelinesTool = defineTool<typeof Input, Details>({
   name: 'ue_asset_guidelines',

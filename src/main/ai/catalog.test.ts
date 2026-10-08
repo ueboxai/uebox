@@ -163,10 +163,11 @@ describe('内置 Provider 目录', () => {
       const entry = CATALOG.find((e) => e.id === id)!
       expect(entry.protocol).toBe('openai-completions')
       expect(entry.models.length).toBeGreaterThan(0)
-      const wrong = entry.models.filter((m) =>
-        /^(claude|gpt|grok|gemini|minimax|muse)-/.test(m.id)
-      )
-      expect(wrong.map((m) => m.id), `${id} 混进了别的协议`).toEqual([])
+      const wrong = entry.models.filter((m) => /^(claude|gpt|grok|gemini|minimax|muse)-/.test(m.id))
+      expect(
+        wrong.map((m) => m.id),
+        `${id} 混进了别的协议`
+      ).toEqual([])
     }
     expect(CATALOG.find((e) => e.id === 'opencode-go')?.group).toBe('subscription')
   })
