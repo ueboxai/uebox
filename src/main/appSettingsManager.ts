@@ -71,8 +71,23 @@ interface AppSettings {
   agentBrowserMode: AgentBrowserMode
   /** agent 能读写哪些位置。见 `AgentFileAccessScope` */
   agentFileAccessScope: AgentFileAccessScope
-  /** 实验性工具搜索。默认关闭，每次启动 Agent 时读取。 */
+  /**
+   * 工具搜索：只常驻一小撮核心工具，其余由技能带组或 `search_tools` 按需取回。
+   * 默认打开，每次启动 Agent 时读取。
+   *
+   * 2026-10-08 由默认关改为默认开。全量注入已经 230 个工具、约 12 万 token，占一次
+   * 请求的大头；真机上 CodeBuddy hy4 带图时过了约 14 万 token 就多半被拒，长一点的
+   * 会话光工具就把它顶到线上（见 `agent-v3/core/streamFn.ts` 里 `contextHasImages` 那段）
+   */
   agentToolSearchEnabled: boolean
+  /**
+   * 用户在设置页亲手拨过工具搜索开关没有。
+   *
+   * 没有它分不清「默认值被顺手写进了文件」和「用户自己关的」：`saveSettings` 每次
+   * 存的是整份设置，所以老用户磁盘上那个 `false` 多半只是当年的默认值。没拨过的
+   * 跟着新默认走，拨过的听他的
+   */
+  agentToolSearchUserSet: boolean
   /**
    * 自动断点续传：中转不稳时每 60 秒自动续跑，连续失败满 30 分钟才报错。
    * 默认打开，每次开跑时读取。见 `agent-v3/core/autoResume.ts`。
@@ -132,7 +147,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   // 需求，而这一层本来就挡不住 shell（见 accessScope.ts），兜底靠的是凭据黑名单
   // 加每步审批 —— 拿它当默认，换来的只是所有人第一次用都撞一次墙
   agentFileAccessScope: 'full',
-  agentToolSearchEnabled: false,
+  agentToolSearchEnabled: true,
+  agentToolSearchUserSet: false,
   // 默认开：它只在「这次失败重来可能就好」时才动手，关着的代价是任务半路停下等人点
   agentPersistentAutoResume: true,
   agentGoalMaxRounds: DEFAULT_GOAL_MAX_ROUNDS,
@@ -204,7 +220,13 @@ class AppSettingsManager {
           ualinkOptOutProjects: mergedSettings.ualinkOptOutProjects,
           agentBrowserMode: mergedSettings.agentBrowserMode,
           agentFileAccessScope: mergedSettings.agentFileAccessScope,
-          agentToolSearchEnabled: mergedSettings.agentToolSearchEnabled === true,
+          // 没拨过的跟着新默认走（见 `agentToolSearchUserSet`）。全量模式下关过的工具
+          // 切过去之后不再被滤掉，但也不常驻 —— 模型主动搜到才会取回
+          agentToolSearchEnabled:
+            savedSettings.agentToolSearchUserSet === true
+              ? savedSettings.agentToolSearchEnabled === true
+              : DEFAULT_SETTINGS.agentToolSearchEnabled,
+          agentToolSearchUserSet: savedSettings.agentToolSearchUserSet === true,
           // 只有用户明确关掉才算关：旧配置里没有这个字段的，跟着默认走
           agentPersistentAutoResume: mergedSettings.agentPersistentAutoResume !== false,
           // 手改坏的配置（字符串、负数、9999）夹回范围，不让它变成零轮或者跑一整夜
@@ -250,7 +272,7 @@ class AppSettingsManager {
 
   /** 先落盘再更新内存，保存失败时让设置页显示错误并保留原值。 */
   setAgentToolSearchEnabled(enabled: boolean): void {
-    const next = { ...this.settings, agentToolSearchEnabled: enabled }
+    const next = { ...this.settings, agentToolSearchEnabled: enabled, agentToolSearchUserSet: true }
     writeFileSync(this.configPath, JSON.stringify(next, null, 2))
     this.settings = next
   }

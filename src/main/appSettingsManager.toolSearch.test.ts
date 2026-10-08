@@ -19,26 +19,37 @@ beforeEach(() => {
   disk.failWrite = false
 })
 
-describe('Beta 开关落盘', () => {
-  it('旧设置默认关闭；重启读回用户保存的选择', async () => {
+describe('工具搜索开关落盘', () => {
+  it('默认打开；用户拨过之后重启读回他的选择', async () => {
     const { appSettingsManager: first } = await import('./appSettingsManager')
-    expect(first.getSettings().agentToolSearchEnabled).toBe(false)
-    first.setAgentToolSearchEnabled(true)
-    expect(JSON.parse(disk.text).agentToolSearchEnabled).toBe(true)
+    expect(first.getSettings().agentToolSearchEnabled).toBe(true)
+    first.setAgentToolSearchEnabled(false)
+    expect(JSON.parse(disk.text)).toMatchObject({
+      agentToolSearchEnabled: false,
+      agentToolSearchUserSet: true
+    })
     vi.resetModules()
     const { appSettingsManager: restarted } = await import('./appSettingsManager')
-    expect(restarted.getSettings().agentToolSearchEnabled).toBe(true)
-    restarted.setAgentToolSearchEnabled(false)
-    expect(JSON.parse(disk.text).agentToolSearchEnabled).toBe(false)
+    expect(restarted.getSettings().agentToolSearchEnabled).toBe(false)
+    restarted.setAgentToolSearchEnabled(true)
+    expect(JSON.parse(disk.text).agentToolSearchEnabled).toBe(true)
   })
+
+  it('老用户文件里的 false 只是当年的默认值（没拨过）：跟着新默认打开', async () => {
+    disk.text = '{"agentToolSearchEnabled":false,"language":"zh-CN"}'
+    const { appSettingsManager } = await import('./appSettingsManager')
+    expect(appSettingsManager.getSettings().agentToolSearchEnabled).toBe(true)
+  })
+
   it('磁盘写入失败时不改变运行模式', async () => {
     const { appSettingsManager } = await import('./appSettingsManager')
     disk.failWrite = true
-    expect(() => appSettingsManager.setAgentToolSearchEnabled(true)).toThrow('disk full')
-    expect(appSettingsManager.getSettings().agentToolSearchEnabled).toBe(false)
+    expect(() => appSettingsManager.setAgentToolSearchEnabled(false)).toThrow('disk full')
+    expect(appSettingsManager.getSettings().agentToolSearchEnabled).toBe(true)
   })
-  it('旧配置里的非布尔值不能意外开启 Beta', async () => {
-    disk.text = '{"agentToolSearchEnabled":"true"}'
+
+  it('拨过的配置里写坏成非布尔值：按关处理，不替用户打开', async () => {
+    disk.text = '{"agentToolSearchEnabled":"true","agentToolSearchUserSet":true}'
     const { appSettingsManager } = await import('./appSettingsManager')
     expect(appSettingsManager.getSettings().agentToolSearchEnabled).toBe(false)
   })
