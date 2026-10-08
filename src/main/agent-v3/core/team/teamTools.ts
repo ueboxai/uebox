@@ -729,7 +729,7 @@ function createDeliverTool(deps: TeamToolDeps): UnrealAgentTool<GoalVerdict | nu
     concurrency: 'sequential',
     description:
       '交付验收。一个没参与制作的验收员会按交付标准真去玩一遍，回 PASS / FAIL / BLOCKED。' +
-      'PASS 之前不算交付；FAIL 就按它说的修完再交；BLOCKED 就停下来告诉用户缺什么。',
+      'PASS 之前不算交付；FAIL 就修它指出的问题，再按交付标准整体过一遍才交；BLOCKED 就停下来告诉用户缺什么。',
     input: deliverInput,
     execute: async ({ report, how_to_play, project_path, package_exe }, ctx) => {
       const text = await deps.runAcceptance({
@@ -748,7 +748,7 @@ function createDeliverTool(deps: TeamToolDeps): UnrealAgentTool<GoalVerdict | nu
           ? '验收通过。'
           : verdict.kind === 'blocked'
             ? '验收员没法验：停下来，把缺的东西告诉用户。'
-            : '验收未通过：按下面的意见修完，再交一次。'
+            : '验收未通过：下面是验收员找到的问题，不是交付标准的全部。修完后按交付标准整体过一遍再交；别靠砍内容、关功能换通过。'
       return { text: `${head}\n\n${text}`, details: verdict }
     }
   })

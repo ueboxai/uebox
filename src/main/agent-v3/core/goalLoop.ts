@@ -268,6 +268,9 @@ export function escapeXml(input: string): string {
  *
  * 「不要信 worker 的报告」这条要写死：审计员手里有 worker 的结束语，不明说的话
  * 它会拿那段话当事实，整套复核就退化成复读。
+ *
+ * 「按需求逐条找证据」和「绿勾要先确认覆盖了这条需求」照 Codex 的 completion audit
+ * 写：编译过、跑不崩只证明没坏，证明不了做成了，最省事的过法是把出错的东西删掉。
  */
 export function buildAuditPrompt(input: GoalAuditInput): string {
   const mutations = input.mutations.length > 0 ? input.mutations.join(', ') : '(none)'
@@ -286,8 +289,11 @@ export function buildAuditPrompt(input: GoalAuditInput): string {
     `Change-making tools it called this round: ${mutations}`,
     '',
     'Verify against the current state of things, not against that report:',
-    '- Inspect what is actually there with your tools. Re-compile and re-run rather than trusting the report.',
-    '- Intent, partial progress and "it should work" are not evidence.',
+    '- Break the objective into the concrete things it asks for. For each one, find the evidence that would prove it and inspect it with your tools. Re-compile and re-run rather than trusting the report.',
+    '- Treat the report as claims to check, not as a map of where to look: the parts nobody touched are where unfinished work hides.',
+    '- Match the check to the claim. A narrow check does not prove a broad requirement.',
+    '- A clean compile, a run with no errors or a passing check counts only once you have confirmed it covers the requirement. One that passes because something the objective needs was removed or switched off is a FAIL.',
+    '- Intent, partial progress and "it should work" are not evidence. If the evidence for a requirement is weak or indirect, it is not met.',
     '- Do not narrow the objective to fit what was done.',
     '',
     'End your reply with exactly one line, nothing after it — one of:',
@@ -326,6 +332,9 @@ function latestRequestLines(latestRequest: string | undefined): string[] {
  * 「要人拍板就调 ask_user」也不能省：目标模式下 worker 一收尾就触发复核，
  * 拿一句问话收尾等于把问题交给审计员，判 FAIL 再催回来，一路转到轮数上限。
  * 用户从头到尾没被真正问到。
+ *
+ * 「审计结果不是完成标准」不能省：只说「修审计发现的」，worker 每轮就只盯上一句批评，
+ * 目标一轮轮缩成「让那句话消失」。防凑指标的话要写在干活的这边（Codex 的 Fidelity 一节同理）。
  */
 export function buildContinuationPrompt(
   objective: string,
@@ -341,7 +350,10 @@ export function buildContinuationPrompt(
     ...latestRequestLines(latestRequest),
     `<audit_result>${escapeXml(reason)}</audit_result>`,
     '',
-    'Keep working toward the objective. Fix what the audit found, then verify it yourself before stopping.',
+    'The audit result is what the auditor found this round, not the definition of done: the objective is.',
+    'Fix what it found, then check the whole objective again yourself before stopping.',
+    'Keep the full objective intact. Do not swap in a smaller, safer or easier-to-pass version of it, and do not',
+    'make a check pass by removing or switching off something the objective needs.',
     'If you need the user to decide something, ask with the ask_user tool instead of guessing.',
     'Do not end your turn with a question: ending your turn sends the work straight back to the',
     'auditor, so the user never gets asked.'

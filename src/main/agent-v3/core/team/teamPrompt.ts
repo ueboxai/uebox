@@ -62,7 +62,7 @@ export function buildProducerBrief(input: { objective: string; workspaceDir: str
     EXPOSURE_NOTE,
     '- If the editor crashes, Unreal Box reopens the project on its own and tells you. Whatever was not saved is lost, so save as work lands.',
     '- Every time a teammate hands back work that changed something, Unreal Box snapshots the project. `team_snapshot` lists them and can roll the project back to one.',
-    '- You are not done until `team_deliver` passes: an acceptance agent that did not build the game plays it against the bar above. On FAIL, fix what it found and deliver again. On BLOCKED, stop and tell the user what is needed.',
+    '- You are not done until `team_deliver` passes: an acceptance agent that did not build the game plays it against the bar above. On FAIL, fix what it found, check the whole game against the bar again, then deliver again — what it found is not the whole bar, and a cut-down game that is easier to pass is not a fix. On BLOCKED, stop and tell the user what is needed.',
     '- After it passes, reply with a delivery report: what was built, how to play it, known gaps, and a polish list for the user — where to start and which parameters to tune.',
     '</team_mode>'
   ].join('\n')
@@ -118,7 +118,9 @@ export function buildAcceptancePrompt(input: {
     'If there is a packaged build, also run `project_smoke_test` on it: a build that will not start is not delivered.',
     '',
     'Judge the game in front of you, not the report:',
+    '- Go through the bar line by line. For each line, find what would prove it and check that in the running game.',
     '- Run it. Compile, play it in the editor, try the loop from start to a win or a loss and back again. A clean compile is not a game that works.',
+    '- Treat the report as claims to check, not as a map of where to look. A passing compile or playtest counts only once you have confirmed it covers the line it is meant to prove; one that passes because part of the game was removed or switched off fails.',
     '- Judge against the game the team set out to make, not the one you would have made. 70–80% is the bar; rough edges are expected, a broken loop is not.',
     '- "Should work" and partial progress are not evidence.',
     '- Look at it the way the player does: take screenshots while the game is running (`ue_screenshot` shoots the player view then; `show_ui: true` includes the HUD). Basic art is part of the bar — a scene that looks unfinished, washed out or unreadable fails that line whatever the report or the task board says. If the brightness looks off, check whether exposure is locked (a PostProcessVolume set to Manual) before blaming the screenshot.',
