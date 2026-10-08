@@ -13,6 +13,19 @@ async function currentSession(): Promise<string> {
 }
 
 /**
+ * 单独生成音乐时回执目录的 key。
+ *
+ * 盒子会话里按会话分目录：同一会话、同样参数的重试复用回执。外部 MCP 调用
+ * （Claude Code、Cursor 接进来的模型）没有盒子会话 —— 以前这里直接报错，
+ * 等于这些模型永远用不了配乐。没有会话时改按请求本身取 key：同一段提示词、
+ * 同样时长再发一次，照样能接回已提交的任务，不会重复扣费。
+ */
+export async function standaloneMusicKey(prompt: string, seconds: number): Promise<string> {
+  const { getCurrentSessionId } = await import('../../core/projectTargetContext')
+  return getCurrentSessionId() ?? `mcp\u0000${prompt}\u0000${seconds}`
+}
+
+/**
  * 「音乐生成」绑的是不是 Box Plan。那边提交之后取消不退额度（协议 05-tasks「取消」），
  * 说明里要写明。同步读配置，理由同 generateVideo.ts 的 planVideoBound
  */
@@ -107,20 +120,24 @@ export function taskVideoTools(): UnrealAgentTool[] {
         seconds: z.number().min(3).max(600)
       }),
       execute: async ({ projectDir, prompt, seconds }, ctx) => {
-        const sessionId = await currentSession()
         let dir: string
         if (projectDir) {
+          // 视频工程归属于会话，给工程配乐仍然要在会话里
+          const sessionId = await currentSession()
           const { assertVideoProject } = await import('../../../services/taskVideo/project')
           dir = await assertVideoProject(projectDir, sessionId)
         } else {
           const { app } = await import('electron')
           const { join } = await import('node:path')
           const { createHash } = await import('node:crypto')
-          // Stable per host session: retries reuse receipts without reading conversation content.
+          // Stable per host session (or per request outside a session): retries reuse receipts
+          // without reading conversation content.
           dir = join(
             app.getPath('music'),
             'UnrealBox',
-            createHash('sha256').update(sessionId).digest('hex')
+            createHash('sha256')
+              .update(await standaloneMusicKey(prompt, seconds))
+              .digest('hex')
           )
         }
         const { readSettings } = await import('../../../ai/store')

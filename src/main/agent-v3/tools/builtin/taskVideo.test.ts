@@ -82,6 +82,22 @@ describe('independent music generation', () => {
     expect((mocks.generate.mock.calls[2] as unknown as unknown[])[4]).not.toBe(first[4])
     expect(mocks.assertProject).not.toHaveBeenCalled()
   })
+  it('外部 MCP 调用没有盒子会话也能生成，同样的请求复用同一个回执目录', async () => {
+    // Claude Code / Cursor 接进来的模型没有盒子会话，以前直接抛「当前没有会话」
+    mocks.session.mockReturnValue(undefined as unknown as string)
+    const tool = music()
+    await tool.execute('mcp-1', { prompt: 'police chase', seconds: 30 })
+    const first = (mocks.generate.mock.calls[0] as unknown as unknown[])[4]
+    expect(String(first).startsWith(path.resolve('test-music'))).toBe(true)
+    await tool.execute('mcp-2', { prompt: 'police chase', seconds: 30 })
+    expect((mocks.generate.mock.calls[1] as unknown as unknown[])[4]).toBe(first)
+    await tool.execute('mcp-3', { prompt: 'police chase', seconds: 45 })
+    expect((mocks.generate.mock.calls[2] as unknown as unknown[])[4]).not.toBe(first)
+    // 给视频工程配乐仍然要求会话
+    await expect(
+      tool.execute('mcp-4', { projectDir: 'video-project', prompt: 'calm', seconds: 30 })
+    ).rejects.toThrow('当前没有会话')
+  })
   it('keeps generated audio available if vault import fails', async () => {
     mocks.save.mockRejectedValueOnce(new Error('vault unavailable'))
     const result = await music().execute('recover', { prompt: 'calm', seconds: 30 })
