@@ -14,6 +14,7 @@ import {
   type ThinkingLevel
 } from '@earendil-works/pi-ai'
 
+import { isOpenCodeEndpoint, openCodeHeaders } from '../../ai/opencode'
 import { readSettings } from '../../ai/store'
 import {
   ModelNotConfiguredError,
@@ -396,8 +397,15 @@ export async function resolveAgentModel(
       const previousOnPayload = options?.onPayload
       // 「不思考」在有几家端点上光传 off 不管用，要补自家字段（见 thinkingOffFields）
       const offFields = thinkingLevel === 'off' ? thinkingOffFields(model.baseUrl) : undefined
+      // OpenCode 要一段对话一个稳定的会话 id；pi 给的缓存键正好是这个粒度，
+      // 压缩后换键时前缀缓存本来也失效了。凭据层那个随机 id 只给一次性请求兜底
+      const sessionHeaders =
+        options?.sessionId && isOpenCodeEndpoint(model.baseUrl)
+          ? { headers: { ...options.headers, ...openCodeHeaders(options.sessionId) } }
+          : {}
       const baseOptions = {
         ...options,
+        ...sessionHeaders,
         ...(reasoning ? { reasoning } : {}),
         ...(offFields ? { samplingParams: { ...options?.samplingParams, ...offFields } } : {})
       }

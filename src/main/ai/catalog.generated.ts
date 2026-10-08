@@ -935,6 +935,133 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     ]
   },
   {
+    "id": "opencode-go",
+    "displayName": "OpenCode Go",
+    "group": "subscription",
+    "kind": "chat",
+    "protocol": "openai-completions",
+    "baseUrl": "https://opencode.ai/zen/go/v1",
+    "apiKeyUrl": "https://opencode.ai/auth",
+    "requiresApiKey": true,
+    "defaultEnvVar": "OPENCODE_API_KEY",
+    "hasLogo": true,
+    "models": [
+      {
+        "id": "longcat-2.5-preview-free",
+        "displayName": "LongCat 2.5 Preview Free",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "space-bunny",
+        "displayName": "Space Bunny",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 524288
+      },
+      {
+        "id": "mimo-v2.6-pro",
+        "displayName": "MiMo-V2.6-Pro",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "mimo-v2.6-flash",
+        "displayName": "MiMo-V2.6-Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "deepseek-v4.1-flash",
+        "displayName": "DeepSeek V4.1 Flash",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000
+      },
+      {
+        "id": "hy4-preview",
+        "displayName": "Hy4 preview",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1024000,
+        "maxOutputTokens": 64000
+      },
+      {
+        "id": "glm-5.3-flash",
+        "displayName": "GLM-5.3-Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "deepseek-v4-flash-vision-exp",
+        "displayName": "DeepSeek V4 Flash Vision Exp",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000
+      },
+      {
+        "id": "glm-5.3",
+        "displayName": "GLM-5.3",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "deepseek-v4-flash",
+        "displayName": "DeepSeek V4 Flash",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000
+      },
+      {
+        "id": "kimi-k3",
+        "displayName": "Kimi K3",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "hy3",
+        "displayName": "Hy3",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 256000,
+        "maxOutputTokens": 128000
+      }
+    ]
+  },
+  {
     "id": "openai-image",
     "displayName": "OpenAI GPT Image",
     "group": "image",
@@ -2013,6 +2140,131 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsReasoning": true,
         "contextWindow": 1000000,
         "maxOutputTokens": 1000000
+      }
+    ]
+  },
+  {
+    "id": "opencode-zen",
+    "displayName": "OpenCode Zen",
+    "group": "gateway",
+    "kind": "chat",
+    "protocol": "openai-completions",
+    "baseUrl": "https://opencode.ai/zen/v1",
+    "apiKeyUrl": "https://opencode.ai/auth",
+    "requiresApiKey": true,
+    "defaultEnvVar": "OPENCODE_API_KEY",
+    "hasLogo": true,
+    "models": [
+      {
+        "id": "fledge-alpha-free",
+        "displayName": "Fledge Alpha Free",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "ling-3.1-flash-free",
+        "displayName": "Ling 3.1 Flash Free",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
+      },
+      {
+        "id": "longcat-2.5-preview-free",
+        "displayName": "LongCat 2.5 Preview Free",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "space-bunny-free",
+        "displayName": "Space Bunny Free",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 524288
+      },
+      {
+        "id": "mimo-v2.6-flash-free",
+        "displayName": "MiMo-V2.6-Flash Free",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      {
+        "id": "deepseek-v4.1-flash",
+        "displayName": "DeepSeek V4.1 Flash",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000
+      },
+      {
+        "id": "ling-3.0-flash-fin-free",
+        "displayName": "Ling 3.0 Flash Fin Free",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
+      },
+      {
+        "id": "glm-5.3-flash",
+        "displayName": "GLM-5.3-Flash",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "deepseek-v4-flash-vision-exp",
+        "displayName": "DeepSeek V4 Flash Vision Exp",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 384000
+      },
+      {
+        "id": "glm-5.3",
+        "displayName": "GLM-5.3",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      {
+        "id": "nemotron-3.5-lightning-free",
+        "displayName": "Nemotron 3.5 Lightning Free",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144
+      },
+      {
+        "id": "qwen3.8-max",
+        "displayName": "Qwen3.8 Max",
+        "supportsVision": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 262144,
+        "maxOutputTokens": 131072
       }
     ]
   },

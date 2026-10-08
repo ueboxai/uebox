@@ -45,6 +45,8 @@ const LOGO_ALIAS = {
   'minimax-token-plan': 'minimax',
   'stepfun-step-plan': 'stepfun',
   codebuddy: 'tencent',
+  'opencode-go': 'opencode',
+  'opencode-zen': 'opencode',
 
   // 生图条目是同一家厂商的另一个入口（见 CURATED 里的「图片生成」一段），
   // 用母公司的标，免得目录里出现一排没有图标的方块
@@ -130,6 +132,8 @@ const KEY_PAGE = {
   venice: 'https://venice.ai/settings/api',
   inference: 'https://inference.net/dashboard/api-keys',
   openrouter: 'https://openrouter.ai/keys',
+  'opencode-go': 'https://opencode.ai/auth',
+  'opencode-zen': 'https://opencode.ai/auth',
 
   // 自建网关：密钥在**用户自己那台机器**上签发，没有统一的密钥页，
   // 只能指到「怎么签发」的文档
@@ -303,6 +307,17 @@ export const CURATED = [
     group: 'subscription',
     baseUrl: 'https://api.stepfun.com/step_plan/v1',
     displayName: '阶跃星辰 Step Plan'
+  },
+  // OpenCode 的包月套餐，官方发 API Key，文档写明可在 OpenCode 之外调用。
+  // 一个 Key 下按模型分三种协议；我们一个 Provider 只认一种，
+  // 走 Anthropic / Responses 的那几个靠 onlyMatchingProtocol 筛掉
+  {
+    id: 'opencode-go',
+    group: 'subscription',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    protocol: 'openai-completions',
+    onlyMatchingProtocol: true,
+    displayName: 'OpenCode Go'
   },
 
   // CodeBuddy / WorkBuddy 会员：腾讯没有开放 API，照官方 CLI 的登录与请求头直连。
@@ -630,6 +645,16 @@ export const CURATED = [
     supportsOAuth: true
   },
   { id: 'vercel', group: 'gateway', baseUrl: 'https://ai-gateway.vercel.sh/v1' },
+  // 按量计费那条，models.dev 里叫 `opencode`。协议筛选同上面的 OpenCode Go
+  {
+    id: 'opencode-zen',
+    sourceId: 'opencode',
+    group: 'gateway',
+    baseUrl: 'https://opencode.ai/zen/v1',
+    protocol: 'openai-completions',
+    onlyMatchingProtocol: true,
+    displayName: 'OpenCode Zen'
+  },
   { id: 'cloudflare-ai-gateway', group: 'gateway', baseUrl: '', requiresApiKey: true },
 
   // ── 云端厂商：国际 ──
@@ -696,6 +721,10 @@ const NPM_TO_PROTOCOL = {
   '@ai-sdk/openai': 'openai-responses',
   '@ai-sdk/anthropic': 'anthropic-messages',
   '@ai-sdk/google': 'google-generative-ai'
+}
+
+function protocolOfNpm(npm) {
+  return NPM_TO_PROTOCOL[npm] || 'openai-completions'
 }
 
 /**
@@ -1740,7 +1769,7 @@ export function sourceFor(item, upstream) {
 }
 
 /** 挑出要预置的模型：按发布日期倒序，优先保留支持工具调用的 */
-export function pickModels(models, providerId) {
+export function pickModels(models, providerId, onlyProtocol) {
   // 只要**能输出文本**的。上游把画图、视频、语音合成和对话模型混在一起
   // （grok-imagine-image、Nano Banana Pro、lyria、*-tts…），它们在这个应用里
   // 一个都用不了 —— 绑上去只会拿到一句厂商的报错。而且它们发布得晚，
@@ -1756,6 +1785,12 @@ export function pickModels(models, providerId) {
       // Mixed image/audio output belongs to a dedicated adapter, not a chat provider.
       return !Array.isArray(output) || (output.length === 1 && output[0] === 'text')
     })
+    // 上游给单个模型标了别的 SDK（OpenCode 一个 Key 下混着三种协议），
+    // 按 Provider 的协议发过去只会 404，不预置。只对声明了的条目生效：
+    // Azure、Cloudflare 这类网关自己会转协议，上游的标记对它们不作数
+    .filter(
+      (m) => !onlyProtocol || !m.provider?.npm || protocolOfNpm(m.provider.npm) === onlyProtocol
+    )
 
   // 窗口小到装不下系统提示词 + 工具定义的，在这个应用里根本跑不起来。
   // 上游把一批**分类器**混在对话模型里（Llama Prompt Guard 是个 512 token 的
@@ -1929,7 +1964,7 @@ async function main() {
                         ? pickJudgeModels(source.models)
                         : item.group === 'stt'
                           ? pickSttModels(source.models)
-                          : pickModels(source.models, item.id)
+                          : pickModels(source.models, item.id, item.onlyMatchingProtocol && protocol)
     const hasLogo = skipLogos
       ? existsSync(join(LOGO_DIR, `${item.id}.svg`))
       : isCheck

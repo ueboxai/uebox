@@ -25,6 +25,7 @@ import type { Api, Model, ProviderStreams, ThinkingLevelMap } from '@earendil-wo
 import { findCatalogEntry } from '../../ai/catalog'
 import { resolveModelLimits } from '../../ai/modelLimits'
 import { resolveRequestAuth } from '../../ai/credentials'
+import { isOpenCodeEndpoint, openCodeHeaders } from '../../ai/opencode'
 import type { ProviderConfig } from '../../ai/types'
 import type { ModelConfig, ProviderProtocol } from '../../../shared/aiProvider'
 
@@ -357,7 +358,12 @@ export function toPiProvider(config: ProviderConfig): Provider<Api> {
         // 每次请求都会调一次，所以账号登录要求的逐次请求头（CodeBuddy）也从这里带出去
         resolve: async () => {
           const { apiKey, headers: authHeaders } = await resolveRequestAuth(config.apiKey)
-          const headers = authHeaders ? { ...authHeaders, ...config.headers } : config.headers
+          const endpointHeaders = isOpenCodeEndpoint(config.baseUrl)
+            ? { ...openCodeHeaders(), ...authHeaders }
+            : authHeaders
+          const headers = endpointHeaders
+            ? { ...endpointHeaders, ...config.headers }
+            : config.headers
           return {
             auth: {
               // 本机推理（Ollama / LM Studio）不校验密钥，但有些客户端要求非空。
