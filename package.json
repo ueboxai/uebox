@@ -142,7 +142,7 @@
     "pinia": "^3.0.3",
     "pinia-plugin-persistedstate": "^4.7.1",
     "pinyin-pro": "^3.29.4",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "side-channel-list": "1.0.1",
     "side-channel-map": "1.0.1",
     "side-channel-weakmap": "1.0.2",
