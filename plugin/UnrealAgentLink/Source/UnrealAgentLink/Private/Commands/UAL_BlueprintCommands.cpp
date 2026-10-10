@@ -66,6 +66,11 @@
 #include "UAL_DelegateNodeName.h"
 #include "K2Node_CallDelegate.h"
 #include "K2Node_AddDelegate.h"
+#include "K2Node_CreateDelegate.h"
+#include "K2Node_FunctionTerminator.h"
+#include "K2Node_Tunnel.h"
+#include "K2Node_InputKey.h"
+#include "K2Node_InputTouch.h"
 #include "K2Node_RemoveDelegate.h"
 #include "K2Node_ClearDelegate.h"
 #include "K2Node_MacroInstance.h"
@@ -2214,6 +2219,12 @@ struct FUAL_NodeSpec
 	bool bHasEventReliable = false;
 	bool bEventReliable = false;
 
+	/**
+	 * 同一批里所有 CustomEvent 的名字。CreateEvent 要按名字引用事件，而那个事件
+	 * 可能排在它后面才建、更不在骨架类的函数表里 —— 没有这张表就会误报「找不到」
+	 */
+	const TSet<FName>* BatchCustomEvents = nullptr;
+
 	bool bHasFirstIndex = false;
 	int32 FirstIndex = 0;
 	bool bHasLastIndex = false;
@@ -2798,6 +2809,128 @@ static TNode* UAL_SpawnExternalVariableNode(UEdGraph* Graph, const FProperty* Pr
 }
 
 /**
+ * 编辑器自己的「这个节点能不能放进这张图」。
+ *
+ * 编辑器的右键菜单和粘贴都按这套规矩筛过，所以手动操作碰不到；我们直接建节点，
+ * 绕过了它。放错的节点照样建得成、连得上线，错误要到编译时才冒出来，而且报的
+ * 是下游症状 —— 函数图里的 CustomEvent 不会被编成函数，绑它的委托按名字找不到，
+ * 报「无法找到选定的函数/事件，是否已被删除」，调用方怎么改名字、换顺序都没用。
+ *
+ * 规则来自两处：
+ *   - `IsCompatibleWithGraph`：事件 / 输入 / Timeline 只能在事件图，构造脚本里
+ *     不能生成 Actor，等等；
+ *   - 调函数和宏的 `CanPasteHere`：潜伏节点（Delay、异步加载）不能进函数图，
+ *     纯函数图里不能放带执行线的调用。事件的 CanPasteHere 管的是「重复粘贴」，不拿来用。
+ *
+ * 函数入口 / 返回、宏的入口 / 出口不查：它们的 IsCompatibleWithGraph 是「图里还没有
+ * 同类节点」，节点已经在图里时永远是 false。
+ */
+static bool UAL_IsNodePlacementAllowed(const UEdGraph* Graph, UEdGraphNode* Node)
+{
+	if (!Graph || !Node || !Graph->GetSchema() || !Cast<UK2Node>(Node) || Node->IsA<UK2Node_FunctionTerminator>())
+	{
+		return true;
+	}
+	if (const UK2Node_Tunnel* Tunnel = Cast<UK2Node_Tunnel>(Node))
+	{
+		if (Tunnel->bCanHaveInputs != Tunnel->bCanHaveOutputs)
+		{
+			return true;
+		}
+	}
+	if (!Node->IsCompatibleWithGraph(Graph))
+	{
+		return false;
+	}
+	if (Node->IsA<UK2Node_CallFunction>() || Node->IsA<UK2Node_MacroInstance>())
+	{
+		return Node->CanPasteHere(Graph);
+	}
+	return true;
+}
+
+/** 放错了说清楚为什么、该放哪；和上面那个判断配对用 */
+static FString UAL_DescribeMisplacedNode(const UEdGraph* Graph, const UEdGraphNode* Node)
+{
+	const EGraphType GraphType = Graph->GetSchema()->GetGraphType(Graph);
+	const TCHAR* GraphKind =
+		GraphType == GT_Function ? TEXT("a function graph") :
+		GraphType == GT_Macro ? TEXT("a macro graph") :
+		GraphType == GT_Ubergraph ? TEXT("an event graph") :
+		GraphType == GT_Animation ? TEXT("an anim graph") :
+		GraphType == GT_StateMachine ? TEXT("a state machine") : TEXT("this kind of graph");
+
+	FString Msg = FString::Printf(
+		TEXT("'%s' (%s) cannot be placed in '%s' (%s) - the editor would not let you put it there either."),
+		*Node->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Node->GetClass()->GetName(), *Graph->GetName(), GraphKind);
+
+	const bool bEventLike =
+		Node->IsA<UK2Node_Event>() || Node->IsA<UK2Node_Timeline>() || Node->IsA<UK2Node_InputAction>() ||
+		Node->IsA<UK2Node_InputKey>() || Node->IsA<UK2Node_InputTouch>() ||
+		Node->GetClass()->GetFName() == TEXT("K2Node_EnhancedInputAction");
+	bool bLatent = false;
+	if (const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node))
+	{
+		bLatent = Call->IsLatentFunction();
+	}
+	else if (const UK2Node_MacroInstance* Macro = Cast<UK2Node_MacroInstance>(Node))
+	{
+		bLatent = Macro->GetMacroGraph() && FBlueprintEditorUtils::CheckIfGraphHasLatentFunctions(Macro->GetMacroGraph());
+	}
+
+	if (bEventLike && GraphType != GT_Ubergraph)
+	{
+		Msg += TEXT(" Events, input events and Timelines only work in an event graph (EventGraph): ")
+			TEXT("in a function they never become callable, so anything bound to them fails at compile time.");
+		if (const UK2Node_CustomEvent* Custom = Cast<UK2Node_CustomEvent>(Node))
+		{
+			Msg += FString::Printf(
+				TEXT(" Create the CustomEvent in EventGraph instead. To bind it from inside this function, put ")
+				TEXT("{\"class\": \"CreateEvent\", \"member_name\": \"%s\"} here and wire its OutputDelegate into BindEvent's Delegate pin."),
+				*Custom->CustomFunctionName.ToString());
+		}
+		else
+		{
+			Msg += TEXT(" Put it in EventGraph and call into this function from there.");
+		}
+	}
+	else if (bLatent && GraphType == GT_Function)
+	{
+		Msg += TEXT(" Latent nodes (Delay, Move To, async loads, timers...) cannot run inside a function - a function must finish ")
+			TEXT("in the same frame. Put this part in EventGraph (e.g. a CustomEvent the function calls) or in a macro.");
+	}
+	else if (UEdGraphSchema_K2::IsConstructionScript(Graph))
+	{
+		Msg += TEXT(" The Construction Script cannot spawn actors or run gameplay-only nodes; do this from BeginPlay in EventGraph.");
+	}
+	return Msg;
+}
+
+/**
+ * 蓝图里已经放错的节点（旧版本插件建的、别处来的）。只在编译失败时附在 diagnostics 后面 ——
+ * 引擎那条报错只说症状，这一条说病根
+ */
+static void UAL_ForEachMisplacedNode(UBlueprint* Blueprint, TFunctionRef<void(UEdGraphNode*, const FString&)> Visit)
+{
+	TArray<UEdGraph*> AllGraphs;
+	Blueprint->GetAllGraphs(AllGraphs);
+	for (UEdGraph* Graph : AllGraphs)
+	{
+		if (!Graph)
+		{
+			continue;
+		}
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (Node && !UAL_IsNodePlacementAllowed(Graph, Node))
+			{
+				Visit(Node, UAL_DescribeMisplacedNode(Graph, Node));
+			}
+		}
+	}
+}
+
+/**
  * 建一个委托节点。
  *
  * `SetFromProperty` 必须在 `Finalize()` 之前 —— 委托节点的引脚（Target，
@@ -2881,6 +3014,120 @@ static UEdGraphNode* UAL_CreateNodeInternal(
 			TEXT("In Blueprints an RPC is a CustomEvent with replication=Server/Client/Multicast."),
 			*Spec.Type);
 		return nullptr;
+	}
+
+	// ===== CreateEvent（编辑器里的「创建事件」：按名字引用一个事件/函数，产出委托）=====
+	// 在函数图里绑委托只能走它 —— 事件放不进函数图（见 UAL_DescribeMisplacedNode）。
+	// 节点只存一个函数名，编译时到作用域类里按名字找：默认是本蓝图；
+	// 写成 "BP_Other.Func" 就是那个类上的函数，再把那个对象接到节点的 self 引脚上
+	if (T == TEXT("createevent") || T == TEXT("createdelegate"))
+	{
+		if (Spec.Name.IsEmpty())
+		{
+			OutError = TEXT("CreateEvent needs member_name: the CustomEvent (in EventGraph) or function to bind, ")
+				TEXT("or \"ClassName.FunctionName\" for one on another object");
+			return nullptr;
+		}
+
+		FString ClassPart, FuncPart;
+		if (!Spec.Name.Split(TEXT("."), &ClassPart, &FuncPart))
+		{
+			FuncPart = Spec.Name;
+		}
+		const FName TargetName(*FuncPart);
+
+		UClass* Scope = Blueprint->SkeletonGeneratedClass;
+		if (!ClassPart.IsEmpty())
+		{
+			FString ScopeError;
+			Scope = UAL_CommandUtils::ResolveClassFromIdentifier(ClassPart, UObject::StaticClass(), ScopeError);
+			if (!Scope)
+			{
+				Scope = UAL_CommandUtils::ResolveClassFromIdentifier(TEXT("U") + ClassPart, UObject::StaticClass(), ScopeError);
+			}
+			if (!Scope)
+			{
+				OutError = FString::Printf(TEXT("CreateEvent: class '%s' not found (%s)"), *ClassPart, *ScopeError);
+				return nullptr;
+			}
+			// 蓝图类查骨架类：刚加、还没完整编译的函数只在它上面
+			if (const UBlueprint* ScopeBlueprint = UBlueprint::GetBlueprintFromClass(Scope))
+			{
+				if (ScopeBlueprint->SkeletonGeneratedClass)
+				{
+					Scope = ScopeBlueprint->SkeletonGeneratedClass;
+				}
+			}
+		}
+		bool bFound = Scope && Scope->FindFunctionByName(TargetName);
+
+		// 本蓝图的 CustomEvent：事件图里已有的、或这一批里正要建的，都可能还没进骨架类的函数表
+		TArray<FString> EventNames;
+		FString MisplacedIn;
+		if (ClassPart.IsEmpty())
+		{
+			bFound |= Spec.BatchCustomEvents && Spec.BatchCustomEvents->Contains(TargetName);
+			TArray<UEdGraph*> AllGraphs;
+			Blueprint->GetAllGraphs(AllGraphs);
+			for (UEdGraph* Page : AllGraphs)
+			{
+				if (!Page || !Page->GetSchema())
+				{
+					continue;
+				}
+				const bool bEventGraph = Page->GetSchema()->GetGraphType(Page) == GT_Ubergraph;
+				for (UEdGraphNode* Node : Page->Nodes)
+				{
+					const UK2Node_CustomEvent* Custom = Cast<UK2Node_CustomEvent>(Node);
+					if (!Custom)
+					{
+						continue;
+					}
+					if (!bEventGraph)
+					{
+						// 以前放错地方的老节点：它永远编不成函数，指名道姓说出来
+						if (Custom->CustomFunctionName == TargetName)
+						{
+							MisplacedIn = Page->GetName();
+						}
+						continue;
+					}
+					bFound |= (Custom->CustomFunctionName == TargetName);
+					EventNames.Add(Custom->CustomFunctionName.ToString());
+				}
+			}
+		}
+
+		if (!bFound)
+		{
+			if (!MisplacedIn.IsEmpty())
+			{
+				OutError = FString::Printf(
+					TEXT("CreateEvent: CustomEvent '%s' sits in '%s', which is not an event graph, so it never becomes a callable event. ")
+					TEXT("Delete it there and create it in EventGraph, then reference it here."),
+					*FuncPart, *MisplacedIn);
+			}
+			else if (!ClassPart.IsEmpty())
+			{
+				OutError = FString::Printf(TEXT("CreateEvent: function '%s' not found on %s"), *FuncPart, *Scope->GetName());
+			}
+			else
+			{
+				OutError = FString::Printf(
+					TEXT("CreateEvent: no CustomEvent or function named '%s' in this blueprint (custom events in EventGraph: %s). ")
+					TEXT("Create the CustomEvent in EventGraph first, then reference it here."),
+					*FuncPart, EventNames.Num() > 0 ? *FString::Join(EventNames, TEXT(", ")) : TEXT("none"));
+			}
+			return nullptr;
+		}
+
+		FGraphNodeCreator<UK2Node_CreateDelegate> NodeCreator(*Graph);
+		UK2Node_CreateDelegate* CreateNode = NodeCreator.CreateNode();
+		CreateNode->NodePosX = PosX;
+		CreateNode->NodePosY = PosY;
+		NodeCreator.Finalize();
+		CreateNode->SetFunction(TargetName);
+		return CreateNode;
 	}
 
 	// ===== Event =====
@@ -4126,7 +4373,7 @@ static UEdGraphNode* UAL_CreateNodeInternal(
 	}
 
 	OutError = FString::Printf(
-		TEXT("Unsupported node type: %s. Named types: Event, Function, VariableGet, VariableSet, InputAction, EnhancedInputAction, Branch, Sequence, Cast, SpawnActor, CustomEvent, Select, MakeArray, MakeStruct, BreakStruct, Self, Timeline, CallDispatcher, BindEvent, UnbindEvent, UnbindAllEvents, ForLoop, WhileLoop, Gate, DoOnce, DoN, FlipFlop, IsValid, ForEachLoop, ForEachLoopWithBreak, ReverseForEachLoop, Macro. Or pass raw_class=\"K2Node_<Something>\".%s"),
+		TEXT("Unsupported node type: %s. Named types: Event, Function, VariableGet, VariableSet, InputAction, EnhancedInputAction, Branch, Sequence, Cast, SpawnActor, CustomEvent, Select, MakeArray, MakeStruct, BreakStruct, Self, Timeline, CallDispatcher, BindEvent, UnbindEvent, UnbindAllEvents, CreateEvent, ForLoop, WhileLoop, Gate, DoOnce, DoN, FlipFlop, IsValid, ForEachLoop, ForEachLoopWithBreak, ReverseForEachLoop, Macro. Or pass raw_class=\"K2Node_<Something>\".%s"),
 		*Spec.Type, *UALAnimGraph::DescribeNodeTypesForError(Graph));
 	return nullptr;
 }
@@ -6060,6 +6307,19 @@ void FUAL_BlueprintCommands::Handle_CompileBlueprint(const TSharedPtr<FJsonObjec
 		Diagnostics.Add(MakeShared<FJsonValueObject>(D));
 	}
 
+	// 3.2 编译失败时把放错地方的节点也报出来：引擎那条只说症状（「找不到选定的函数/事件」），这条说病根
+	if (Blueprint->Status == BS_Error)
+	{
+		UAL_ForEachMisplacedNode(Blueprint, [&Diagnostics](UEdGraphNode* Node, const FString& Why)
+		{
+			TSharedPtr<FJsonObject> D = MakeShared<FJsonObject>();
+			D->SetStringField(TEXT("type"), TEXT("Error"));
+			D->SetStringField(TEXT("message"), Why);
+			D->SetStringField(TEXT("node_id"), UAL_GuidToString(Node->NodeGuid));
+			Diagnostics.Add(MakeShared<FJsonValueObject>(D));
+		});
+	}
+
 	// 4. 检查结果状态
 	//
 	// BS_UpToDateWithWarnings 也算编译通过。漏掉它的后果不小：带警告的蓝图
@@ -7182,6 +7442,21 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 	const int32 StepX = 350;
 	const int32 StepY = 200;
 
+	// 这一批要建的 CustomEvent，给 CreateEvent 引用用（它可能排在事件前面）
+	TSet<FName> BatchCustomEvents;
+	for (const TSharedPtr<FJsonValue>& NodeVal : *NodesArray)
+	{
+		const TSharedPtr<FJsonObject>* NodeObjPtr = nullptr;
+		if (NodeVal.IsValid() && NodeVal->TryGetObject(NodeObjPtr) && NodeObjPtr && (*NodeObjPtr).IsValid())
+		{
+			const FUAL_NodeSpec Peek = UAL_ParseNodeSpec(*NodeObjPtr);
+			if (UAL_NormalizeNodeType(Peek.Type) == TEXT("customevent") && !Peek.Name.IsEmpty())
+			{
+				BatchCustomEvents.Add(FName(*Peek.Name));
+			}
+		}
+	}
+
 	for (int32 i = 0; i < NodesArray->Num(); ++i)
 	{
 		const TSharedPtr<FJsonValue>& NodeVal = (*NodesArray)[i];
@@ -7230,6 +7505,7 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		// 快照先进数组再传引用：Timeline 之外的节点不会碰它，留在数组里
 		// 也只是一条 Template==nullptr 的空记录，回退时直接跳过
 		FUAL_TimelineSnapshot& Snapshot = TimelineSnapshots.AddDefaulted_GetRef();
+		Spec.BatchCustomEvents = &BatchCustomEvents;
 		UEdGraphNode* NewNode = UAL_CreateNodeInternal(Blueprint, Graph, Spec, bReused, CreateError, &Snapshot);
 		if (!NewNode)
 		{
@@ -7242,6 +7518,13 @@ void FUAL_BlueprintCommands::Handle_CreateGraphDeclarative(const TSharedPtr<FJso
 		if (!bReused)
 		{
 			CreatedNodes.Add(NewNode);
+
+			// 先记进回退名单再判：判不过就整批回滚，连 Timeline 模板一起照快照复原。
+			// 不 continue —— 节点照常登记 id，后面连到它的线不会再多报一堆「找不到节点」
+			if (!UAL_IsNodePlacementAllowed(Graph, NewNode))
+			{
+				Errors.Add(FString::Printf(TEXT("nodes[%d] '%s': %s"), i, *NodeId, *UAL_DescribeMisplacedNode(Graph, NewNode)));
+			}
 		}
 
 		NodeIdMap.Add(NodeId, NewNode);
@@ -8021,6 +8304,22 @@ void UAL_CompileAndReport(UBlueprint* Blueprint, const TMap<UEdGraphNode*, FStri
 		}
 #endif
 		Diagnostics.Add(MakeShared<FJsonValueObject>(Diag));
+	}
+	// 引擎那条只说症状，放错地方的节点（函数图里的事件之类）把病根补上
+	if (CompileResults.NumErrors > 0)
+	{
+		UAL_ForEachMisplacedNode(Blueprint, [&](UEdGraphNode* Node, const FString& Why)
+		{
+			TSharedPtr<FJsonObject> Diag = MakeShared<FJsonObject>();
+			Diag->SetStringField(TEXT("severity"), TEXT("error"));
+			Diag->SetStringField(TEXT("message"), Why);
+			if (const FString* CallerId = NodeToCallerId.Find(Node))
+			{
+				Diag->SetStringField(TEXT("node"), *CallerId);
+			}
+			Diag->SetStringField(TEXT("node_id"), UAL_GuidToString(Node->NodeGuid));
+			Diagnostics.Add(MakeShared<FJsonValueObject>(Diag));
+		});
 	}
 	Result->SetArrayField(TEXT("diagnostics"), Diagnostics);
 }
@@ -9401,6 +9700,15 @@ void FUAL_BlueprintCommands::Handle_ComponentEvent(const TSharedPtr<FJsonObject>
 			TEXT("Graph not found: %s"), GraphName.IsEmpty() ? TEXT("EventGraph") : *GraphName));
 		return;
 	}
+	// 组件事件和别的事件一样只活在事件图里，放进函数图编译不出来（见 UAL_DescribeMisplacedNode）
+	if (!Graph->GetSchema() || Graph->GetSchema()->GetGraphType(Graph) != GT_Ubergraph)
+	{
+		UAL_CommandUtils::SendError(RequestId, 400, FString::Printf(
+			TEXT("Graph '%s' is not an event graph; component events can only live in EventGraph (leave graph_name empty). ")
+			TEXT("Call into your function from the event instead."),
+			*Graph->GetName()));
+		return;
+	}
 
 	// 已经绑过就复用。重复绑同一个事件，编译不报错但两条链都会执行 ——
 	// 和 BeginPlay 重复建节点是同一类坑
@@ -10258,6 +10566,17 @@ void FUAL_BlueprintCommands::Handle_ImportNodesT3D(const TSharedPtr<FJsonObject>
 			Diag->SetStringField(TEXT("severity"), Severity == EMessageSeverity::Error ? TEXT("error") : TEXT("warning"));
 			Diag->SetStringField(TEXT("message"), Message->ToText().ToString());
 			Diagnostics.Add(MakeShared<FJsonValueObject>(Diag));
+		}
+		if (CompileResults.NumErrors > 0)
+		{
+			UAL_ForEachMisplacedNode(Blueprint, [&Diagnostics](UEdGraphNode* Node, const FString& Why)
+			{
+				TSharedPtr<FJsonObject> Diag = MakeShared<FJsonObject>();
+				Diag->SetStringField(TEXT("severity"), TEXT("error"));
+				Diag->SetStringField(TEXT("message"), Why);
+				Diag->SetStringField(TEXT("node_id"), UAL_GuidToString(Node->NodeGuid));
+				Diagnostics.Add(MakeShared<FJsonValueObject>(Diag));
+			});
 		}
 		Result->SetArrayField(TEXT("diagnostics"), Diagnostics);
 	}

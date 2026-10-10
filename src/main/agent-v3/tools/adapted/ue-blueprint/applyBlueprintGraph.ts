@@ -65,7 +65,7 @@ const NodeDefinitionSchema = z.object({
     .describe(
       '节点类型。常用：Event、EnhancedInputAction、Function、VariableGet、VariableSet、Branch、Sequence、' +
         'Cast、SpawnActor、CustomEvent、Select、MakeArray、MakeStruct、BreakStruct、Self、Timeline、' +
-        'CallDispatcher、BindEvent、UnbindEvent、UnbindAllEvents、' +
+        'CallDispatcher、BindEvent、UnbindEvent、UnbindAllEvents、CreateEvent、' +
         'ForLoop、WhileLoop、DoOnce、Gate、FlipFlop、IsValid、ForEachLoop。' +
         '动画图里还有 OutputPose、SequencePlayer、BlendSpacePlayer、StateMachine 等动画节点；' +
         '状态机那一页只放 State / Conduit / StateAlias'
@@ -76,6 +76,7 @@ const NodeDefinitionSchema = z.object({
     .describe(
       '成员名。CallDispatcher / BindEvent / UnbindEvent / UnbindAllEvents 写事件分发器名' +
         '（别人身上的写 BP_Chest.OnChestOpened）；' +
+        'CreateEvent 写 EventGraph 里那个 CustomEvent 的名字（别的对象上的函数写 BP_Other.FuncName）；' +
         'Function 必须是 ClassName.FunctionName（如 KismetSystemLibrary.PrintString，' +
         '用 blueprint_search_nodes 查到的 member_name 可直接填）；' +
         'Event 用 ReceiveBeginPlay / ReceiveTick；EnhancedInputAction 写 Input Action 资产名或路径（IA_Jump）；' +
@@ -573,6 +574,15 @@ replication：Server（客户端→服务器）、Client（服务器→拥有者
 
 连线：把 CustomEvent 的 **OutputDelegate** 引脚接到 BindEvent 的 **Delegate** 引脚
 （那根红线）。事件的 params 要和分发器的 params 类型、顺序一致。
+
+**在函数图里绑**：事件（CustomEvent / Event / 输入 / Timeline）只能放在事件图里，
+函数图里建会被拒（Delay 这类潜伏节点同理，函数里放不了）。分两次写：先往 EventGraph
+写 CustomEvent（带事件体），再往函数图写
+
+{ "id": "bind", "class": "BindEvent", "member_name": "BP_Chest.OnChestOpened" },
+{ "id": "ref", "class": "CreateEvent", "member_name": "OnChestOpened_Handler" }
+
+把 CreateEvent 的 **OutputDelegate** 接到 BindEvent 的 **Delegate**。
 
 **别人身上的分发器**写 member_name="BP_Chest.OnChestOpened"，再把那个 Actor 接到
 节点的 Target 引脚上。组件自带的事件（OnComponentBeginOverlap 之类）不走这里，
