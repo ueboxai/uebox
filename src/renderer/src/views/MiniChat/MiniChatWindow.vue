@@ -775,6 +775,15 @@ function handleResetSession(): void {
   // 同上：会话都重置了，没人会再来点那个确认框
   pendingApprovals.rejectAll()
 
+  /*
+   * 侧边问一句问完就散：不进侧边栏，复制出来的那份内核 transcript 也删掉。
+   *
+   * 它借的是主对话的上下文、跑在只读档上，存成一条普通对话的话，用户在主窗口里
+   * 点开它接着聊就成了一条可写的「主对话副本」—— 那是「分支」的活，不是这里的。
+   * 盘上那份不删的话，每问一句就多一份整段历史的拷贝，永远没人再读。
+   */
+  const borrowed = sideContext.value
+
   // 直接从 localStorage 读取设置（因为独立窗口的 Pinia store 可能不会同步）
   let miniChatPersistEnabled = false
   try {
@@ -789,7 +798,7 @@ function handleResetSession(): void {
   console.log('[MiniChat] miniChatPersistEnabled:', miniChatPersistEnabled)
 
   // 如果开启了持久会话，先检查是否有实际内容需要保存
-  if (!MINI_CHAT_SETTINGS_ENABLED || miniChatPersistEnabled) {
+  if (!borrowed && (!MINI_CHAT_SETTINGS_ENABLED || miniChatPersistEnabled)) {
     const msgs = chatMsgStore.getMessages(SESSION_ID.value)
     // 只保存有实际内容的对话（用户消息+AI回复）
     const hasContent = msgs.some((m) => m.role === 'assistant' && m.status === 'done')
@@ -827,6 +836,13 @@ function handleResetSession(): void {
 
   // 重置 Agent 会话 ID
   chatSessionStore.setAgentSessionId(SESSION_ID.value, '')
+
+  if (borrowed) {
+    // 删不掉只是盘上多一份没人读的拷贝，不值得拦住用户关窗口
+    void agentV3API.deleteSession(borrowed.agentSessionId).catch((error) => {
+      console.warn('[MiniChat] 侧边问一句的内核 transcript 没删掉:', error)
+    })
+  }
 
   // 借来的上下文跟着这条会话一起作废。留着的话，用户点「新对话」之后
   // 横幅还挂着「承接了 42 条」，而新会话的内核 sessionId 已经换了 —— 那句话是假的

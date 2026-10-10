@@ -2070,7 +2070,9 @@ async function handleBubbleFork(payload: { id: string }): Promise<void> {
   )
 
   if (outcome.ok) {
-    message.success(t('assistant.branch.success'))
+    message.success(
+      t(outcome.wholeCopied ? 'assistant.branch.successWhole' : 'assistant.branch.success')
+    )
     return
   }
 

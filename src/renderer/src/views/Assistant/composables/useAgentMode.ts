@@ -503,9 +503,19 @@ export function useAgentMode(params: UseAgentModeParams) {
    */
   async function resumeAgent(agentSessionId: string): Promise<void> {
     const chatSid = sid.value
-    // 正在跑就别再起一次 —— 主进程会以「会话正在执行中」拒掉，
-    // 而界面这边已经多了一个永远转下去的气泡
-    if (!agentSessionId || agentStreamStore.isStreaming(chatSid)) return
+    if (!agentSessionId) return
+    /*
+     * 还占着就别再起一次 —— 主进程会以「会话正在执行中」拒掉。
+     *
+     * 必须看 `isBusy` 而不是 `isStreaming`：界面停了、主进程还没 `released` 的那个
+     * 空档，以及别的窗口正在跑这条对话时，`isStreaming` 都是 false。放过去的话，
+     * 被拒后 `abandon()` 会摘掉上一轮留下的「等释放」标记，`isBusy` 提前变 false，
+     * 排队的下一条就在主进程真正空出来之前出队、被顶回来 —— 那条话就没了。
+     */
+    if (agentStreamStore.isBusy(chatSid)) {
+      message.info(t('assistant.agentMode.sessionBusy'))
+      return
+    }
 
     const typingId = pushAssistantTyping(Date.now())
     const resumeItem: AgentProcessItem = {

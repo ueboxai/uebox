@@ -2566,6 +2566,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       titleSuffix: ' (branch)',
       success: 'Branched from this reply — everything after it was left behind',
       noAgentSession: 'Only Agent sessions can be branched',
+      successWhole: "Branch created. That reply couldn't be found, so the whole chat came along.",
       busy: 'This turn has not settled yet — branch from an earlier message, or try again shortly',
       missing: 'This session has no conversation history to copy yet',
       failed: 'Failed to create the session branch'

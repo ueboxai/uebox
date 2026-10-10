@@ -63,7 +63,12 @@ describe('forkSession', () => {
 
     const outcome = await forkSession('chat-a', deps)
 
-    expect(outcome).toEqual({ ok: true, chatSid: 'chat-branch', agentSessionId: 'agent-branch' })
+    expect(outcome).toEqual({
+      ok: true,
+      chatSid: 'chat-branch',
+      agentSessionId: 'agent-branch',
+      wholeCopied: false
+    })
 
     // 新会话带着分支标题、原工程归属和新的内核会话身份
     const created = deps.chatStore.sessionById('chat-branch')
@@ -182,10 +187,12 @@ describe('forkSession 的分叉点', () => {
     const lastId = appendTurn('那用组件呢', '组件也行')
     const deps = setupDeps()
 
-    await forkSession('chat-a', deps, lastId)
+    const outcome = await forkSession('chat-a', deps, lastId)
 
     expect(deps.forkTranscript).toHaveBeenCalledWith('agent-a', undefined)
     expect(deps.chatMsgStore.getMessages('chat-branch')).toHaveLength(4)
+    // 后面本来就没有消息，「之后的没带过去」这句话仍然成立
+    expect(outcome).toMatchObject({ ok: true, wholeCopied: false })
   })
 
   it('id 对不上任何一条消息时退回整份复制，而不是报错', async () => {
@@ -194,7 +201,8 @@ describe('forkSession 的分叉点', () => {
 
     const outcome = await forkSession('chat-a', deps, '已经被删掉的消息')
 
-    expect(outcome.ok).toBe(true)
+    // 界面据此换一句提示，不能再说「之后的消息没有带过去」
+    expect(outcome).toMatchObject({ ok: true, wholeCopied: true })
     expect(deps.forkTranscript).toHaveBeenCalledWith('agent-a', undefined)
     expect(deps.chatMsgStore.getMessages('chat-branch')).toHaveLength(2)
   })

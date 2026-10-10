@@ -469,6 +469,18 @@ function alwaysAllowedFor(sessionId: string): Set<string> {
   const created = new Set<string>()
   sessionAlwaysAllowed.set(sessionId, created)
   return created
+/**
+ * 切到只读（Ask）时连同「本对话内都允许」的名单一起清掉。
+ *
+ * 不能只在 `set-approval-mode` 里清：渲染层那一下同步送不到时会静默跳过，
+ * 下一轮 execute / continue 带着 `mode: 'ask'` 进来只改了只读标记，名单还在，
+ * 用户切回 Agent 后旧授权照样生效 —— 按钮上的承诺就落空了。
+ */
+function setReadOnly(sessionId: string, readOnly: boolean): void {
+  readOnlyBySession.set(sessionId, readOnly)
+  if (readOnly) sessionAlwaysAllowed.get(sessionId)?.clear()
+}
+
 }
 
 /**
@@ -1878,7 +1890,7 @@ export function registerAgentV3IPC(): void {
      * 的初始值把它盖回去 —— 他明明已经切过了，工具还在照可写跑。
      */
     approvalModeBySession.set(args.sessionId, args.approvalMode ?? 'ask')
-    readOnlyBySession.set(args.sessionId, (args.mode ?? 'agent') === 'ask')
+    setReadOnly(args.sessionId, (args.mode ?? 'agent') === 'ask')
 
     /*
      * 先认领归属，再算这一轮的作用域。
@@ -2375,7 +2387,7 @@ export function registerAgentV3IPC(): void {
     const run = reserveRun(args.sessionId, event.sender.id)
     if (!run) return { success: false, error: `会话 ${args.sessionId} 正在执行中` }
     if (args.approvalMode) approvalModeBySession.set(args.sessionId, args.approvalMode)
-    if (args.mode) readOnlyBySession.set(args.sessionId, args.mode === 'ask')
+    if (args.mode) setReadOnly(args.sessionId, args.mode === 'ask')
     try {
       /*
        * 工程**沿用上一轮钉住的那个**，不重新解析。
@@ -3444,8 +3456,7 @@ export function registerAgentV3IPC(): void {
       }
       approvalModeBySession.set(args.sessionId, args.approvalMode)
       if (args.mode) {
-        readOnlyBySession.set(args.sessionId, args.mode === 'ask')
-        if (args.mode === 'ask') sessionAlwaysAllowed.get(args.sessionId)?.clear()
+        setReadOnly(args.sessionId, args.mode === 'ask')
       }
       return { success: true }
     }

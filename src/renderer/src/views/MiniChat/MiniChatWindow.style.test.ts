@@ -39,3 +39,24 @@ describe('MiniChatWindow read aloud', () => {
     expect(stopAt).toBeLessThan(deleteAt)
   })
 })
+
+/*
+ * 侧边问一句问完就散：关窗（主进程发 reset-session）时不存进侧边栏，
+ * 复制出来的内核 transcript 也删掉。存成普通对话的话，用户在主窗口点开它
+ * 接着聊，就成了一条可写的主对话副本。
+ */
+describe('MiniChatWindow 侧边问一句关窗不留东西', () => {
+  const body = source.slice(
+    source.indexOf('function handleResetSession'),
+    source.indexOf('watch(', source.indexOf('function handleResetSession'))
+  )
+
+  it('借了上下文就跳过保存', () => {
+    expect(body).toContain('const borrowed = sideContext.value')
+    expect(body).toMatch(/if \(!borrowed && \(/)
+  })
+
+  it('删掉复制出来的那份内核 transcript', () => {
+    expect(body).toContain('agentV3API.deleteSession(borrowed.agentSessionId)')
+  })
+})

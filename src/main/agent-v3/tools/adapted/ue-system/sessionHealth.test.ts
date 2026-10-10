@@ -422,23 +422,29 @@ it('已标离线但还没从连接池消失的记录不算连着', async () => {
 })
 
 /**
- * 工具清单是每轮开始时定下来的（`resolveTools`），中途连上不会补发。
- * 不说这句的话，模型看到「已连接」就会去调一个它手上根本没有的工具，
- * 然后在「没有这个工具」和「重试」之间空转一整轮。
+ * 主 agent 的工具清单在两次模型调用之间会刷新（`prepareNextTurnWithContext`），
+ * 子 agent 不会。两种情况都要交代：说「不会补发」会让主对话里的模型白白叫用户
+ * 再发一条；只说「会刷新」又会让子 agent 在「没有这个工具」和「重试」之间空转。
  */
-it('连上了也要说清楚：这一轮的工具清单不会补发', async () => {
+it('连上了：说清楚下一步会刷新，刷新不到才让用户再发一条', async () => {
   connect('conn-1', 'I:/Dev/MyGame')
 
-  expect(String((await run()).summary)).toContain('再发一条消息')
+  const summary = String((await run()).summary)
+  expect(summary).toContain('自动刷新')
+  expect(summary).toContain('再发一条消息')
+  expect(summary).not.toContain('不会补发')
 })
 
 /** 没连上时同样要说 —— 那才是模型最容易拿「还是没连上」误判的时刻 */
-it('没连上时也说清楚工具清单不会补发', async () => {
+it('没连上时也说清楚连上之后工具怎么到手', async () => {
   getRunningProjects.mockReturnValue([
     { pid: 1, projectName: 'MyGame', projectPath: 'I:/Dev/MyGame/MyGame.uproject' }
   ])
 
-  expect(String((await run()).summary)).toContain('再发一条消息')
+  const summary = String((await run()).summary)
+  expect(summary).toContain('自动刷新')
+  expect(summary).toContain('再发一条消息')
+  expect(summary).not.toContain('不会补发')
 })
 
 /**

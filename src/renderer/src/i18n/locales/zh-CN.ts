@@ -2500,6 +2500,7 @@ export default {
       tooltip: '从这条创建分支',
       titleSuffix: '（分支）',
       success: '分支已创建，后续对话不会复制',
+      successWhole: '分支已创建。没找到你点的那条回复，整条对话都带过去了',
       noAgentSession: '当前会话不是 Agent 会话，无法创建分支',
       busy: '这一轮还没收尾，从更早的一条分支，或稍后再试',
       missing: '暂无可复制的对话历史',

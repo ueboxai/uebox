@@ -333,6 +333,16 @@ describe('Agent V3 真实 IPC 生命周期', () => {
     expect(context.isReadOnly?.()).toBe(false)
   })
 
+  it('下一轮带着只读进来时，本对话内都允许的名单也清掉', async () => {
+    await invoke('execute', { sessionId: 'allow-reset', prompt: 'work', mode: 'agent' })
+    const allowed = (mock.create.mock.calls[0][0] as SessionContext).alwaysAllowed!
+    allowed.add('ue_delete_assets')
+
+    // 渲染层那次 set-approval-mode 没送到，只读是随下一轮 execute 带进来的
+    await invoke('execute', { sessionId: 'allow-reset', prompt: 'ask', mode: 'ask' })
+    expect(allowed.size).toBe(0)
+  })
+
   it('失败后继续仍装配目标复核，并保存恢复后的轮次', async () => {
     mock.loadOptions.mockResolvedValue({
       mode: 'agent',

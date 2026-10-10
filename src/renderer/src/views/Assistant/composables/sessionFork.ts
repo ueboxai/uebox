@@ -40,7 +40,13 @@ export interface ForkTranscriptResult {
 }
 
 export type SessionForkOutcome =
-  | { ok: true; chatSid: string; agentSessionId: string }
+  | {
+      ok: true
+      chatSid: string
+      agentSessionId: string
+      /** 指了分叉点却没找到那条消息，退回了整份复制 —— 提示不能再说「之后的没带过去」 */
+      wholeCopied: boolean
+    }
   | { ok: false; reason: 'no-agent-session' | 'busy' | 'missing' | 'error'; error?: string }
 
 export interface SessionForkDeps {
@@ -63,6 +69,8 @@ export interface SessionForkDeps {
 interface ForkPoint {
   upToIndex?: number
   keepUserTurns?: number
+  /** 传了 messageId 但找不到那条消息 */
+  notFound?: boolean
 }
 
 /**
@@ -76,7 +84,8 @@ function resolveForkPoint(messages: { id: string; role: string }[], messageId?: 
   if (!messageId) return {}
 
   const index = messages.findIndex((m) => m.id === messageId)
-  if (index < 0 || index === messages.length - 1) return {}
+  if (index < 0) return { notFound: true }
+  if (index === messages.length - 1) return {}
 
   return {
     upToIndex: index,
@@ -124,7 +133,7 @@ export async function forkSession(
     return { ok: false, reason: 'no-agent-session' }
   }
 
-  const { upToIndex, keepUserTurns } = resolveForkPoint(
+  const { upToIndex, keepUserTurns, notFound } = resolveForkPoint(
     deps.chatMsgStore.getMessages(chatSid),
     messageId
   )
@@ -173,5 +182,10 @@ export async function forkSession(
   deps.chatMsgStore.copySessionMessages(chatSid, newChatSid, upToIndex)
 
   deps.navigate(newChatSid)
-  return { ok: true, chatSid: newChatSid, agentSessionId: forked.sessionId }
+  return {
+    ok: true,
+    chatSid: newChatSid,
+    agentSessionId: forked.sessionId,
+    wholeCopied: notFound === true
+  }
 }
