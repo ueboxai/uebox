@@ -99,8 +99,10 @@ const InputSchema = z.object({
       '不填是 lumen。lumen：延迟渲染，和视口里看到的一致。' +
         'path_tracer：路径追踪，质量最高但慢得多，要求项目开了硬件光追'
     ),
+  // 不用 z.tuple：转出来是元组式 items: [...]，MiMo 等 OpenAI 兼容端点整单 400
   resolution: z
-    .tuple([z.number().int().min(16).max(16384), z.number().int().min(16).max(16384)])
+    .array(z.number().int().min(16).max(16384))
+    .length(2)
     .optional()
     .describe('输出分辨率 [宽, 高]，如 [3840, 2160]。不填是 [1920, 1080]'),
   frame_start: z
