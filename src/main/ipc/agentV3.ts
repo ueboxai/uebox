@@ -469,6 +469,8 @@ function alwaysAllowedFor(sessionId: string): Set<string> {
   const created = new Set<string>()
   sessionAlwaysAllowed.set(sessionId, created)
   return created
+}
+
 /**
  * 切到只读（Ask）时连同「本对话内都允许」的名单一起清掉。
  *
@@ -479,8 +481,6 @@ function alwaysAllowedFor(sessionId: string): Set<string> {
 function setReadOnly(sessionId: string, readOnly: boolean): void {
   readOnlyBySession.set(sessionId, readOnly)
   if (readOnly) sessionAlwaysAllowed.get(sessionId)?.clear()
-}
-
 }
 
 /**

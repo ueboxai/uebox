@@ -74,8 +74,6 @@ describe('resumeAgent 的忙闸', () => {
 
     await api.resumeAgent('agent-1')
 
-    expect(agentV3.continue).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'agent-1' })
-    )
+    expect(agentV3.continue).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'agent-1' }))
   })
 })
