@@ -90,6 +90,37 @@ describe('启动中跟踪', () => {
     expect(tracker.isLaunching('k')).toBe(true)
   })
 
+  it('waitingSince：等连接的标记给出立起时刻；进行中的、没标过的、刚过期的给 undefined', () => {
+    let now = 1_000
+    const tracker = createLaunchTracker({ now: () => now })
+
+    tracker.begin('pending')
+    expect(tracker.waitingSince('pending')).toBeUndefined()
+    expect(tracker.waitingSince('never-marked')).toBeUndefined()
+
+    tracker.complete('waiting', true)
+    expect(tracker.waitingSince('waiting')).toBe(1_000)
+
+    now += LAUNCH_TTL_MS + 1
+    expect(tracker.waitingSince('waiting')).toBeUndefined()
+    expect(tracker.isLaunching('waiting')).toBe(false)
+  })
+
+  it('drop 直接摘掉标记：进行中的和等连接的都摘', () => {
+    const tracker = createLaunchTracker()
+    tracker.begin('pending')
+    tracker.begin('waiting')
+    tracker.complete('waiting', true)
+
+    tracker.drop('pending')
+    tracker.drop('waiting')
+    expect(tracker.isLaunching('pending')).toBe(false)
+    expect(tracker.isLaunching('waiting')).toBe(false)
+
+    tracker.drop('never-marked')
+    expect(tracker.isLaunching('never-marked')).toBe(false)
+  })
+
   describe('nextExpiryDelay', () => {
     it('没有任何标记时返回 null', () => {
       expect(createLaunchTracker().nextExpiryDelay()).toBeNull()

@@ -25,11 +25,19 @@ export interface LaunchTrackerDeps {
 export interface LaunchTracker {
   /** 记下「这个工程刚被点去启动」 */
   begin: (projectKey: string) => void
-  complete: (projectKey: string, success: boolean) => void
+  complete: (projectKey: string, waitForConnect: boolean) => void
   /** 它已经连上时调用：摘掉「等连接」的计时标记 */
   clearIfRunning: (projectKey: string) => void
   /** 还在启动链路里吗；过期的「等连接」标记顺手删掉 */
   isLaunching: (projectKey: string) => boolean
+  /**
+   * 「等连接」标记立起来的时刻（complete 成功那刻）。
+   * 进行中的打开（null）、没标过的、刚过期的都回 undefined —— 过期的顺手删掉。
+   * 给「引擎进程其实已经没了」的对账用：调用方拿它决定要不要查一次进程表。
+   */
+  waitingSince: (projectKey: string) => number | undefined
+  /** 无条件摘掉标记 —— 对账发现引擎进程已经没了时调用 */
+  drop: (projectKey: string) => void
   nextExpiryDelay: () => number | null
 }
 
@@ -37,16 +45,19 @@ export function createLaunchTracker(deps: LaunchTrackerDeps = {}): LaunchTracker
   const { now = Date.now, ttlMs = LAUNCH_TTL_MS } = deps
   const marks = new Map<string, number | null>()
 
-  const isLaunching = (projectKey: string): boolean => {
+  /** 没过期的「等连接」时刻；进行中的（null）、没标过的、过期的都回 undefined —— 过期的顺手删掉 */
+  const freshTimestamp = (projectKey: string): number | undefined => {
     const at = marks.get(projectKey)
-    if (at === null) return true
-    if (at === undefined) return false
+    if (at === undefined || at === null) return undefined
     if (now() - at > ttlMs) {
       marks.delete(projectKey)
-      return false
+      return undefined
     }
-    return true
+    return at
   }
+
+  const isLaunching = (projectKey: string): boolean =>
+    marks.get(projectKey) === null || freshTimestamp(projectKey) !== undefined
 
   const nextExpiryDelay = (): number | null => {
     const nowAt = now()
@@ -67,14 +78,18 @@ export function createLaunchTracker(deps: LaunchTrackerDeps = {}): LaunchTracker
     begin: (projectKey) => {
       marks.set(projectKey, null)
     },
-    complete: (projectKey, success) => {
-      if (success) marks.set(projectKey, now())
+    complete: (projectKey, waitForConnect) => {
+      if (waitForConnect) marks.set(projectKey, now())
       else marks.delete(projectKey)
     },
     clearIfRunning: (projectKey) => {
       if (typeof marks.get(projectKey) === 'number') marks.delete(projectKey)
     },
     isLaunching,
+    waitingSince: freshTimestamp,
+    drop: (projectKey) => {
+      marks.delete(projectKey)
+    },
     nextExpiryDelay
   }
 }
