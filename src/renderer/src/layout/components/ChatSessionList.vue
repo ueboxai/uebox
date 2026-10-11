@@ -27,7 +27,7 @@ import {
   PhPencilSimple,
   PhPlus,
   PhPushPin,
-  // 「这条会话在等你回答」。用问号而不是铃铛/感叹号：它不是通知也不是告警，
+  // 「这条对话在等你回答」。用问号而不是铃铛/感叹号：它不是通知也不是告警，
   // 就是字面意义上有一个问题挂在那儿等人回话
   PhQuestion,
   PhSparkle,
@@ -67,16 +67,16 @@ import type { SidebarProject } from '@renderer/store/modules/chatSidebarStore'
 interface Props {
   /** 侧边栏是否处于折叠态 */
   collapsed: boolean
-  /** 当前路由正在查看的会话 ID */
-  activeSessionId?: string
+  /** 当前路由正在查看的对话 ID */
+  activeChatSid?: string
 }
 
-const props = withDefaults(defineProps<Props>(), { activeSessionId: '' })
+const props = withDefaults(defineProps<Props>(), { activeChatSid: '' })
 
 const emit = defineEmits<{
-  (e: 'open', sessionId: string): void
+  (e: 'open', chatSid: string): void
   /**
-   * 开新会话；带上工程名时，这条新会话直接归到那个工程下。
+   * 开新对话；带上工程名时，这条新对话直接归到那个工程下。
    * 同名工程被拆成几组时再带上路径，否则主进程只能按名字挑一个。
    */
   (e: 'new-chat', projectName?: string, projectPath?: string): void
@@ -163,7 +163,7 @@ const collapsedSessions = computed<ChatSession[]>(() =>
   groups.value.flatMap((group) => group.sessions).slice(0, COLLAPSED_LIMIT)
 )
 
-/** 顶层区里要渲染的一行：要么是一个工程小标题，要么是一条会话 */
+/** 顶层区里要渲染的一行：要么是一个工程小标题，要么是一条对话 */
 type SectionEntry =
   | { type: 'group'; key: string; group: ChatSessionGroup }
   | { type: 'session'; key: string; session: ChatSession; indent: boolean }
@@ -177,7 +177,7 @@ interface SidebarSection {
 /**
  * 把分组结果摊成三个同级的顶层区：置顶 / 项目 / 对话。
  *
- * 「项目」里再挂一层工程小标题，其余两个区直接铺会话。
+ * 「项目」里再挂一层工程小标题，其余两个区直接铺对话。
  */
 const sections = computed<SidebarSection[]>(() => {
   const result: SidebarSection[] = []
@@ -197,7 +197,7 @@ const sections = computed<SidebarSection[]>(() => {
   }
 
   // 「项目」区在按工程整理时固定显示：一个工程都没有时也留着，右上角的「+」才有落点。
-  // 「在一个列表中」时所有会话都进了「对话」区，再留个空的「项目」区只会显示「暂无项目」，
+  // 「在一个列表中」时所有对话都进了「对话」区，再留个空的「项目」区只会显示「暂无项目」，
   // 看着像工程丢了 —— 直接不出这个区，切回去的入口在「对话」标题的 ⋯ 里。
   if (sidebarStore.groupMode !== 'flat') {
     const projectEntries: SectionEntry[] = []
@@ -247,15 +247,15 @@ const connectedNames = computed<Set<string>>(
 )
 
 /**
- * 这条会话此刻是不是在跑。
+ * 这条对话此刻是不是在跑。
  *
  * 两种模式各有各的信号：Agent 模式看流式 store，普通 Chat 模式看最后一条
  * 是不是还在打字。只看最后一条，避免为了一个小圆点去遍历整段历史。
  */
-function isSessionRunning(sessionId: string): boolean {
-  if (agentStreamStore.isStreaming(sessionId)) return true
+function isSessionRunning(chatSid: string): boolean {
+  if (agentStreamStore.isStreaming(chatSid)) return true
 
-  const messages = chatMsgStore.getMessages(sessionId)
+  const messages = chatMsgStore.getMessages(chatSid)
   const last = messages[messages.length - 1]
   return last?.role === 'assistant' && last?.status === 'typing'
 }
@@ -273,13 +273,13 @@ function isProjectConnected(projectName: string): boolean {
 }
 
 /**
- * 打开某个会话时，把它所在的分组展开并加载到可见范围。
+ * 打开某个对话时，把它所在的分组展开并加载到可见范围。
  *
  * 否则从别处（标签页、Spotlight）跳过来时，高亮那一条可能正藏在
  * 折叠的分组里或「显示更多」后面，看着就像侧边栏没反应。
  */
 watch(
-  () => props.activeSessionId,
+  () => props.activeChatSid,
   (id) => {
     if (!id || props.collapsed) return
 
@@ -398,7 +398,7 @@ function archiveProjectSessions(group: ChatSessionGroup): void {
 /**
  * 把工程从侧边栏拿掉。
  *
- * 里面的对话不删，只是解除归属、落回「对话」区 —— 删对话得走每条会话自己的删除。
+ * 里面的对话不删，只是解除归属、落回「对话」区 —— 删对话得走每条对话自己的删除。
  */
 function removeProject(group: ChatSessionGroup): void {
   const sessions = projectGroupSessions(group)
@@ -463,7 +463,7 @@ function closeProjectRename(): void {
 
 function setGroupMode(mode: ChatGroupMode): void {
   sidebarStore.setGroupMode(mode)
-  // 摊平后会话全在「对话」区，它要是折着，看上去就是什么都没了
+  // 摊平后对话全在「对话」区，它要是折着，看上去就是什么都没了
   if (mode === 'flat') sidebarStore.expandGroup(SECTION_PLAIN_KEY)
 }
 
@@ -482,25 +482,25 @@ const router = useRouter()
 const listRef = ref<HTMLElement | null>(null)
 /** 拖动用的数据类型。不用 text/plain：拖到输入框上松手会把 id 当文字插进去 */
 const SESSION_DRAG_MIME = 'application/x-uebox-chat-session'
-let draggingSessionId = ''
+let draggingChatSid = ''
 
-function handleSessionDragStart(sessionId: string, event: DragEvent): void {
-  draggingSessionId = sessionId
+function handleSessionDragStart(chatSid: string, event: DragEvent): void {
+  draggingChatSid = chatSid
   if (!event.dataTransfer) return
   event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData(SESSION_DRAG_MIME, sessionId)
+  event.dataTransfer.setData(SESSION_DRAG_MIME, chatSid)
 }
 
 function handleSessionDragEnd(event: DragEvent): void {
-  const sessionId = draggingSessionId
-  draggingSessionId = ''
+  const chatSid = draggingChatSid
+  draggingChatSid = ''
   const area = listRef.value?.getBoundingClientRect()
-  if (!sessionId || !area || !isDraggedOutOf(area, event)) return
-  void detachChatSession(router, sessionId, { screenX: event.screenX, screenY: event.screenY })
+  if (!chatSid || !area || !isDraggedOutOf(area, event)) return
+  void detachChatSession(router, chatSid, { screenX: event.screenX, screenY: event.screenY })
 }
 
-function openInNewWindow(sessionId: string): void {
-  void detachChatSession(router, sessionId)
+function openInNewWindow(chatSid: string): void {
+  void detachChatSession(router, chatSid)
 }
 
 function startNewChat(projectName?: string, projectPath?: string): void {
@@ -522,26 +522,26 @@ function toggleArchived(id: string): void {
  * 锚点是最近一次普通 / Ctrl 点击的那条；Shift 点击不移动锚点，
  * 可以连续拉大或缩小范围（契约见 chatSessionSelection.ts）。
  */
-const selectedSessionIds = ref<string[]>([])
+const selectedChatSids = ref<string[]>([])
 const selectionAnchorId = ref('')
-const contextMenuSessionId = ref('')
+const contextMenuChatSid = ref('')
 const contextMenuPoint = ref({ x: 0, y: 0 })
 
-const hasSelection = computed<boolean>(() => selectedSessionIds.value.length > 0)
+const hasSelection = computed<boolean>(() => selectedChatSids.value.length > 0)
 
-/** 屏幕上实际渲染出来的会话顺序（跨三个区摊平）：Shift 范围就按这条顺序取区间 */
-const visibleSessionIds = computed<string[]>(() =>
+/** 屏幕上实际渲染出来的对话顺序（跨三个区摊平）：Shift 范围就按这条顺序取区间 */
+const visibleChatSids = computed<string[]>(() =>
   sections.value.flatMap((section) =>
     section.entries.filter((entry) => entry.type === 'session').map((entry) => entry.key)
   )
 )
 
 function isSessionSelected(id: string): boolean {
-  return selectedSessionIds.value.includes(id)
+  return selectedChatSids.value.includes(id)
 }
 
 /**
- * 会话行上的点击。
+ * 对话行上的点击。
  *
  * 没进多选时和以前一个手感：普通点击直接打开；进了多选（选择集非空）后
  * 普通点击只改选择，双击才打开 —— 和资源管理器一致，也避免一次误点
@@ -549,69 +549,69 @@ function isSessionSelected(id: string): boolean {
  */
 function handleItemClick(session: ChatSession, event: MouseEvent): void {
   const result = applySessionClick(
-    selectedSessionIds.value,
+    selectedChatSids.value,
     selectionAnchorId.value,
-    visibleSessionIds.value,
+    visibleChatSids.value,
     session.id,
     { shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey }
   )
 
-  selectedSessionIds.value = result.selected
+  selectedChatSids.value = result.selected
   selectionAnchorId.value = result.anchor
   if (result.open) openChat(session.id)
 }
 
-async function openSessionContextMenu(sessionId: string, event: MouseEvent): Promise<void> {
+async function openSessionContextMenu(chatSid: string, event: MouseEvent): Promise<void> {
   // 同一行连续右键时也要重新走一次定位，否则菜单会停在上一次的鼠标位置。
-  contextMenuSessionId.value = ''
+  contextMenuChatSid.value = ''
   await nextTick()
   contextMenuPoint.value = { x: event.clientX, y: event.clientY }
-  contextMenuSessionId.value = sessionId
+  contextMenuChatSid.value = chatSid
 }
 
-function syncSessionContextMenuOpen(sessionId: string, open: boolean): void {
-  if (!open && contextMenuSessionId.value === sessionId) {
-    contextMenuSessionId.value = ''
+function syncSessionContextMenuOpen(chatSid: string, open: boolean): void {
+  if (!open && contextMenuChatSid.value === chatSid) {
+    contextMenuChatSid.value = ''
   }
 }
 
 function clearSessionSelection(): void {
-  selectedSessionIds.value = []
+  selectedChatSids.value = []
   selectionAnchorId.value = ''
 }
 
-/** 会话没了（删除 / 归档 / 搜索过滤）就把选择里的死 id 摘掉，批量栏随之消失；指向它的右键菜单也一并关掉 */
+/** 对话没了（删除 / 归档 / 搜索过滤）就把选择里的死 id 摘掉，批量栏随之消失；指向它的右键菜单也一并关掉 */
 watch(allSessions, (sessions) => {
   const existing = new Set(sessions.map((session) => session.id))
-  if (contextMenuSessionId.value && !existing.has(contextMenuSessionId.value)) {
-    contextMenuSessionId.value = ''
+  if (contextMenuChatSid.value && !existing.has(contextMenuChatSid.value)) {
+    contextMenuChatSid.value = ''
   }
   if (!hasSelection.value) return
 
-  const next = pruneSelection(selectedSessionIds.value, existing)
-  if (next.length !== selectedSessionIds.value.length) {
-    selectedSessionIds.value = next
+  const next = pruneSelection(selectedChatSids.value, existing)
+  if (next.length !== selectedChatSids.value.length) {
+    selectedChatSids.value = next
   }
 })
 
 // ==================== 批量操作：归入工程 / 归档 / 删除 ====================
 const selectedSessions = computed<ChatSession[]>(() =>
-  selectedSessionIds.value
+  selectedChatSids.value
     .map((id) => chatStore.sessionById(id))
     .filter((session): session is ChatSession => Boolean(session))
 )
 
-/** 选中的会话里有没有挂着工程的 —— 决定批量栏「移出工程」要不要出现 */
+/** 选中的对话里有没有挂着工程的 —— 决定批量栏「移出工程」要不要出现 */
 const selectionHasProject = computed<boolean>(() =>
   selectedSessions.value.some((session) => Boolean(session.project?.projectName))
 )
 
 /**
- * 一次行级操作要作用到哪些会话：操作的那条在多选里，就作用于整个选择 ——
+ * 一次行级操作要作用到哪些对话：操作的那条在多选里，就作用于整个选择 ——
  * 和资源管理器一个规矩；不在多选里就只作用于它自己。
  */
 function actionTargets(session: ChatSession): string[] {
-  return isSessionSelected(session.id) ? [...selectedSessionIds.value] : [session.id]
+  return isSessionSelected(session.id) ? [...selectedChatSids.value] : [session.id]
 }
 
 /** 一次操作的目标里有没有挂工程的（决定右键菜单「移出工程」要不要出现） */
@@ -629,7 +629,7 @@ function archiveSessions(ids: string[], archived: boolean): void {
 
 /** 批量栏的归档：全部收进归档区，可逆，不弹确认 */
 function archiveSelectedSessions(): void {
-  archiveSessions([...selectedSessionIds.value], true)
+  archiveSessions([...selectedChatSids.value], true)
 }
 
 function assignSessionsToProject(ids: string[], project: ConnectedProjectRef): void {
@@ -645,15 +645,15 @@ function clearSessionsProject(ids: string[]): void {
 }
 
 function assignSelectedToProject(project: ConnectedProjectRef): void {
-  assignSessionsToProject([...selectedSessionIds.value], project)
+  assignSessionsToProject([...selectedChatSids.value], project)
 }
 
 function clearSelectedProject(): void {
-  clearSessionsProject([...selectedSessionIds.value])
+  clearSessionsProject([...selectedChatSids.value])
 }
 
 /**
- * 删除会话 —— 把它在**所有**地方的痕迹一起清掉。
+ * 删除对话 —— 把它在**所有**地方的痕迹一起清掉。
  *
  * 只调 `chatStore.removeSession` 的话，消息还留在 localStorage、内核记忆还留在
  * 盘上的 JSONL，用户以为删干净了其实没有。三处一起清的逻辑在 `deleteChatSession`
@@ -678,13 +678,13 @@ function deleteSessionsByIds(ids: string[]): void {
     async onOk() {
       const result = await deleteChatSessions({
         targets: targets.map((session) => ({
-          sessionId: session.id,
+          chatSid: session.id,
           agentSessionId: session.agentSessionId
         })),
         deleteTranscript: (agentSessionId) =>
           window.api.agentV3.deleteSession({ sessionId: agentSessionId }),
         // 每个 store 只变更一次 —— 持久化是把整个库序列化进 localStorage，
-        // 循环调单条删除的话几百条会话能把主线程卡上一分钟
+        // 循环调单条删除的话几百条对话能把主线程卡上一分钟
         dropSessions: (ids) => chatMsgStore.dropSessions(ids),
         removeSessions: (ids) => chatStore.removeSessions(ids),
         listTabs: () => tabsStore.historyTabs.map((tab) => ({ key: tab.key, path: tab.path })),
@@ -702,11 +702,11 @@ function deleteSessionsByIds(ids: string[]): void {
 }
 
 function openBatchProjectModal(): void {
-  openProjectModal([...selectedSessionIds.value])
+  openProjectModal([...selectedChatSids.value])
 }
 
 function deleteSelectedSessions(): void {
-  deleteSessionsByIds([...selectedSessionIds.value])
+  deleteSessionsByIds([...selectedChatSids.value])
 }
 
 // ==================== 重命名 ====================
@@ -743,46 +743,46 @@ function closeRenameModal(): void {
  * 失败什么都不做，原名继续用着 —— 弹窗已经不在了，只能用一条 toast 说明。
  */
 async function smartName(): Promise<void> {
-  const sessionId = renamingId.value
-  if (!sessionId) return
+  const chatSid = renamingId.value
+  if (!chatSid) return
 
   closeRenameModal()
   const outcome = await retitleSession(
-    sessionId,
-    chatMsgStore.getMessages(sessionId),
-    (title) => chatStore.updateTitle(sessionId, title),
-    () => chatStore.sessionById(sessionId)?.title
+    chatSid,
+    chatMsgStore.getMessages(chatSid),
+    (title) => chatStore.updateTitle(chatSid, title),
+    () => chatStore.sessionById(chatSid)?.title
   )
   if (outcome === 'empty') message.warning(t('chatSidebar.smartNameEmpty'))
   if (outcome === 'failed') message.error(t('chatSidebar.smartNameFailed'))
   // `skipped` 也要说一声，而且和「失败」分开说。开了「自动生成新标题」的话，每轮
-  // 收尾都有一次起名在途，撞上了就被这条会话的在途标记挡掉 —— 静默处理的表现是
+  // 收尾都有一次起名在途，撞上了就被这条对话的在途标记挡掉 —— 静默处理的表现是
   // 弹窗关了、名字没变、屏幕上一个字都没有，用户只能再点一次碰运气。
   // 用 info 不用 error：它不是坏了，等一下再点就有
   if (outcome === 'skipped') message.info(t('chatSidebar.smartNameBusy'))
 }
 
 // ==================== 归入工程 ====================
-// 目标是一组会话 id：单条操作传一个，批量操作传整个选择集，弹窗共用
+// 目标是一组对话 id：单条操作传一个，批量操作传整个选择集，弹窗共用
 const projectModalOpen = ref(false)
 const projectTargetIds = ref<string[]>([])
 const projectNameInput = ref('')
 
-function assignProject(sessionId: string, project: ConnectedProjectRef): void {
+function assignProject(chatSid: string, project: ConnectedProjectRef): void {
   sidebarStore.showProject(project.projectName)
-  chatStore.setProject(sessionId, {
+  chatStore.setProject(chatSid, {
     projectName: project.projectName,
     projectPath: project.projectPath,
     engineVersion: project.engineVersion
   })
 }
 
-function clearProject(sessionId: string): void {
-  chatStore.clearProject(sessionId)
+function clearProject(chatSid: string): void {
+  chatStore.clearProject(chatSid)
 }
 
-function openProjectModal(sessionIds: string | string[]): void {
-  projectTargetIds.value = Array.isArray(sessionIds) ? [...sessionIds] : [sessionIds]
+function openProjectModal(chatSids: string | string[]): void {
+  projectTargetIds.value = Array.isArray(chatSids) ? [...chatSids] : [chatSids]
   projectNameInput.value = ''
   projectModalOpen.value = true
 }
@@ -790,8 +790,8 @@ function openProjectModal(sessionIds: string | string[]): void {
 function confirmProjectModal(): void {
   const name = projectNameInput.value.trim()
   if (projectTargetIds.value.length && name) {
-    for (const sessionId of projectTargetIds.value) {
-      assignProject(sessionId, { projectName: name })
+    for (const chatSid of projectTargetIds.value) {
+      assignProject(chatSid, { projectName: name })
     }
   }
   closeProjectModal()
@@ -840,7 +840,7 @@ function getChatInitial(title: string): string {
           type="button"
           class="chat-collapsed-item"
           :class="{
-            active: session.id === props.activeSessionId,
+            active: session.id === props.activeChatSid,
             waiting: activityOf(session) === 'waiting'
           }"
           @click="openChat(session.id)"
@@ -856,7 +856,7 @@ function getChatInitial(title: string): string {
         :expanded="!isCollapsed(section.key)"
         @toggle="toggleCollapsed(section.key)"
       >
-        <!-- 「项目」「对话」两个标题带操作：⋯ 是整理/排序，+ 分别是加工程和开新会话 -->
+        <!-- 「项目」「对话」两个标题带操作：⋯ 是整理/排序，+ 分别是加工程和开新对话 -->
         <template v-if="hasHeaderActions(section.key)" #actions>
           <AppDropdown :trigger="['click']" placement="bottomRight">
             <AppButton
@@ -1089,12 +1089,12 @@ function getChatInitial(title: string): string {
             </span>
           </div>
 
-          <!-- 一条会话：行尾是置顶和归档，其余操作走右键；
+          <!-- 一条对话：行尾是置顶和归档，其余操作走右键；
                Ctrl/Cmd+点击逐个多选、Shift+点击拉范围，双击在多选中打开 -->
           <AppDropdown
             v-else
             :trigger="[]"
-            :open="contextMenuSessionId === entry.session.id"
+            :open="contextMenuChatSid === entry.session.id"
             :anchor-point="contextMenuPoint"
             placement="rightStart"
             @update:open="syncSessionContextMenuOpen(entry.session.id, $event)"
@@ -1102,7 +1102,7 @@ function getChatInitial(title: string): string {
             <div
               class="chat-item"
               :class="{
-                active: entry.session.id === props.activeSessionId,
+                active: entry.session.id === props.activeChatSid,
                 selected: isSessionSelected(entry.session.id),
                 indent: entry.indent
               }"
@@ -1433,7 +1433,7 @@ function getChatInitial(title: string): string {
 
 <style scoped lang="less">
 /**
- * 会话行的度量全部取自 SideMenu 上定义的 --sidebar-* 变量，
+ * 对话行的度量全部取自 SideMenu 上定义的 --sidebar-* 变量，
  * 和上面的工具菜单是同一套行高、圆角、缩进和交互底色。
  */
 .chat-session-list {
@@ -1467,7 +1467,7 @@ function getChatInitial(title: string): string {
 .chat-group-row {
   display: flex;
   align-items: center;
-  // 行尾按钮和分区标题、会话行的按钮对齐在同一条竖线上
+  // 行尾按钮和分区标题、对话行的按钮对齐在同一条竖线上
   padding-right: var(--space-1);
 }
 
@@ -1503,7 +1503,7 @@ function getChatInitial(title: string): string {
   border: none;
   border-radius: var(--sidebar-row-radius);
   background: transparent;
-  // 工程是父级：比会话大半档、字重更重
+  // 工程是父级：比对话大半档、字重更重
   font-size: var(--sidebar-label-size);
   font-weight: var(--font-weight-medium);
   font-family: inherit;
@@ -1592,7 +1592,7 @@ function getChatInitial(title: string): string {
     color: var(--sidebar-text-strong);
   }
 
-  // 「项目」区里的会话缩进到工程名的起点：行内边距 + 文件夹图标 + 图标与文字的间距，
+  // 「项目」区里的对话缩进到工程名的起点：行内边距 + 文件夹图标 + 图标与文字的间距，
   // 这样标题和上面的工程名是一条竖线，读起来就是「这个工程下面的对话」
   &.indent {
     padding-left: calc(
@@ -1637,14 +1637,14 @@ function getChatInitial(title: string): string {
   }
 }
 
-// 正在跑的会话转个圈，和「跑完了」的蓝点占同一个位置
+// 正在跑的对话转个圈，和「跑完了」的蓝点占同一个位置
 .chat-item-running {
   flex: none;
   font-size: 10px;
   color: var(--color-accent-text);
 }
 
-// 后台任务跑完还没看的会话，标题前面点一个蓝点
+// 后台任务跑完还没看的对话，标题前面点一个蓝点
 .chat-item-dot {
   flex: none;
   width: 6px;

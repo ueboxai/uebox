@@ -84,9 +84,10 @@ describe('提交那一刻抓取', () => {
     expect(handler).toContain('isGenerating.value')
     // 插话带的是**入队那一刻**的快照和图，不是现在的
     expect(handler).toContain('const queued = item.payload')
-    // 用户真打的字，不是队列标签上那行（纯附件的条目标签是「（附件）」）
+    // 用户真打的字，不是队列标签上那行（纯附件的条目标签是「（附件）」）。
+    // 'queued'：被拒时这条留在队列里，提示得照那个下文说，不能说成放回输入框
     expect(handler.replace(/\s+/g, ' ')).toContain(
-      'steerAgent( queued.content, queued.editorSnapshot, queued.images, attachments, runningSessionId )'
+      "steerAgent(queued.content, { editorSnapshot: queued.editorSnapshot, images: queued.images, attachments, targetSessionId: runningSessionId, ifRejected: 'queued' })"
     )
   })
 
@@ -107,7 +108,7 @@ describe('提交那一刻抓取', () => {
 
     expect(body.indexOf('const runningSessionId')).toBeLessThan(body.indexOf('await '))
     expect(body.replace(/\s+/g, ' ')).toContain(
-      'payload.attachments, runningSessionId, payload.restore )'
+      "attachments: payload.attachments, targetSessionId: runningSessionId, ifRejected: 'restored', restoreDraft: payload.restore }"
     )
     expect(body).toContain('if (!steered) payload.restore?.()')
   })
@@ -168,7 +169,7 @@ describe('「键存在就是已定」这条规矩', () => {
   /**
    * 抓取要等最多 2 秒，而这期间小窗口还没进入生成态 —— 用户点得动标题栏那个「+」。
    *
-   * 会话号不钉死的话，抓完再读 `SESSION_ID.value` 拿到的是**新**会话：
+   * 会话号不钉死的话，抓完再读 `sid.value` 拿到的是**新**会话：
    * 用户刚清空，屏幕上却冒出一句他以为已经丢掉的话，还带着旧会话的上下文。
    */
   it('MiniChat：会话号在提交那一刻钉死，中途被重置就丢弃这条', () => {
@@ -177,12 +178,12 @@ describe('「键存在就是已定」这条规矩', () => {
       miniChat.indexOf('async function handleInitialMessage')
     )
 
-    expect(dispatch).toContain('const submittedSessionId = SESSION_ID.value')
+    expect(dispatch).toContain('const chatSid = sid.value')
     // 抓取用钉住的那个，不是当前值
-    expect(dispatch).toContain('chatSessionStore.getProject?.(submittedSessionId)')
+    expect(dispatch).toContain('chatSessionStore.getProject?.(chatSid)')
     // 回来发现变了就整条作废 —— 既不改投新会话，也不硬发到已经不存在的旧会话
-    expect(dispatch).toContain('if (SESSION_ID.value !== submittedSessionId)')
-    const guardAt = dispatch.indexOf('if (SESSION_ID.value !== submittedSessionId)')
+    expect(dispatch).toContain('if (sid.value !== chatSid)')
+    const guardAt = dispatch.indexOf('if (sid.value !== chatSid)')
     expect(guardAt).toBeLessThan(dispatch.indexOf('await executeAgent('))
   })
 })

@@ -27,7 +27,7 @@ export default {
     notebookDetail: 'Notebook Detail',
     profile: 'Profile',
     aiAssistant: 'AI Assistant',
-    newChat: 'New AI Chat',
+    newChat: 'New chat',
     tools: 'Tools',
     aiChat: 'AI Chat',
     requirements: 'Requirements',
@@ -112,7 +112,7 @@ export default {
     delete: 'Delete',
     deleteTitle: 'Delete chat',
     deleteContent: 'Delete "{title}"? This cannot be undone.',
-    deleteTranscriptFailed: 'Chat removed, but its agent memory could not be deleted',
+    deleteTranscriptFailed: 'Chat removed, but some of its history could not be cleaned up',
     cancel: 'Cancel',
     // Batch bar for multi-select: Ctrl/Cmd+click adds one by one, Shift+click picks a range
     batch: {
@@ -135,11 +135,11 @@ export default {
     followUpSystemPrompt:
       "You are a senior Unreal Engine technical assistant. Output only JSON and must strictly follow the schema. The field is followUps (array), containing 2-3 follow-up questions for the assistant from the user's perspective, within 15 words each in {lang}. Each must be a complete sentence that can be asked directly. Do not output any other content or explanations.",
     followUpUserPrompt:
-      "Based on the conversation above, generate follow-up questions for the assistant from the user's perspective in {lang}.",
+      "Based on the chat above, generate follow-up questions for the assistant from the user's perspective in {lang}.",
     sessionTitleSystemPrompt:
-      'You are a chat title generator. From the user\'s first message, write a title in {lang} that captures what the conversation is about, at most 6 words. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the whole sentence. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
+      'You are a chat title generator. From the user\'s first message, write a title in {lang} that captures what the chat is about, at most 6 words. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the whole sentence. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
     sessionRenameSystemPrompt:
-      'You are a chat title generator. Below is an outline of a conversation: the user\'s questions in order and the latest answer, sometimes with the current title. Write a title in {lang} that captures the main thread of the whole conversation, at most 6 words. Cover what the conversation has been working on throughout, not just the details of the last question; if a current title is given and still fits, return it unchanged. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the wording. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
+      'You are a chat title generator. Below is an outline of a chat: the user\'s questions in order and the latest answer, sometimes with the current title. Write a title in {lang} that captures the main thread of the whole chat, at most 6 words. Cover what the chat has been working on throughout, not just the details of the last question; if a current title is given and still fits, return it unchanged. Write the topic only: no quotes, no trailing punctuation, no prefixes like "About" or "How to", and do not repeat the wording. Output only JSON and must strictly follow the schema. The field is title (string). Do not output any other content or explanations.',
     speechBriefingConciseSystemPrompt:
       'You are a voice narration editor. Rewrite the AI reply the user sends you as a short script to be read aloud, keeping only the conclusion: what was done, the outcome, and what the listener needs to do. At most three sentences and about 50 words. Use the same language as the reply. No code, file paths, URLs, Markdown symbols, lists or headings; no preamble and no references to "this reply", just the script itself. Output only the script, no explanation.',
     speechBriefingDetailedSystemPrompt:
@@ -152,7 +152,7 @@ export default {
     releaseAll: 'Release all',
     conflict: '{path} is being modified by "{session}"; nothing was changed',
     dismiss: 'Dismiss',
-    unknownSession: 'another session',
+    unknownChat: 'another chat',
     currentLevel: 'Current level'
   },
   agentV3Debug: {
@@ -229,7 +229,8 @@ export default {
       needsRestart: 'Configured · restart the editor',
       unsupported: 'Engine too old · needs 5.8+',
       ready: 'Enabled · running',
-      readyHint: 'The engine service is running; the box will connect on the next conversation.',
+      readyHint:
+        'The engine service is running; the box will connect automatically the next time you chat.',
       // The most common reason the button "disappears" — say it instead of showing nothing.
       noProject:
         'No Unreal Engine project is connected yet. Open a project from the home page and its status will show here.',
@@ -430,7 +431,7 @@ export default {
       supportsModel3d: '3D generation',
       supportsModel3dDesc: 'Generate 3D models from text or images',
       supportsRealtimeVoice: 'Realtime voice',
-      supportsRealtimeVoiceDesc: 'Supports real-time voice conversations',
+      supportsRealtimeVoiceDesc: 'Supports real-time voice calls',
       supportsReasoning: 'Reasoning',
       supportsReasoningDesc: 'Thinks before answering',
       ttsVoice: 'Reading voice',
@@ -438,7 +439,7 @@ export default {
         'Enter a voice ID supported by this model. Leave empty to use its default voice.',
       realtimeVoice: 'Voice',
       realtimeVoiceHint:
-        'Takes effect the next time you start a voice conversation. It will not switch an active call mid-session.',
+        'Takes effect the next time you start a voice call. A call already in progress keeps its current voice.',
       realtimeVoices: {
         zh_female_vv_jupiter_bigtts: 'VV · lively, expressive female voice',
         zh_female_xiaohe_jupiter_bigtts:
@@ -681,10 +682,10 @@ export default {
       ttsMore:
         'Add Doubao Text to speech, enter a Speech console API key, then select TTS 2.0 here. Change the voice in model settings.',
       ttsMissing: 'Read aloud unavailable',
-      realtimeDesc: 'Choose a real-time voice model for voice conversations.',
+      realtimeDesc: 'Choose a real-time voice model for voice calls.',
       realtimeMore:
         'Supports OpenAI gpt-realtime models and Doubao Seeduplex. Ordinary chat models do not apply.',
-      realtimeMissing: 'Voice conversation unavailable',
+      realtimeMissing: 'Voice call unavailable',
       stt: 'Speech to text',
       sttDesc:
         'Hold the voice hotkey, speak, and get text in the search box. Falls back to the realtime voice role when unset.',
@@ -882,7 +883,7 @@ export default {
     copy: 'Duplicate',
     pin: 'Pin',
     unpin: 'Unpin',
-    newChat: 'New AI Chat',
+    newChat: 'New chat',
     openInNewWindow: 'Open in New Window'
   },
   chatWindow: {
@@ -1537,7 +1538,7 @@ export default {
       title: 'Sign in to {server} again'
     },
     view: {
-      signedOut: 'Your server library session has expired. Sign in again to continue.',
+      signedOut: "You've been signed out of the server library. Sign in again to continue.",
       offlineBanner:
         'Cannot reach the server. Showing pages you have already viewed; search and import are unavailable.',
       remove: 'Remove from list',
@@ -1615,7 +1616,7 @@ export default {
       'no-member-surface': 'This server has no account sign-in. Paste an identity token instead.',
       'missing-password': 'Enter the password.',
       'missing-token': 'Paste the identity token.',
-      'signed-out': 'Your session has expired. Sign in again.',
+      'signed-out': "You've been signed out. Sign in again.",
       unauthorized: 'The account, password or token is not right.',
       forbidden: 'You do not have permission.',
       'not-found': 'Not found, or you cannot see it.',
@@ -1689,7 +1690,7 @@ export default {
     language: 'Language',
     trayQuitTitle: 'Quit Unreal Box?',
     trayQuitContent:
-      '{count} session operation(s) are still unfinished — quitting will interrupt them.',
+      'The AI still has {count} operation(s) in progress — quitting will interrupt them.',
     trayQuitOk: 'Quit anyway',
     updateQuitTitle: 'Restart to install the update?',
     updateQuitOk: 'Restart and install anyway'
@@ -2546,15 +2547,14 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         '3D generation mode enabled, supports uploading up to 5 images or entering description and send'
     },
     chat: {
-      unnamedSession: 'Unnamed Session',
       messageNotFound: 'Message not found',
       onlyRetryAI: 'Can only retry AI response',
       onlyEditUserMessage: 'Can only edit user message',
       stopBeforeResendFailed: 'The previous run has not stopped yet — try resending in a moment',
       userMessageNotFound: 'Cannot find corresponding user message',
-      clearConfirmTitle: 'Confirm Clear Session',
-      clearConfirmContent:
-        'This operation cannot be undone. Are you sure you want to clear all messages in the current session?',
+      clearConfirmTitle: 'Clear this chat?',
+      clearConfirmContent: 'This cannot be undone. Clear all messages in this chat?',
+      replyInterrupted: 'Reply interrupted',
       newMessage: 'New Message',
       emptyMessage: 'Message content cannot be empty',
       editMessage: 'Edit Message',
@@ -2564,24 +2564,24 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     branch: {
       tooltip: 'Branch from here',
       titleSuffix: ' (branch)',
-      success: 'Branched from this reply — everything after it was left behind',
-      noAgentSession: 'Only Agent sessions can be branched',
+      success: "Branched into a new chat from this reply. Later messages weren't copied.",
       successWhole: "Branch created. That reply couldn't be found, so the whole chat came along.",
+      noAgentSession: "Branching isn't available for this kind of chat",
       busy: 'This turn has not settled yet — branch from an earlier message, or try again shortly',
-      missing: 'This session has no conversation history to copy yet',
-      failed: 'Failed to create the session branch'
+      missing: 'This chat has no history to copy yet',
+      failed: 'Failed to branch'
     },
     /**
-     * Side chat.
+     * Side question.
      *
      * The wording has to separate it from branching: a branch is for carrying on
-     * with the *work* in another direction and leaves a new session behind; a side
-     * chat is for understanding what is *going on* and leaves nothing behind.
+     * with the *work* in another direction and leaves a new chat behind; a side
+     * question is for understanding what is *going on* and leaves nothing behind.
      */
-    sideChat: {
-      open: 'Ask on the side (with context)',
-      noContext: 'This session has no context to hand over yet',
-      failed: 'Could not open the side chat'
+    sideQuestion: {
+      open: 'Ask a side question (with context)',
+      noContext: 'This chat has no context to hand over yet',
+      failed: 'Could not open the side question'
     },
     search: {
       notImplemented: 'Web search function not implemented yet'
@@ -2703,12 +2703,12 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     },
     topNav: {
       agentMode: 'Agent Mode',
-      clearSession: 'Clear Session',
+      clearChat: 'Clear chat',
       exportImage: 'Export Image',
-      exportImageEmpty: 'This conversation has no content to export',
-      exportImagePreparing: 'Generating conversation image…',
-      exportImageSuccess: 'Conversation image exported',
-      exportImageFailed: 'Failed to export conversation image. Please try again.',
+      exportImageEmpty: 'This chat has no content to export',
+      exportImagePreparing: 'Exporting chat as image…',
+      exportImageSuccess: 'Chat image exported',
+      exportImageFailed: 'Failed to export chat image. Please try again.',
       exportJSON: 'Export JSON',
       exportMarkdown: 'Export Markdown'
     },
@@ -2900,7 +2900,6 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       feedbackFailed: 'Tool call completed, but failed to generate feedback.',
       generatingFeedback: 'Generating feedback...',
       noContent: '(AI returned no text content)',
-      unnamedSession: 'Unnamed Session',
       authFailed: 'Authentication failed, please login again',
       agentError: 'Agent Error',
       errorPrefix: 'Error',
@@ -2912,8 +2911,10 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       // No session id, no IPC channel name: "change direction" is just typing
       // into the input box
       sessionBusy:
-        'This conversation still has a run in progress. Wait for it to finish, or just type what you want changed.',
+        'This chat still has a run in progress. Wait for it to finish, or just type what you want changed.',
       resume: 'Try again',
+      resumeProgress: 'Resuming from where it stopped…',
+      resumeFailed: "Couldn't resume: {reason}",
       autoResume:
         'Lost the connection to the model. Picking up again in {seconds}s (attempt {attempt}/{max}). Finished steps will not be redone.',
       modelRetry:
@@ -2945,7 +2946,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       serviceUnavailableDesc:
         'The AI service is currently experiencing issues and is being recovered. Please retry later. If the problem persists, please contact support.',
       // Token refresh related
-      tokenRefreshedRetry: 'Session restored, please retry your action',
+      tokenRefreshedRetry: 'Signed back in. Please retry.',
       // Network error related
       networkError: 'Network connection error',
       networkErrorTitle: 'Network Connection Failed',
@@ -2977,7 +2978,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       resizing: 'Release to show the page',
       closeFailed: 'Could not save the closed browser state. Please try again.',
       restoreFailed:
-        'Could not restore the browser page. Check your connection and reopen the conversation.',
+        'Could not restore the browser page. Check your connection and reopen the chat.',
       title: 'Agent browser',
       hint: 'Loading the page…'
     },
@@ -2986,7 +2987,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       actionType: 'Operation Type',
       confirm: 'Confirm',
       reject: 'Reject',
-      allowForSession: 'Allow for Session',
+      allowForChat: 'Allow for this chat',
       whatIsThis: 'What is this?',
       queued: '{count} more waiting',
       // Named by risk. Everything non-browser used to collapse into "Other
@@ -3013,7 +3014,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     },
     chatFlow: {
       readStreamFailed: 'Failed to read response stream',
-      unnamedSession: 'Unnamed Session',
+      unnamedChat: 'Untitled chat',
       imageGenTitle: '🧩 Image Gen',
       modelGenTitle: '✨ Model Gen',
       imageChatTitle: 'Image Chat',
@@ -3105,7 +3106,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     // Menu items
     menu: {
       screenRecorder: 'Recordings',
-      miniChat: 'MiniChat',
+      miniWindow: 'Mini window',
       voice: 'Voice',
       general: 'General',
       appearance: 'Appearance',
@@ -3159,7 +3160,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       archivedChats: 'Archived chats',
       archivedChatsDesc: 'View, restore, or delete archived chats.',
       autoRetitle: 'Auto-generate new titles',
-      autoRetitleDesc: 'Rename the chat after every reply, based on the whole conversation.',
+      autoRetitleDesc: 'Rename the chat after every reply, based on its full history.',
       persistentAutoResume: 'Auto-resume on failure',
       persistentAutoResumeDesc:
         'When your gateway is unstable, pick up from where it stopped every 60s. Gives up after 30 minutes of failures. Failed attempts are left out of the chat.',
@@ -3202,7 +3203,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       description: 'Work background and communication preferences.',
       // Standing instructions
       instructionsTitle: 'Instructions for the assistant',
-      instructionsDesc: 'Persistent preferences applied to all conversations.',
+      instructionsDesc: 'Persistent preferences applied to all chats.',
       instructionsPlaceholder:
         'For example:\nI am a level designer at a game studio, mostly open-world layout and optimisation.\nI do not write C++. I can read blueprints but do not assume fluency.\nLead with the conclusion; I will ask for the details when I want them.',
       openInstructionsFile: 'Open in the default text editor',
@@ -3366,10 +3367,10 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       },
       metric: {
         uncached: 'Tokens',
-        turns: 'Conversation turns',
+        turns: 'Turns',
         changes: 'Changes'
       },
-      totalTurns: 'Conversation turns',
+      totalTurns: 'Turns',
       totalTurnsHint: 'One question counts as one turn',
       toolCallsTotal: 'Tool calls',
       uncachedTotal: 'Excluding cache',
@@ -3405,7 +3406,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       changesTargets: 'Assets touched',
       changesTargetsHint: 'Each asset is counted once, even if changed multiple times',
       changesPerTurn: 'Per turn',
-      changesPerTurnHint: 'Average completed changes per conversation turn',
+      changesPerTurnHint: 'Average completed changes per turn',
       changesNote:
         'Counts successful changes only. Script changes count as operations, but not as affected assets.',
       changesFailedNote: 'Another {count} changes failed. See operation records for details.',
@@ -3424,7 +3425,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       },
       projectsTitle: 'By project',
       colProject: 'Project',
-      colTurns: 'Conversation turns',
+      colTurns: 'Turns',
       colTokens: 'Tokens (uncached)',
       colChanges: 'Changes',
       noProject: 'No project',
@@ -3524,7 +3525,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       assistantTitle: 'Voice assistant',
       generalTitle: 'General',
       autoPlay: 'Auto play',
-      autoPlayDesc: 'Read replies aloud automatically when generation finishes in AI chats.',
+      autoPlayDesc: 'Read replies aloud automatically when generation finishes.',
       briefingStyle: 'Narration style',
       briefingConcise: 'Brief',
       briefingDetailed: 'Detailed',
@@ -3543,12 +3544,12 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       autoHangup: 'End unanswered calls automatically',
       autoHangupDesc: 'End idle calls after three unanswered prompts.'
     },
-    miniChat: {
-      title: 'MiniChat',
+    miniWindow: {
+      title: 'Mini window',
       // The small window's own title bar (meta.title in router/modules/index.ts)
       windowTitle: 'AI Assistant',
-      persist: 'Save MiniChat history',
-      persistDesc: 'Save to conversation history when the window closes.',
+      persist: 'Save chats from the mini window',
+      persistDesc: 'Saved to your chats when the mini window closes.',
       opacity: 'Window opacity',
       opacityDesc: 'Lower values increase transparency.'
     },
@@ -3632,7 +3633,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       removeAllTitle: 'Delete all {count} files under the prefix?',
       cleanTitle: 'Delete files uploaded more than {days} days ago?',
       removeHint:
-        'They are removed from the bucket and cannot be recovered. Conversations that referenced them will no longer show them to the model.',
+        'They are removed from the bucket and cannot be recovered. Chats that referenced them will no longer show them to the model.',
       removeOk: 'Delete',
       removed: 'Deleted {count} files',
       removedPartly: 'Deleted {removed}; {failed} could not be deleted',
@@ -4158,7 +4159,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     studio: {
       title: 'Studio',
       generating: 'Generating…',
-      noContent: 'Please add some sources or start a conversation first',
+      noContent: 'Please add some sources or start a chat first',
       noNotebookId: 'Notebook ID not set',
       providerOutOfCredit:
         'The model provider reported insufficient credit. Top up in that provider console, or pick a different model under Settings → Models.',
@@ -5707,16 +5708,16 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     pathOnlyAttachment:
       '### File: {name}\n\nLocal path: {path}\n\nThis format was not pre-parsed. Open it with a file-reading tool if you need its contents.',
     voice: {
-      start: 'Start voice session',
+      start: 'Start voice call',
       cancelConnection: 'Cancel connection',
       connectionTimeout: 'Voice connection timed out. Retry or check your realtime model settings.',
       mute: 'Mute microphone',
       unmute: 'Unmute microphone',
       muted: 'Microphone muted. Background tasks continue.',
       retry: 'Retry connection',
-      boundConversation: 'Voice conversation: {name}',
+      boundCall: 'Voice call: {name}',
       interruptByVoice: 'Speak or click to interrupt',
-      stop: 'End voice session (background tasks continue)',
+      stop: 'End voice call (background tasks continue)',
       status: {
         connecting: 'Connecting voice…',
         listening: 'Listening — speak naturally',
@@ -5744,7 +5745,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     },
     wikiPopover: {
       title: 'Select knowledge base',
-      hint: 'Type /wiki to filter, click to bind to the current session',
+      hint: 'Type /wiki to filter, click to bind to the current chat',
       empty: 'No matching knowledge base found',
       sourceCount: '{count} sources'
     },
@@ -5768,7 +5769,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       team: 'Team mode — one line in, it builds a team and works to a playable delivery',
       teamArg: '<one line>',
       image: 'Switch to image generation',
-      compact: 'Compact this session history to free up context',
+      compact: "Compact this chat's history to free up context",
       goalArg: '<objective>',
       wikiArg: '[keyword]',
       wiki: 'Bind a notebook; type /wiki clear to unbind'
@@ -5832,8 +5833,8 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       'Auto-compacts when full. You can also compact now: earlier turns become a summary, recent ones stay intact.',
     compactDone: 'Compacted: {before} → {after}',
     compactReason: {
-      busy: 'This conversation is busy. Please try compacting again shortly',
-      cancelled: 'Compaction cancelled. Your conversation has been preserved',
+      busy: 'This chat is busy. Please try compacting again shortly',
+      cancelled: 'Compaction cancelled. Your chat has been preserved',
       empty: 'This chat is empty',
       'too-short': 'This chat is still short — no need to compact yet',
       'already-compact': 'Already compacted — nothing more to compress',
@@ -5845,6 +5846,15 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     steerAttachmentsOnly: 'Attached: {names}',
     steerImageCount: '{count} image(s)',
     steerFailed: 'Steering failed: {reason}',
+    steerTurnEndedRestored:
+      "This turn just finished, so the message wasn't added. It's back in the input box.",
+    steerTurnEndedQueued:
+      "This turn just finished, so the message wasn't added. It will be sent in queue order.",
+    steerProjectMismatchRestored:
+      'This message was sent from "{snapshotProject}", but the current turn is working in "{runProject}". It wasn\'t added and is back in the input box.',
+    steerProjectMismatchQueued:
+      'This message was sent from "{snapshotProject}", but the current turn is working in "{runProject}". It will run on "{snapshotProject}" after this turn finishes.',
+    steerOtherProject: 'another project',
     queueAction: 'Queue',
     queueCancel: 'Remove from queue',
     queueSteerNow: 'Send now',
@@ -5874,9 +5884,9 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       noWikiBound: 'No knowledge base is currently bound',
       compacted: 'Compacted: {before} messages → {after}, about {saved} tokens saved',
       compactFailed: {
-        busy: 'This conversation is busy. Please try compacting again shortly',
-        cancelled: 'Compaction cancelled. Your conversation has been preserved',
-        empty: 'Nothing to compact yet in this session',
+        busy: 'This chat is busy. Please try compacting again shortly',
+        cancelled: 'Compaction cancelled. Your chat has been preserved',
+        empty: 'Nothing to compact yet in this chat',
         'already-compact': 'Already compacted; doing it again only re-summarises the summary',
         'too-short': 'History is still too short to save anything',
         'summary-failed': 'Could not build the summary; history is unchanged',
@@ -7008,7 +7018,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     },
     actions: {
       reject: 'Reject',
-      allowSession: 'Allow for this session',
+      allowForChat: 'Allow for this chat',
       confirm: 'Confirm'
     }
   },
@@ -7524,7 +7534,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       abandon: 'Abandon this import',
       abandonConfirmTitle: 'Abandon this import?',
       abandonConfirmContent:
-        'The server cancels this session and deletes the staged files it holds. Nothing that was uploaded counts — you will have to import again. This cannot be undone.',
+        'The server cancels this import and deletes the staged files it holds. Nothing that was uploaded counts — you will have to import again. This cannot be undone.',
       abandonDone: 'Import abandoned; staged files on the server were cleaned up',
       abandonStagingLeft:
         'The local prompt is cleared, but the staged files on the server could not be removed and need deleting by hand: {error}',
@@ -7537,15 +7547,24 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       continueSummary: '{files} file(s) and {thumbnails} thumbnail(s) uploaded',
       continueSummaryDone: 'All content uploaded',
       continueFailed: 'Failed to resume import: {error}',
-      sessionExpired: 'Your session has expired; please sign in again',
+      importGone:
+        'The server no longer has this import (it may have timed out and been cleaned up). Import it again.',
       resumeFailed: 'Failed to resume import: {error}',
       resumeNotFoundTitle: 'Cannot resume import',
-      resumeNotFoundContent: 'No resumable import session found: {error}',
+      resumeNotFoundContent: 'No resumable import found: {error}',
+      errors: {
+        reportMissingImportId: "This report has no server import ID, so it can't be resumed.",
+        notResumable:
+          'This import can no longer be resumed on the server (server status: {status}).',
+        cancelNotConfirmed:
+          'The server did not confirm cancelling this import (server status: {status}).',
+        serverImportFailed: 'This import failed on the server (server status: {status}).'
+      },
       selectErrorJson: 'Please select an import error report JSON file',
       singleErrorJson: 'Only one error report file can be selected at a time',
       selectResumeReportFailed: 'Failed to select the error report',
       stages: {
-        createSession: 'Creating import session',
+        createSession: 'Starting import',
         preflight: 'Pre-flight check',
         uploadMetadata: 'Uploading metadata',
         uploadFiles: 'Uploading files',
@@ -8133,7 +8152,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
   miniChatWindow: {
     sendButton: 'Send',
     /**
-     * Banner shown when this window carries the main conversation's context.
+     * Banner shown when this window carries the main chat's context.
      *
      * It has to say three things: how much was carried over, that it is a
      * snapshot, and that this window cannot change the project.
@@ -8142,16 +8161,15 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       live: 'Carrying {count} message(s) of context (snapshot — the main chat is still running)',
       snapshot: 'Carrying {count} message(s) of context',
       readOnly: 'Read-only',
-      empty: 'Ask away — it can see every step the main conversation took'
+      empty: 'Ask away — it can see every step the main chat took'
     },
     emptyState: {
-      agent: 'Type a message to start an Agent conversation'
+      agent: 'Type a message to start a chat'
     },
     placeholder: {
       agent: 'Give the Agent a task...'
     },
     imageCountPreview: '[{count} image(s)]',
-    defaultSessionTitle: 'Quick chat',
     maxImagesWarning: 'You can upload up to {max} images',
     imageSizeExceeded: '{name} exceeds 20 MB',
     imageUploadFailed: 'Image upload failed',

@@ -6,6 +6,7 @@
 分层地图在 [docs/contributing/vertical-slice.md](docs/contributing/vertical-slice.md)。
 
 用词跟这里不一致时，以这里为准；发现这里定义错了，改这里。
+新增或修改 _Avoid_ 时，同步考虑术语守卫（`src/renderer/src/i18n/terminologyGuard.test.ts`）的禁用词表，两处一起改。
 
 ---
 
@@ -63,6 +64,56 @@ AI 使用用户配置的模型服务；网络资产库使用用户自己的服�
 **AI 助手 (Assistant)**
 对话入口，背后是 `src/main/agent-v3/`：**一个** Agent 直接拿到全部工具，自己决定调哪个。
 V2 那套「按问题类型路由到专家 Agent」已经废除，理由见 `agent-v3/core/createAgent.ts` 的注释。
+
+**对话 (Chat)**
+用户与 AI 之间的一条往来。AI 助手里的对话列在侧边栏；知识库、蓝图库、材质库的页面里各嵌着一条，不进侧边栏。
+背后是不是 Agent 驱动不构成区别。代码里叫 `ChatSession`，它的 id 叫 `chatSid`（局部简写 `sid`）。
+由 Agent 驱动的对话，在内核那一层对应一份 **session**，见该词条。
+别的概念面向用户的英文名不得含 "Chat"；代码标识符不受此限（如 MiniChat）。
+代码注释里单写的「会话」多半不指对话，按 **session** 词条里的读法理解。
+_Avoid_：会话、聊天；Conversation、Session、Thread
+
+**消息 (Message)**
+对话里的一个气泡，用户发的或 AI 回的。
+
+**一轮 (Turn)**
+用户发出一条消息，加上 AI 为它做的全部回应（回复与工具调用）。
+_Avoid_：回合、一问一答；Exchange、Conversation turn
+
+**分支 (Branch)**
+一个动作：从一条对话的某条回复处复制出一条新对话，之后两边互不影响。分支出来的仍是一条普通对话，不是另一种东西。
+它靠内核复制一份 **session** 实现；内核把这个复制动作叫 fork，侧边问一句也用它。fork 只指内核那一步，不是分支的别名。
+代码里界面这一层叫 `chatBranch`，内核复制那一步仍叫 fork。
+_Avoid_：会话分支、对话分支；Session branch、Fork
+
+**侧边问一句 (Side question)**
+借一条对话的上下文，在小窗里只读地问一句；问完关掉，什么都不留下。它不是一条对话。
+被借上下文的那条对话，在这个场景里叫它的**主对话 (main chat)**。代码里叫 `sideQuestion`。
+_Avoid_：侧边对话、侧边聊天；Side chat
+
+**语音通话 (Voice call)**
+用户与语音助手之间的一次实时语音交流，绑定在一条对话上；有开始、有挂断，通话结束后对话还在。
+代码里叫 `voiceAssistant`，通话绑定在哪条对话上记在 `voiceChatSid`。
+语音派活工具 `dispatch_task` 的参数 `session` 是给模型的协议名，不改；它的取值是 `list_sessions` 列出的内核 session id（`agentSessionId`），不是对话 id。
+_Avoid_：语音对话、语音会话；Voice conversation、Voice session
+
+**小窗 (Mini window)**
+AI 助手的浮动小窗口，不切回主窗口就能和 AI 对话；侧边问一句也在这里进行。代码里叫 MiniChat。
+_Avoid_：MiniChat、Mini Chat、迷你对话
+
+**session**
+内核那一层的单元：Agent 实际读写的那份历史，代码里 `agentSessionId`。不翻译，中文界面也写 "session"；
+只出现在面向开发者的界面（如调试台），面向用户的文案里不出现。
+id 命名规则：渲染层与 shared 里 `sessionId` / `agentSessionId` 指内核 session，`sid` / `chatSid` 指对话；
+网络库导入的 `sessionId` 属导入领域。
+例外：过 IPC 的载荷字段沿用原名 —— `TrayAction` 的 `open-session` 里 `sessionId` 是对话 id，`ai.chatStream` 的 `sessionId` 是单次流 id，`miniChat.sessionSaved` 的 `session.id` 是对话 id。
+写注释时：指内核写「内核 session」，指对话写「对话」；MCP、语音连接等其他领域沿用各自说法。
+日志、异常、调试 tag 等运行时输出里的「会话」同此约定；测试内的 mock 数据与断言字符串属代码数据，不在此列。
+存量注释里单写的「会话」按所在模块的领域读：agent 内核相关代码（`agent-v3/`、`ipc/agentV3.ts` 等）里指内核 session；
+MCP（`capabilities/mcp/`）、实时语音与听写（`ai/realtime/`、`ai/stt/`、`realtimeVoice`、`speechToText`，含 preload 的同名两节；`ai/realtime/taskBus.ts` 除外，它讲的是内核 session）、网络库导入、工程导入的代码里，各指该领域自己的会话。
+测试文件里单写的「会话」（注释、测试名、mock/断言数据）按被测对象所在领域读。
+写明「agent 会话」「会话号」的仍指内核 session。
+_Avoid_：会话、内核记忆
 
 **UnrealAgentLink**
 装在用户 UE 项目里的插件，是虚幻盒子与引擎之间的通道。它连上之后，AI 才能"看见"当前关卡与选中资产，

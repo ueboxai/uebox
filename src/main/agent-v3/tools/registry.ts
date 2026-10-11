@@ -157,7 +157,7 @@ export function allToolNames(): Set<string> {
   for (const name of BROWSER_TOOL_NAMES) names.add(name)
   // 反问用户同理：在 `resolveTools` 里现造，不进 `buildAllTools()`
   names.add(ASK_USER_TOOL_NAME)
-  // 换会话归属同理。系统提示词和 `open_project` 的返回里都写着让模型调它，
+  // 换对话归属同理。系统提示词和 `open_project` 的返回里都写着让模型调它，
   // 名字不在这儿的话，第一个把这套流程写进 SKILL.md 的人会被体检告知
   // 「引用了不存在的工具」，然后把唯一正确的那句删掉
   names.add(SET_SESSION_PROJECT_TOOL_NAME)
@@ -656,7 +656,7 @@ const REGISTRATIONS: readonly Registration[] = Object.freeze([
     name: 'ue_fixup_redirectors',
     namespace: 'ue.content',
     risk: 'destructive',
-    // dry_run 按 safe 算（工具自己的 riskFor），预演上点的「本次会话都允许」放不过真正的那次
+    // dry_run 按 safe 算（工具自己的 riskFor），预演上点的「本对话内都允许」放不过真正的那次
     concurrency: 'sequential',
     make: () => ueEditor.createFixupRedirectorsTool()
   },
@@ -899,7 +899,7 @@ const REGISTRATIONS: readonly Registration[] = Object.freeze([
   // 读跨库、写不跨库（见 adapted/asset/vaultScope.ts）。于是「东西在另一个库里，
   // 但改动只能在活跃库做」这一幕必然会撞上，出路只有换库 —— 而换库是用户的决定：
   // 应用整个界面会跟着换。所以定成 mutating 走审批门，用户可以放行一次，
-  // 也可以点「本会话都允许」让它以后自己切。
+  // 也可以点「本对话内都允许」让它以后自己切。
   {
     name: 'switch_vault',
     namespace: 'asset',
@@ -1271,9 +1271,9 @@ const VALID_TOOL_NAME = /^[a-zA-Z0-9_-]{1,64}$/
 export interface BuildToolsDeps {
   sender?: WebContents
   /**
-   * 这条会话绑着的知识库。
+   * 这条对话绑着的知识库。
    *
-   * 只有绑了才注册检索工具：没绑的会话给出这个工具，模型调了只能拿到
+   * 只有绑了才注册检索工具：没绑的对话给出这个工具，模型调了只能拿到
    * 一句「没有知识库」—— 那是白费一步，而且看上去像功能坏了。
    * `'all'` 是全盒子范围（外部 MCP 会话），见 `NotebookScope`。
    */
@@ -1370,7 +1370,7 @@ export function buildAllTools(deps: BuildToolsDeps = {}): UnrealAgentTool<never>
     // 外部 MCP 客户端靠它看见盒子，见 builtin/box.ts
     ...createBoxTools(),
     // 检索只能搜当前绑定的知识库（外部会话是全部）；存来源在未绑定时会新建知识库。
-    // 两者都不进 cache —— 每条会话绑的库不一样；存来源还需要 sender 通知界面刷新。
+    // 两者都不进 cache —— 每条对话绑的库不一样；存来源还需要 sender 通知界面刷新。
     ...((deps.notebook
       ? [createSearchNotebookSourcesTool(deps.notebook)]
       : []) as unknown as UnrealAgentTool<never>[]),

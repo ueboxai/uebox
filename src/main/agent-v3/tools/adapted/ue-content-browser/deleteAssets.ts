@@ -379,7 +379,7 @@ EditorAssetLibrary.delete_asset —— 每次调用都做一次完整 GC，几�
   **别换 Python、别重试** —— 同一堵墙。把「要丢掉几步撤销」告诉用户，
   他同意了再带 drop_agent_undo=true 调一次（只丢你的撤销，用户的撤销历史不动）。
 - **「read-only on disk」**：包文件只读。版本控制管着就让用户签出；
-  另一条会话的资产锁就等它结束；用户自己设的就让用户解除。
+  另一条对话的资产锁就等它结束；用户自己设的就让用户解除。
 - **「still referenced by: …」**：真被列出来的那些东西引用着。先处理引用方
   （删掉引用它的 Actor、改掉引用它的资产），或者告诉用户删不了。
 
@@ -395,7 +395,7 @@ dropped_agent_undo_steps（这次丢掉的撤销步骤标题，**有的话必须
 
     inputSchema: DeleteAssetsSchema,
 
-    // dry_run 只在盒子这边展开清单，不碰引擎：按 safe 问，预演上的「本次会话都允许」放不过真删
+    // dry_run 只在盒子这边展开清单，不碰引擎：按 safe 问，预演上的「本对话内都允许」放不过真删
     riskFor: (args) =>
       (args as { dry_run?: unknown } | null)?.dry_run === true ? 'safe' : 'destructive',
 

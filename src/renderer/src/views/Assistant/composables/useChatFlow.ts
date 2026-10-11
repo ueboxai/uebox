@@ -113,16 +113,16 @@ export function useChatFlow(params: UseChatFlowParams) {
   }
 
   /**
-   * 确保会话存在并在首次发送消息时设置标题。
+   * 确保对话存在并在首次发送消息时设置标题。
    *
    * 实现搬去了 `chatSendPrimitives` —— 后台投递那条路（没有页面挂着）要调同一份。
    */
-  function ensureSessionWithTitle(sessionId: string, messageText: string): void {
-    ensureSessionWithTitleShared(sessionId, messageText, {
+  function ensureSessionWithTitle(chatSid: string, messageText: string): void {
+    ensureSessionWithTitleShared(chatSid, messageText, {
       chatStore,
       tabsStore,
       route,
-      unnamedTitle: t('assistant.chatFlow.unnamedSession')
+      unnamedTitle: t('assistant.chatFlow.unnamedChat')
     })
   }
 
@@ -167,7 +167,7 @@ export function useChatFlow(params: UseChatFlowParams) {
     if (text) return text
     if (isImageGenMode) return t('assistant.chatFlow.imageGenTitle')
     if (images.length > 0) return t('assistant.chatFlow.imageChatTitle')
-    return t('assistant.chatFlow.unnamedSession')
+    return t('assistant.chatFlow.unnamedChat')
   }
 
   async function respondWithImageGeneration(
@@ -175,7 +175,7 @@ export function useChatFlow(params: UseChatFlowParams) {
     typingId: string,
     imageBase64?: string
   ): Promise<void> {
-    // 捕获当前的会话ID
+    // 捕获当前的对话 id
     const currentSid = sid.value
 
     try {

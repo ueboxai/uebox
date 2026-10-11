@@ -22,7 +22,7 @@ import {
 import type { Component } from 'vue'
 import { computed, watch, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { generateChatSessionId, sessionIdOfTab } from '@renderer/common/chatRoute'
+import { generateChatSessionId, chatSidOfTab } from '@renderer/common/chatRoute'
 import { chatWindowAPI } from '@renderer/api/chatWindow'
 import { useTabsStore, DEFAULT_TAB_KEY } from '@renderer/store/modules/tabs'
 import { useI18n } from '@renderer/hooks/useI18n'
@@ -283,8 +283,8 @@ const handleDragEnd = (event: DragEvent): void => {
   const tabKey = draggedTab.value
   resetDragState()
   if (!tabKey || droppedOnTab) return
-  // 会话标签拖离标签栏松手：拎出来成独立窗口，像浏览器那样
-  if (sessionIdOfTab(tabKey) && isDraggedOffTabBar(event)) {
+  // 对话标签拖离标签栏松手：拎出来成独立窗口，像浏览器那样
+  if (chatSidOfTab(tabKey) && isDraggedOffTabBar(event)) {
     void detachTab(tabKey, { screenX: event.screenX, screenY: event.screenY })
   }
 }
@@ -313,7 +313,7 @@ function isDraggedOffTabBar(event: DragEvent): boolean {
 }
 
 /**
- * 把这个会话标签挪进独立窗口：窗口开出来之后才从标签栏摘掉。
+ * 把这个对话标签挪进独立窗口：窗口开出来之后才从标签栏摘掉。
  *
  * 顺序反过来的话，窗口没开成（主进程那边出错）标签却已经没了，用户只能去侧边栏找。
  */
@@ -321,7 +321,7 @@ async function detachTab(
   tabKey: string,
   point?: { screenX: number; screenY: number }
 ): Promise<void> {
-  const sid = sessionIdOfTab(tabKey)
+  const sid = chatSidOfTab(tabKey)
   if (!sid) return
   try {
     if (!(await chatWindowAPI.open(sid, point))) return
@@ -428,8 +428,8 @@ const getContextMenuItems = (tabKey: string): MenuItem[] => {
   const isLockedTab = tab.fixed && !tab.isCanDelete
 
   return [
-    // 会话标签多一项：拖出去成独立窗口的另一个入口（不方便拖、或者不知道能拖的时候）
-    ...(sessionIdOfTab(tab.key)
+    // 对话标签多一项：拖出去成独立窗口的另一个入口（不方便拖、或者不知道能拖的时候）
+    ...(chatSidOfTab(tab.key)
       ? [
           {
             key: 'open-in-window',
@@ -617,7 +617,7 @@ const handleMenuClick = (key: string) => {
 }
 
 /**
- * 创建新的对话会话
+ * 创建新对话
  */
 const createNewChat = (): void => {
   const sid = generateChatSessionId()

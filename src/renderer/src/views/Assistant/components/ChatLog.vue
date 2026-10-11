@@ -34,7 +34,7 @@
             @stop="handleStop"
             @suggest="handleSuggest"
             @copy="handleCopy"
-            @fork="handleFork"
+            @branch="handleBranch"
             @followups-ready="handleFollowupsReady"
             @open-location="handleOpenLocation"
             @resize="handleItemResize"
@@ -125,7 +125,7 @@ export interface ChatMessage {
 }
 
 /**
- * 聊天记录组件：
+ * 对话记录组件：
  * 接收消息列表，根据角色渲染不同气泡。
  * 采用 transform: scaleY(-1) 翻转方案，实现自动贴底和稳定的流式输出体验。
  */
@@ -135,7 +135,7 @@ const emit = defineEmits<{
   (e: 'stop', payload: { id: string }): void
   (e: 'suggest', payload: { id: string; text: string }): void
   (e: 'copy', payload: { id: string; content: string }): void
-  (e: 'fork', payload: { id: string }): void
+  (e: 'branch', payload: { id: string }): void
   (e: 'followups-ready', payload: { id: string }): void
   (e: 'open-location', folderKey: string, assetKey?: string): void
   (e: 'content-resize'): void
@@ -242,10 +242,10 @@ function handleCopy(payload: { id: string; content: string }): void {
 }
 
 /**
- * 上抛会话分支事件。
+ * 上抛分支事件。
  */
-function handleFork(payload: { id: string }): void {
-  emit('fork', payload)
+function handleBranch(payload: { id: string }): void {
+  emit('branch', payload)
 }
 
 /**

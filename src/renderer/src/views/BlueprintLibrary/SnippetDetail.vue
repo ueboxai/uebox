@@ -39,7 +39,7 @@ const props = withDefaults(
     name: string
     /** 整个 payload，由调用方从条目上取 */
     payload: unknown
-    /** 条目 id，AI 会话跟着它走 */
+    /** 条目 id，AI 对话跟着它走 */
     entryId: string
     /** 「放进当前工程」正在跑 */
     applying?: boolean
@@ -162,7 +162,7 @@ const chatContext = computed<LibraryChatContext | null>(() => {
       <!-- 右侧：AI 面板。里面嵌的就是主助手本身 -->
       <LibraryAIPanel
         v-if="chatContext"
-        :session-id="`library-chat-blueprint-${entryId}`"
+        :chat-sid="`library-chat-blueprint-${entryId}`"
         :mode="aiPanelMode"
         :context="chatContext"
         overlay-storage-prefix="blueprint-ai-panel"
