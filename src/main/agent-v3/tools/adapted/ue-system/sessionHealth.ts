@@ -205,9 +205,13 @@ function noProcessText(): string[] {
 /**
  * 没连上时统一的收尾话。
  *
- * 两件事必须说：这一轮的工具清单不会补发（`resolveTools` 在每轮开始时定死），
- * 以及「等」是有工具支持的、不是干等。少了前一句，模型会在连上之后去调一个
- * 它手上根本没有的工具；少了后一句，它会把用户支去点按钮。
+ * 两件事必须说：连上之后引擎工具什么时候到手，以及「等」是有工具支持的、不是干等。
+ * 少了后一句，它会把用户支去点按钮。
+ *
+ * 工具清单**会**在轮内刷新：`createAgent` 的 `prepareNextTurnWithContext` 在两次
+ * 模型调用之间问 `refreshEngine()`，引擎状态变了就换上新清单。只有子 agent
+ * 拿不到 `refreshEngine`（理由见 createAgent 里那段），它那一轮才真的不会补。
+ * 所以这里不能说「这一轮不会补发」—— 那会让主对话里的模型白白叫用户再发一条。
  */
 function offlineTailText(waited: number): string[] {
   return [
@@ -218,8 +222,8 @@ function offlineTailText(waited: number): string[] {
         '它会一直等到连上为止，连上就立刻返回。',
     '如果等满了仍然连不上，才去怀疑这个工程没启用 UnrealAgentLink 插件' +
       '（用 list_engines 确认插件装在哪，或让用户在「编辑 → 插件」里搜 UnrealAgentLink）。',
-    '另外：这一轮的工具清单是**会话开始时**定下来的，中途连上不会补发。' +
-      '所以连上之后如果你手上还是没有别的引擎工具，那不是没连上 —— ' +
+    '连上之后，从下一步起工具清单会自动刷新，引擎工具会跟着出现。' +
+      '如果连上了你手上却还是没有引擎工具（子任务里不会刷新），那不是没连上 —— ' +
       '告诉用户连接已经恢复、让他再发一条消息即可，不要在这一轮里反复重试。',
     SCOPE_NOTICE
   ]
@@ -293,7 +297,7 @@ function describe(
   if (orphans.length > 0) {
     lines.push(
       '',
-      '另外这些编辑器在跑但没连上盒子（不属于这条会话，别去动它们）：',
+      '另外这些编辑器在跑但没连上盒子（不属于这条对话，别去动它们）：',
       ...listProcesses(orphans)
     )
   }
@@ -308,16 +312,16 @@ function describe(
     lines.push(
       '',
       `注意：这一轮绑定的工程是 ${staleTargetPath}，它此刻**没有连接**。` +
-        '上面那些连接属于别的工程，这条会话不该去动它们 —— ' +
-        '请用户打开并连接这个工程，或者把会话移出该工程。'
+        '上面那些连接属于别的工程，这条对话不该去动它们 —— ' +
+        '请用户打开并连接这个工程，或者把对话移出该工程。'
     )
   }
 
   lines.push(
     '',
-    '如果你手上现在没有别的引擎工具，那是因为这一轮开始时还没连上 —— ' +
-      '工具清单是每轮开始时定下来的，中途连上不会补发。' +
-      '告诉用户连接已经恢复、让他再发一条消息即可，不要在这一轮里反复重试。',
+    '如果你手上现在没有别的引擎工具：从下一步起工具清单会自动刷新，引擎工具会跟着出现，直接接着做。' +
+      '刷新后仍然没有（子任务里不会刷新），就告诉用户连接已经恢复、让他再发一条消息即可，' +
+      '不要在这一轮里反复重试。',
     SCOPE_NOTICE
   )
 
@@ -355,7 +359,7 @@ function snapshotConnections(): { connections: EditorConnection[]; target?: stri
 /**
  * 这一轮盯的工程连上了没有。
  *
- * 绑了工程就只认那一个 —— 旁边别的工程连着不算数，等待要等的是**这条会话
+ * 绑了工程就只认那一个 —— 旁边别的工程连着不算数，等待要等的是**这条对话
  * 能干活**，不是「有任何连接」。没绑工程（纯对话）时任何一条连接都算连上。
  */
 function isSatisfied(connections: EditorConnection[], targetPath: string | undefined): boolean {
@@ -435,7 +439,7 @@ export function createSessionHealthTool(): UnrealAgentTool<SessionHealthReport> 
 插件才起来，大工程 30–90 秒是常态。盒子界面上没有「连接」按钮。
 
 【connection_id 是什么】盒子和编辑器之间那条 WebSocket 连接的 id，
-**编辑器每重启一次就换一个**，旧的会被清掉。它不是聊天会话 id。
+**编辑器每重启一次就换一个**，旧的会被清掉。它不是对话 id。
 编辑器重启后盒子会自动认回同一个工程的新连接，所以看到 state=connected
 就说明现在真的能干活了。`,
     input: z.object({

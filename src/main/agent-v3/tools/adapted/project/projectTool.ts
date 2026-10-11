@@ -814,7 +814,7 @@ async function openProjectByPath(projectPath: string): Promise<OpenProjectResult
  * 已经开着的工程不要再 `shell.openPath` 一次。
  *
  * 两条真实路径都会走到这儿：模型不知道工程已经开着就调了 `open_project`；
- * 以及会话归属挡下第一次切换、模型换完归属再调一次 —— 那时编辑器已经在启动了。
+ * 以及对话归属挡下第一次切换、模型换完归属再调一次 —— 那时编辑器已经在启动了。
  * 再交给系统打开一次，Windows 会按文件关联再拉一个 UnrealEditor 进程，
  * 用户面前多出一个「工程已被占用」的弹窗，或者干脆开出第二个编辑器。
  *
@@ -889,7 +889,7 @@ interface OpenProjectResult {
  * ## 三种结局都要说清楚
  *
  * - **切过去了**：告诉模型可以接着干，别再自己去核连接。
- * - **会话被钉住**：用户把这条会话归到别的工程下了，切过去等于越界
+ * - **对话被钉住**：用户把这条对话归到别的工程下了，切过去等于越界
  *   （见 `core/sessionScope.ts`）。这一条挡得对，但必须让模型把原因转告用户，
  *   而不是自己憋着重试。
  * - **没等到**：工程可能编译很久，也可能插件没装。不谎报 —— 说清楚等了多久、
@@ -2518,7 +2518,7 @@ export function createProjectTool(): V2Tool {
     connected=true 就是「验证过能干活」，switched_target=true 就是「已经切过去了」——
     这时直接接着干，不要让用户去界面上切工程、也不要请他再发一条消息
   - 等待默认 ${DEFAULT_WAIT_MS / 1000} 秒，用 waitSeconds 调整
-  - 会话被用户归到别的工程下时不会切（那是越界），details 里会说明，照实转告用户
+  - 对话被用户归到别的工程下时不会切（那是越界），details 里会说明，照实转告用户
 - import_assets: 将资产库中的资产导入 UE 项目（需要 assetKeys **或** folder，可选 destinationPath）
   - **工程不用打开。** .uasset/.umap 是把文件拷进 <工程>/Content/ 并解析依赖，不经过引擎，
     所以别为了导资产先去 open_project —— 那会白等一趟编辑器启动。用 projectKey

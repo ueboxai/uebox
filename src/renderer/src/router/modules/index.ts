@@ -55,14 +55,14 @@ const miniChatRoute: RouteRecordRaw = {
      * 这里原来写着「AI 助手」四个字，于是 t() 查不到、原样返回，
      * 英文用户的小窗标题栏上是一句中文。
      */
-    title: 'profile.miniChat.windowTitle',
+    title: 'profile.miniWindow.windowTitle',
     standalone: true,
     isShowInTab: false
   }
 }
 
 /**
- * 从标签栏拖出来的独立聊天窗口（主进程 `chatWindowManager.ts` 用 `?sid=` 打开）。
+ * 从标签栏拖出来的独立对话窗口（主进程 `chatWindowManager.ts` 用 `?sid=` 打开）。
  *
  * standalone：不走主窗口的语言门、启动落点，也不进标签栏 —— 它只放这一条对话。
  */

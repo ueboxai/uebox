@@ -54,7 +54,7 @@ watch(
 )
 
 /**
- * 当前知识库对应的聊天会话消息
+ * 当前知识库里那条对话的消息
  */
 const chatMessages = computed(() => chatMsgStore.getMessages(`notebook-chat-${notebookId.value}`))
 
@@ -2544,7 +2544,7 @@ onUnmounted(() => {
             ref="assistantWelcomeRef"
             :key="'assistant'"
             :force-chat-view="true"
-            :session-id="`notebook-chat-${notebookId}`"
+            :chat-sid="`notebook-chat-${notebookId}`"
             :notebook-mode="true"
             :notebook-sources="sources"
           />

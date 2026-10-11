@@ -6,16 +6,16 @@
     </div>
     <div class="right">
       <!--
-        这条会话属于哪个 UE 工程。知识库里用的是**同一个** —— 知识库原来另有一套
+        这条对话属于哪个 UE 工程。知识库里用的是**同一个** —— 知识库原来另有一套
         「关联工程」（存在 notebook 表上），那套只改了这里的显示，从来没有传进
         主进程，也就从来没有真的把 ue.* 工具指向那个工程。留着两套的结果是
         用户以为绑了、模型那边毫无变化。
       -->
       <!-- 状态监控放在工程胶囊左边；欢迎页把胶囊挪走了，它照样留在顶栏 -->
-      <EditorStatusMonitor :session-id="sessionId" :pending-project-name="pendingProjectName" />
+      <EditorStatusMonitor :chat-sid="chatSid" :pending-project-name="pendingProjectName" />
       <SessionProjectChip
         v-if="!hideProjectChip"
-        :session-id="sessionId"
+        :chat-sid="chatSid"
         :pending-project-name="pendingProjectName"
       />
       <AppDropdown :trigger="['click']">
@@ -28,10 +28,10 @@
               侧边问一句：把当前上下文复制给小窗口，在那边只读地问。
               **跑着的时候也能开** —— 那正是最想问「它现在在干嘛」的时刻
             -->
-            <AppMenuItem @click="emitSideChat">
-              {{ t('assistant.sideChat.open') }}
+            <AppMenuItem @click="emitSideQuestion">
+              {{ t('assistant.sideQuestion.open') }}
             </AppMenuItem>
-            <AppMenuItem @click="emitClear"> {{ t('assistant.topNav.clearSession') }} </AppMenuItem>
+            <AppMenuItem @click="emitClear"> {{ t('assistant.topNav.clearChat') }} </AppMenuItem>
             <AppMenuItem @click="emitExportImage">
               {{ t('assistant.topNav.exportImage') }}
             </AppMenuItem>
@@ -63,16 +63,16 @@ import EditorStatusMonitor from './EditorStatusMonitor.vue'
  */
 defineProps<{
   notebookMode?: boolean
-  /** 当前会话 ID，用于在右上角显示这条会话属于哪个 UE 工程 */
-  sessionId?: string
-  /** 会话还没建出来时的待定工程归属（侧边栏在工程标题上点「+」新建的会话） */
+  /** 当前对话 ID，用于在右上角显示这条对话属于哪个 UE 工程 */
+  chatSid?: string
+  /** 对话还没建出来时的待定工程归属（侧边栏在工程标题上点「+」新建的对话） */
   pendingProjectName?: string
   /** 欢迎页把工程胶囊挪到问候语下面，顶栏就不再重复放一个 */
   hideProjectChip?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'side-chat'): void
+  (e: 'side-question'): void
   (e: 'clear'): void
   (e: 'export-image'): void
   (e: 'export-json'): void
@@ -81,12 +81,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-/**
- * 处理右侧更多菜单点击事件。
- * 暂不实现具体功能，仅作为交互占位。
- */
-function emitSideChat(): void {
-  emit('side-chat')
+/** 更多菜单点了「侧边问一句」：只把事件发出去，复制上下文和开小窗由 Welcome 处理 */
+function emitSideQuestion(): void {
+  emit('side-question')
 }
 
 function emitClear(): void {

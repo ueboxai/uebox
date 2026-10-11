@@ -185,7 +185,7 @@ async function handleApplySnippet(): Promise<void> {
       chatStore: useChatSessionsStore(),
       tabsStore: useTabsStore(),
       route,
-      unnamedTitle: t('assistant.chatFlow.unnamedSession')
+      unnamedTitle: t('assistant.chatFlow.unnamedChat')
     })
     await appExecuteAgent(prompt, undefined, { chatSid })
   } catch (error) {
@@ -601,7 +601,7 @@ const blueprintSummary = computed(() => {
 
 // ========== 选中快照 ==========
 /**
- * AI 聊天面板 mousedown 时调用，快照当前选中节点信息用于 AI 上下文。
+ * AI 对话面板 mousedown 时调用，快照当前选中节点信息用于 AI 上下文。
  * 选中状态的保持由 BlueprintRenderer 中的 patchSetFocused 补丁保证。
  */
 function handleSnapshotSelection(): void {
@@ -1607,7 +1607,7 @@ function handleCanvasDrop(event: DragEvent): void {
 
       <!-- 右侧：AI 面板。里面嵌的就是主助手本身 -->
       <LibraryAIPanel
-        :session-id="`library-chat-blueprint-${bpId}`"
+        :chat-sid="`library-chat-blueprint-${bpId}`"
         :mode="aiPanelMode"
         :context="libraryChatContext"
         overlay-storage-prefix="blueprint-ai-panel"

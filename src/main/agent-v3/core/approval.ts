@@ -15,7 +15,7 @@ import { effectiveRisk, type ToolRisk, type UnrealAgentTool } from '../tools/def
 /** 用户对一次审批的回应 */
 export type ApprovalVerdict =
   | 'approve'
-  /** 批准，并且本会话内该工具不再询问 */
+  /** 批准，并且这条内核 session 里该工具不再询问 */
   | 'always'
   | 'reject'
 
@@ -35,7 +35,7 @@ export interface ApprovalRequest {
   risk: ToolRisk
   args: unknown
   /**
-   * 界面上要不要给「本次会话都允许」这个按钮。
+   * 界面上要不要给「本对话内都允许」这个按钮。
    *
    * 逐次审批的工具（浏览器打开网址、往网页里输入）为 false —— 它们每次的
    * 参数都不一样，而参数本身就是风险，批准一次不能代表批准下一次。
@@ -56,11 +56,11 @@ export interface ApprovalDeps {
   /** 实时只读约束，优先于审批档位和已经记住的授权。 */
   isReadOnly?: () => boolean
   /**
-   * 本会话已被「始终允许」的工具。
+   * 这条内核 session 里已被「始终允许」的工具。
    *
    * 由宿主传入才能跨轮保留 —— 审批门随 agent 创建，而 agent 每条消息重建
    * 一次。省略时退化成只在这一个 agent 实例内有效，那样按钮上写着
-   * 「本次会话都允许」，实际只管到这一轮结束。
+   * 「本对话内都允许」，实际只管到这一轮结束。
    */
   alwaysAllowed?: Set<string>
   /** 按 name 查工具元数据。注册表提供 */
@@ -77,7 +77,7 @@ export function needsApproval(
 ): boolean {
   // 用户明确选择完全访问后，浏览器交互也无需逐次审批。
   if (mode === 'yolo') return false
-  // 其他档位仍逐次确认，不能用「本次会话都允许」代替。
+  // 其他档位仍逐次确认，不能用「本对话内都允许」代替。
   if (requiresExplicitApproval) return true
   // 只读操作永远不问
   if (risk === 'safe') return false
@@ -94,7 +94,7 @@ export function needsApproval(
  * 审批链路故障不代表用户同意，模型应收到明确原因以便换路或稍后重试。
  */
 export function createApprovalGate(deps: ApprovalDeps) {
-  // 本会话内已被「始终允许」的工具。宿主没给就自己开一个（见 ApprovalDeps）
+  // 这条内核 session 里已被「始终允许」的工具。宿主没给就自己开一个（见 ApprovalDeps）
   const alwaysAllowed = deps.alwaysAllowed ?? new Set<string>()
   const currentMode = (): ApprovalMode =>
     typeof deps.mode === 'function' ? deps.mode() : deps.mode
@@ -108,7 +108,7 @@ export function createApprovalGate(deps: ApprovalDeps) {
       const tool = deps.lookup(toolName)
       const explicit = tool?.unrealBox.requiresExplicitApproval === true
       const declaredRisk: ToolRisk = tool?.unrealBox.risk ?? 'destructive'
-      // 按这次的参数算实际风险（dry_run 之类降成 safe）。「本次会话都允许」按实际
+      // 按这次的参数算实际风险（dry_run 之类降成 safe）。「本对话内都允许」按实际
       // 风险分开记：在预演上点的允许只对预演有效，真正的那次照样问。
       // 只降不升（见 effectiveRisk）：工具名这条记录覆盖的是声明的最坏情况
       const risk: ToolRisk = effectiveRisk(tool?.unrealBox, ctx.args)
@@ -120,7 +120,7 @@ export function createApprovalGate(deps: ApprovalDeps) {
       const blocked = readOnlyBlock()
       if (blocked) return blocked
 
-      // 先判逐次审批，再看「本次会话都允许」的名单 —— 顺序反了的话，
+      // 先判逐次审批，再看「本对话内都允许」的名单 —— 顺序反了的话，
       // 一个曾经被记住的工具名就能永久跳过审批。
       if (!explicit && (alwaysAllowed.has(toolName) || alwaysAllowed.has(allowKey))) {
         return undefined

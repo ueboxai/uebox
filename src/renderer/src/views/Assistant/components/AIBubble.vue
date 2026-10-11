@@ -516,7 +516,7 @@
       <PhCopy v-else-if="status === 'done'" class="tool" @click="emitCopy" />
       <PhArrowClockwise v-if="status === 'done'" class="tool" @click="emitRetry" />
       <AppTooltip v-if="status === 'done'" :title="t('assistant.branch.tooltip')">
-        <PhGitBranch class="tool" @click="emitFork" />
+        <PhGitBranch class="tool" @click="emitBranch" />
       </AppTooltip>
       <AppTooltip v-if="status === 'done'" :title="readAloud.label.value">
         <AppButton
@@ -809,7 +809,7 @@ function onToggleRunFold(): void {
  * sessionId 从条目里取，不从 props 传：这张卡片嵌在时间线的第三层，
  * 靠 props 层层往下传的话中间每一层都要为它加一个自己用不上的参数
  * （见 `shared/agentQuestion.ts` 的说明）。取不到就只能放弃 ——
- * 主进程那边会等到超时按取消处理，但至少不会把答案送错会话。
+ * 主进程那边会等到超时按取消处理，但至少不会把答案送错对话。
  */
 function onQuestionAnswer(
   question: AgentQuestionItem,
@@ -918,7 +918,7 @@ const emit = defineEmits<{
   (e: 'stop', payload: { id: string }): void
   (e: 'suggest', payload: { id: string; text: string }): void
   (e: 'copy', payload: { id: string; content: string }): void
-  (e: 'fork', payload: { id: string }): void
+  (e: 'branch', payload: { id: string }): void
   (e: 'followups-ready', payload: { id: string }): void
   (e: 'resize'): void
   (e: 'open-location', folderKey: string, assetKey?: string): void
@@ -1250,11 +1250,11 @@ function emitCopy(): void {
 }
 
 /**
- * 触发会话分支事件。分的是整个会话（内核 transcript），不是这条消息，
- * payload 里的 id 只是将来做「从某一轮分叉」时留下的锚点。
+ * 触发分支事件。payload 里的 id 就是分支点：从这条回复分出一条新对话，
+ * 它之后的消息不带过去（截在哪见 `chatBranch.ts` 的 `resolveBranchPoint`）。
  */
-function emitFork(): void {
-  emit('fork', { id: props.id })
+function emitBranch(): void {
+  emit('branch', { id: props.id })
 }
 
 /**
@@ -1650,9 +1650,9 @@ function waitForSessionProject(waitMs: number): Promise<boolean> {
 }
 
 /**
- * 引擎没连上时问一句要不要打开这条会话的工程；用户同意就打开并等它连上。
+ * 引擎没连上时问一句要不要打开这条对话的工程；用户同意就打开并等它连上。
  *
- * 不知道该开哪个工程（会话没绑工程、库里没有 .uproject）、或者工程其实连着
+ * 不知道该开哪个工程（对话没绑工程、库里没有 .uproject）、或者工程其实连着
  * （那是引擎那边跑失败了，再开一个也没用）时不问，照旧显示「只做了命名检查」。
  * 返回 true 表示工程已经连上，可以重新审查。
  */

@@ -28,9 +28,9 @@ const menuItemStub = {
   template: '<div class="menu-item" @click="$emit(\'click\', $event)"><slot /></div>'
 }
 
-function mountChip(sessionId: string, pendingProjectName = ''): ReturnType<typeof mount> {
+function mountChip(chatSid: string, pendingProjectName = ''): ReturnType<typeof mount> {
   return mount(SessionProjectChip, {
-    props: { sessionId, pendingProjectName },
+    props: { chatSid, pendingProjectName },
     global: {
       stubs: {
         AppDropdown: dropdownStub,
@@ -151,6 +151,6 @@ describe('SessionProjectChip 切换项目归属', () => {
     await dist!.trigger('click')
 
     // useChatFlow.ensureSessionWithTitle 就是拿这个值判断「还没被命名过」
-    expect(chatStore.sessionById('sid-title')?.title).toBe('AI会话')
+    expect(chatStore.sessionById('sid-title')?.title).toBe('未命名对话')
   })
 })
