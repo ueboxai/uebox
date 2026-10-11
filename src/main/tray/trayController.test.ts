@@ -755,7 +755,7 @@ describe('trayController', () => {
       startTrayMenuController(tray as never, hostDeps)
       await launchFromMenu(tray)
 
-      // 过了宽限、探测整个抛错：误摘就等于把防双开的门拆了
+      // 过了宽限、探测整个抛错：查不出来不等于不在跑，标记留给 TTL
       s.processQueryFails = true
       await vi.advanceTimersByTimeAsync(40_000)
 

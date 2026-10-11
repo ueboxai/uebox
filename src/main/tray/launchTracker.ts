@@ -5,7 +5,7 @@
  * 「装插件」这种可能拖很久的 await，这段不吃 TTL；若仍按两分钟超时，会把
  * 还在进行的打开当成没这回事，再点就是第二个编辑器进程。落定成功到插件连上是另一段，
  * `shell.openPath` 到 UnrealAgentLink 握手要几十秒，这期间 `projectManager`
- * 还报不出它在跑 —— 这段才有 TTL 兜底：真连上了会被 `withProjectState`
+ * 还报不出它在跑 —— 这段才有 TTL 兜底：真连上了由调用方 `clearIfRunning`
  * 摘掉（running 优先），两分钟都没起来（崩溃、UAC 被按掉）就当作没这回事，
  * 恢复成可点。
  *
@@ -19,7 +19,6 @@ export const LAUNCH_TTL_MS = 2 * 60 * 1000
 
 export interface LaunchTrackerDeps {
   now?: () => number
-  ttlMs?: number
 }
 
 export interface LaunchTracker {
@@ -42,14 +41,14 @@ export interface LaunchTracker {
 }
 
 export function createLaunchTracker(deps: LaunchTrackerDeps = {}): LaunchTracker {
-  const { now = Date.now, ttlMs = LAUNCH_TTL_MS } = deps
+  const { now = Date.now } = deps
   const marks = new Map<string, number | null>()
 
   /** 没过期的「等连接」时刻；进行中的（null）、没标过的、过期的都回 undefined —— 过期的顺手删掉 */
   const freshTimestamp = (projectKey: string): number | undefined => {
     const at = marks.get(projectKey)
     if (at === undefined || at === null) return undefined
-    if (now() - at > ttlMs) {
+    if (now() - at > LAUNCH_TTL_MS) {
       marks.delete(projectKey)
       return undefined
     }
@@ -64,7 +63,7 @@ export function createLaunchTracker(deps: LaunchTrackerDeps = {}): LaunchTracker
     let earliest: number | null = null
     for (const [key, at] of marks) {
       if (at === null) continue
-      const remaining = at + ttlMs + 1 - nowAt
+      const remaining = at + LAUNCH_TTL_MS + 1 - nowAt
       if (remaining <= 0) {
         marks.delete(key)
         continue
@@ -101,7 +100,7 @@ export function createLaunchTracker(deps: LaunchTrackerDeps = {}): LaunchTracker
  * running 优先于 launching：它都连上了，「等连接」标记的使命结束，顺手清掉 —
  * 不然中间有个「既运行中又启动中」的怪胎状态。还没落定的打开不摘。
  */
-export function withProjectState(
+export function applyProjectState(
   candidates: TrayProjectCandidate[],
   runningKeys: Set<string>,
   tracker: LaunchTracker

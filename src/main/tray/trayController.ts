@@ -53,7 +53,7 @@ import { getPublicDatabase } from '../sqliteDataBase'
 import { getProjectByPath } from '../sqliteDataBase/models/project'
 import UnrealProcessDetector from '../utils/UnrealProcessDetector'
 
-import { createLaunchTracker, withProjectState } from './launchTracker'
+import { applyProjectState, createLaunchTracker } from './launchTracker'
 import { trayOpenOutcome } from './openOutcome'
 import { createTrayProjectOpener } from './openTrayProject'
 import { createPendingSlot } from './pendingSlot'
@@ -132,8 +132,8 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
   /*
    * 点了「最近项目」到插件连上来之间的过渡期。引擎起来要几十秒，这期间
    * `projectManager` 还报不出 running —— 不记一笔的话菜单那条还是活的，
-   * 双击就是第二个编辑器进程。「等连接」的计时标记由 `withProjectState`
-   * 在看到 running 时摘掉，或由 TTL 兜底。
+   * 双击就是第二个编辑器进程。「等连接」的计时标记在连上那一刻由
+   * `onProjectsChanged` 摘掉；一直没连上的，靠建菜单时的进程对账或 TTL 兜底。
    */
   const launchTracker = createLaunchTracker()
 
@@ -463,7 +463,7 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
       buildTrayMenuTemplate(
         {
           recentSessions,
-          recentProjects: withProjectState(candidates, running, launchTracker)
+          recentProjects: applyProjectState(candidates, running, launchTracker)
         },
         handlers,
         mt
@@ -508,13 +508,7 @@ export function startTrayMenuController(tray: Tray, deps: TrayControllerDeps): v
      * 一个已经关掉的工程被标成「启动中」。这里查库摊的是每次连接变化一次，
      * 不是每次右键。
      */
-    try {
-      for (const key of runningProjectKeys(projectQueryDeps())) {
-        launchTracker.clearIfRunning(key)
-      }
-    } catch (error) {
-      logger.warn('[托盘] 同步启动标记失败:', error)
-    }
+    for (const key of currentRunningKeys()) launchTracker.clearIfRunning(key)
     scheduleRebuild()
   })
 
