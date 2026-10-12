@@ -183,7 +183,7 @@ describe('steerAgent 的被拒文案', () => {
     agentV3.steer.mockResolvedValue({
       success: false,
       code: 'PROJECT_MISMATCH',
-      errorParams: { snapshotProject: '', runProject: '' }
+      errorParams: { snapshotProject: '', runProject: 'GameB' }
     })
 
     await api.steerAgent('加一句', { targetSessionId: 'agent-1', ifRejected: 'restored' })
