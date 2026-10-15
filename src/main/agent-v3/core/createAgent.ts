@@ -28,8 +28,13 @@ import { buildUserInstructionsSection } from '../capabilities/userInstructions'
 import type { SkillMetadata } from '../../agent-v3/capabilities/skillsService/SkillsService'
 import type { McpClientManager } from '../capabilities/mcp/McpClientManager'
 import { buildMcpSection, installableIntegrations } from '../capabilities/mcp/promptSection'
-import { createAskUserTool, type AskUserToolDeps } from '../tools/builtin/askUser'
+import {
+  createAskUserTool,
+  UNATTENDED_ANSWER_MS,
+  type AskUserToolDeps
+} from '../tools/builtin/askUser'
 import { createVoiceReportTool, type VoiceReportToolDeps } from '../tools/builtin/voiceReport'
+import { createUpdatePlanTool, createWrapUpTool } from '../tools/builtin/turnReport'
 import {
   createSetSessionProjectTool,
   type SetSessionProjectDeps
@@ -450,8 +455,19 @@ function resolveCandidateTools(ctx: SessionContext): UnrealAgentTool<never>[] {
     tools.push(
       createAskUserTool({
         sessionId: ctx.sessionId,
-        request: ctx.requestQuestion
+        request: ctx.requestQuestion,
+        // 用户亲手选了「全部权限」才倒计时；没有审批通道的会话不算（那是没人能批，不是让放手）
+        autoAnswerAfterMs: () => {
+          const mode =
+            typeof ctx.approvalMode === 'function' ? ctx.approvalMode() : ctx.approvalMode
+          return ctx.requestApproval && mode === 'yolo' ? UNATTENDED_ANSWER_MS : undefined
+        }
       }) as unknown as UnrealAgentTool<never>
+    )
+    // 任务清单和收尾提问：同样只有人看着界面时才有意义，条件跟反问一致
+    tools.push(
+      createUpdatePlanTool() as unknown as UnrealAgentTool<never>,
+      createWrapUpTool() as unknown as UnrealAgentTool<never>
     )
   }
 
@@ -1636,6 +1652,13 @@ export function buildSystemPrompt(
     // 模型再把施工步骤复述一遍，用户读完两份都还是不知道那个材质长什么样 ——
     // 台账答不了「它现在会做什么」，而那恰恰是只有模型答得出的一半。
     '- When you finish, say plainly what you did, what came of it, and anything the user has to decide. The UI already lists which assets you touched, so do not re-narrate the steps. Explain the outcome instead: what the thing now does, and which parameter or node the user would change to adjust it. "Created M_GlowBreath with 10 nodes" tells them nothing; "M_GlowBreath pulses its emissive glow on a 2-second cycle — change the Speed or GlowColor parameter to adjust it" tells them everything.',
+    // 清单和收尾提问的用法写在工具描述里，这里只交代「什么时候想起它们」。
+    // 没有这两个工具（子 agent、无人值守）时不写，免得模型去找不存在的工具
+    ...(ctx.isSubAgent || !ctx.requestQuestion
+      ? []
+      : [
+          '- For work with three or more steps, show the user a task list with update_plan before you start and tick it off as you go. If your turn ends with a decision the user has to make, call wrap_up with that one question and one or two reply buttons.'
+        ]),
     /*
      * 回复语言**只认界面语言**（`ctx.uiLanguage`），没有第二个判据。
      *

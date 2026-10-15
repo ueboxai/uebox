@@ -20,6 +20,7 @@ import type { SettingsView } from '@core/shared/aiProvider'
 import {
   teamModelCandidates,
   teamModelLabel,
+  type TeamActivity,
   type TeamModel,
   type TeamModelCandidate,
   type TeamStateView
@@ -32,11 +33,15 @@ import { message } from '@renderer/utils/messageManager'
 
 export interface UseTeamBoard {
   team: Ref<TeamStateView | null>
+  /** 队员最近的动态（调了什么工具、说了什么），旧的在前 */
+  activity: Ref<TeamActivity[]>
   /** 这条对话是不是工作室 */
   active: ComputedRef<boolean>
   refresh: () => Promise<void>
   /** 卡住的一项改回待办，下一轮制作人会看到 */
   reopen: (taskId: string) => Promise<void>
+  /** 把一件停下的活交回制作人（任务板上加一项「用户重开」的待办） */
+  reopenJob: (jobId: string) => Promise<void>
   /** 结束团队模式。任务板和队员留在盘上，下次 /team 接得上 */
   end: () => Promise<void>
   /** 队员能换成哪些模型。和制作人招人时的候选是同一份名单 */
@@ -49,6 +54,9 @@ export interface UseTeamBoard {
   setMemberModel: (name: string, model: TeamModel) => Promise<void>
 }
 
+/** 界面上最多留多少条动态（所有人加起来） */
+const ACTIVITY_KEPT = 80
+
 export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
   const chatStore = useChatSessionsStore()
   const { t } = useI18n()
@@ -56,6 +64,8 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
   const agentSessionId = computed(() =>
     chatSid.value ? chatStore.getAgentSessionId(chatSid.value) : ''
   )
+
+  const activity = ref<TeamActivity[]>([])
 
   // 两次重读撞在一起时，只认最后发出去的那一次，免得旧结果盖掉新结果
   let generation = 0
@@ -68,7 +78,12 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
     }
     try {
       const next = await agentV3API.teamState(sessionId)
-      if (mine === generation) team.value = next
+      if (mine !== generation) return
+      team.value = next
+      // 主进程那份是这次运行里攒下的；它比界面手上的旧（刚打开面板）才拿来垫底
+      const recent = next?.live?.recent ?? []
+      const newest = activity.value.at(-1)?.at ?? 0
+      if (recent.length && (recent.at(-1)?.at ?? 0) >= newest) activity.value = recent
     } catch {
       // 读不到不是错，只是这一次没读到。保留上一次的值，别让面板闪
     }
@@ -80,12 +95,28 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
   }
 
   // preload 的 on() 挂的是包了一层的处理器并把它返回；off() 要传回这一个，传 onChange 摘不掉
+  const onActivity = (...args: unknown[]): void => {
+    const payload = args[0] as (TeamActivity & { sessionId?: string }) | undefined
+    if (!payload?.sessionId || payload.sessionId !== agentSessionId.value) return
+    const { member, text, at } = payload
+    activity.value = [...activity.value, { member, text, at }].slice(-ACTIVITY_KEPT)
+  }
+
   const boardHandler = window.api.on('agent-v3:team-board', onChange)
+  const activityHandler = window.api.on('agent-v3:team-activity', onActivity)
   const releasedHandler = window.api.on('agent-v3:released', onChange)
-  watch(agentSessionId, () => void refresh(), { immediate: true })
+  watch(
+    agentSessionId,
+    () => {
+      activity.value = []
+      void refresh()
+    },
+    { immediate: true }
+  )
 
   onUnmounted(() => {
     window.api.off('agent-v3:team-board', boardHandler)
+    window.api.off('agent-v3:team-activity', activityHandler)
     window.api.off('agent-v3:released', releasedHandler)
   })
 
@@ -94,6 +125,12 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
     const sessionId = agentSessionId.value
     if (!sessionId) return
     const result = await agentV3API.teamTaskReopen(sessionId, taskId).catch(() => null)
+    if (!result?.success) message.error(t('assistant.teamBoard.reopenFailed'))
+  }
+  const reopenJob = async (jobId: string): Promise<void> => {
+    const sessionId = agentSessionId.value
+    if (!sessionId) return
+    const result = await agentV3API.teamJobReopen(sessionId, jobId).catch(() => null)
     if (!result?.success) message.error(t('assistant.teamBoard.reopenFailed'))
   }
 
@@ -149,9 +186,11 @@ export function useTeamBoard(chatSid: Ref<string>): UseTeamBoard {
 
   return {
     team,
+    activity,
     active,
     refresh,
     reopen,
+    reopenJob,
     end,
     modelChoices,
     modelsLoaded: computed(() => modelSettings.value !== null),

@@ -65,6 +65,7 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "thinkingLevelMap": {
+          "off": null,
           "minimal": null,
           "xhigh": "xhigh",
           "max": "max"
@@ -2668,6 +2669,7 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
         "supportsTools": true,
         "supportsReasoning": true,
         "thinkingLevelMap": {
+          "off": null,
           "minimal": null,
           "xhigh": "xhigh",
           "max": "max"
@@ -6328,6 +6330,82 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
           "input": 0.435,
           "output": 0.87
         }
+      }
+    ]
+  },
+  {
+    "id": "zcode",
+    "displayName": "ZCode Coding Plan",
+    "group": "subscription",
+    "kind": "chat",
+    "protocol": "anthropic-messages",
+    "baseUrl": "https://zcode.z.ai/api/v1/zcode-plan/anthropic",
+    "apiKeyUrl": "https://zcode.z.ai",
+    "requiresApiKey": true,
+    "hasLogo": false,
+    "supportsOAuth": true,
+    "models": [
+      {
+        "id": "GLM-5.2",
+        "displayName": "GLM-5.2",
+        "supportsVision": false,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      }
+    ]
+  },
+  {
+    "id": "siliconflow-stt",
+    "displayName": "硅基流动 SenseVoice",
+    "group": "stt",
+    "kind": "stt",
+    "protocol": "openai-completions",
+    "baseUrl": "https://api.siliconflow.cn/v1",
+    "apiKeyUrl": "https://cloud.siliconflow.cn/account/ak",
+    "requiresApiKey": true,
+    "defaultEnvVar": "SILICONFLOW_API_KEY",
+    "hasLogo": true,
+    "models": [
+      {
+        "id": "FunAudioLLM/SenseVoiceSmall",
+        "displayName": "SenseVoice Small"
+      }
+    ]
+  },
+  {
+    "id": "local-stt",
+    "displayName": "本机语音识别",
+    "group": "stt",
+    "kind": "stt",
+    "protocol": "openai-completions",
+    "baseUrl": "http://127.0.0.1:7860",
+    "apiKeyUrl": "https://github.com/FunAudioLLM/SenseVoice",
+    "requiresApiKey": false,
+    "hasLogo": false,
+    "models": [
+      {
+        "id": "SenseVoiceSmall",
+        "displayName": "SenseVoice Small"
+      }
+    ]
+  },
+  {
+    "id": "local-tts",
+    "displayName": "本机语音合成",
+    "group": "tts",
+    "kind": "tts",
+    "protocol": "openai-completions",
+    "baseUrl": "http://127.0.0.1:8880/v1",
+    "apiKeyUrl": "https://github.com/remsky/Kokoro-FastAPI",
+    "requiresApiKey": false,
+    "hasLogo": false,
+    "models": [
+      {
+        "id": "kokoro",
+        "displayName": "Kokoro",
+        "ttsVoice": "zf_xiaobei"
       }
     ]
   }

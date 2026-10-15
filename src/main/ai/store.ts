@@ -138,7 +138,8 @@ function normalizeModel(
   raw: unknown,
   providerId: string,
   kind: ProviderKind,
-  legacy: boolean
+  legacy: boolean,
+  baseUrl = ''
 ): ModelConfig | null {
   if (!raw || typeof raw !== 'object') return null
   const source = raw as Record<string, unknown>
@@ -169,7 +170,7 @@ function normalizeModel(
     adaptiveThinking: source.adaptiveThinking === true ? true : undefined,
     contextWindow: positiveInt(source.contextWindow),
     maxOutputTokens: positiveInt(source.maxOutputTokens),
-    ttsVoice: kind === 'tts' ? str(source.ttsVoice) || defaultSpeechVoice(id) : undefined,
+    ttsVoice: kind === 'tts' ? str(source.ttsVoice) || defaultSpeechVoice(id, baseUrl) : undefined,
     ttsMaxInputChars: kind === 'tts' ? positiveInt(source.ttsMaxInputChars) : undefined,
     realtimeVoice:
       kind === 'realtime'
@@ -392,7 +393,7 @@ function normalizeProvider(raw: unknown, legacy: boolean): ProviderConfig | null
   const providerKind = declared ?? inferKind(source, baseUrl, rawModels)
 
   const models = rawModels
-    .map((model) => normalizeModel(model, id, providerKind, legacy))
+    .map((model) => normalizeModel(model, id, providerKind, legacy, baseUrl))
     .filter((item): item is ModelConfig => item !== null)
 
   return {
@@ -461,7 +462,23 @@ function normalizeRoles(raw: unknown, providers: ProviderConfig[]): AiProviderSe
       ...(binding?.source === 'plan' ? { source: 'plan' as const } : {})
     }
   }
-  return out
+  return mergeMainModel(out)
+}
+
+/**
+ * 「对话」和「Agent」合成一个「主模型」，存在 `chat` 这一格里。
+ *
+ * 两格并存时，输入框里切的是 Agent 那格，设置页最上面写着「对话」的那格纹丝不动，
+ * 而起标题、经验整理、笔记问答这些后台活按回落链走的是对话那格 —— 用户在输入框里
+ * 换成了 A，账单上一直在扣 B。合成一格之后，所有没单独指定模型的地方都跟着它走。
+ *
+ * 两格都有值时听 Agent 的：它是输入框写的，是用户最近亲手选的那个。
+ * `agent` 这个角色名照旧可以请求（回落链 agent → chat），只是不再单独存。
+ */
+function mergeMainModel(roles: AiProviderSettings['roles']): AiProviderSettings['roles'] {
+  if (!roles.agent) return roles
+  const { agent, ...rest } = roles
+  return { ...rest, chat: agent }
 }
 
 export function normalizeSettings(raw: unknown): AiProviderSettings {

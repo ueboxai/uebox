@@ -26,6 +26,7 @@ import {
   BUILTIN_BROWSER_PROVIDER_ID,
   bindingSeesImages,
   findVisionCapableRole,
+  missingForVoicePipeline,
   MODEL_ROLES,
   type CatalogEntry,
   type ModelRole
@@ -62,14 +63,19 @@ const planCardEl = ref<HTMLElement | null>(null)
  */
 const initialLoading = computed(() => state.loading.value && state.settings.value === null)
 
-/** 角色的展示顺序。chat 在最前，因为只配它一个就能把对话那一面跑起来 */
-const ROLES = MODEL_ROLES
+/**
+ * 角色的展示顺序。chat 在最前，因为只配它一个就能把对话那一面跑起来。
+ *
+ * 「Agent」不再单列：它和「对话」合成了一行「主模型」（输入框里切的就是它），
+ * 存在 chat 那一格，见主进程 `ai/store.ts` 的 mergeMainModel
+ */
+const ROLES = MODEL_ROLES.filter((role) => role !== 'agent')
 
 /**
- * 跟着对话走的三个角色。套餐把对话四个角色都给同一个模型（Box-Chat）时，
- * 四个下拉框选的是同一样东西，只留「对话」一行；要分开配再点「分别设置」展开。
+ * 跟着主模型走的两个角色。套餐把它们和主模型给同一个模型（Box-Chat）时，
+ * 三个下拉框选的是同一样东西，只留「主模型」一行；要分开配再点「分别设置」展开。
  */
-const FOLLOWS_CHAT: readonly ModelRole[] = ['agent', 'vision', 'summary']
+const FOLLOWS_CHAT: readonly ModelRole[] = ['vision', 'summary']
 const splitChatRoles = ref(false)
 
 /** 对话绑在套餐上，另外三个也绑着同一个模型 */
@@ -332,6 +338,17 @@ function roleValue(role: ModelRole): string | null {
 }
 
 /**
+ * 实时语音没绑，但识别、合成、对话模型都配齐了 —— 通话照样打得通，改由对话模型应答。
+ *
+ * 判断和主进程开通话时是同一份（`missingForVoicePipeline`），界面不会说能通而实际打不通。
+ */
+const voiceViaPipeline = computed(
+  () =>
+    roleValue('realtime') === null &&
+    missingForVoicePipeline({ roles: roles.value, providers: providers.value }).length === 0
+)
+
+/**
  * 「没配就真的用不了」的提示，只对不回落的角色、且确实没配时显示。
  *
  * 视觉这一档要多问一句：**主模型自己看得懂图的话，「视觉」空着完全没事** ——
@@ -340,6 +357,8 @@ function roleValue(role: ModelRole): string | null {
  */
 function showMissing(role: ModelRole): boolean {
   if (roleValue(role) !== null) return false
+  // 实时语音没绑也打得了电话：识别、合成、对话模型配齐了，就由对话模型应答
+  if (role === 'realtime' && voiceViaPipeline.value) return false
   if (role === 'vision') {
     return findVisionCapableRole({ roles: roles.value, providers: providers.value }) === null
   }
@@ -354,7 +373,7 @@ async function handleRoleChange(role: ModelRole, value: string | undefined): Pro
     return { providerId, modelId: rest.join('::') }
   })()
 
-  // 合成一行时，「对话」这一行代表四个角色：改它就四个一起改，一次写盘。
+  // 合成一行时，「主模型」这一行代表三个角色：改它就三个一起改，一次写盘。
   // 视觉例外：选的模型看不懂图就不动它 —— 视觉绑定主进程不再查能力位（见 findVisionCapableRole），
   // 平时靠视觉下拉框只列看得懂图的模型把关，这一行的候选没过那道筛
   const targets: ModelRole[] =
@@ -492,6 +511,9 @@ async function handleRoleChange(role: ModelRole, value: string | undefined): Pro
               </span>
             </div>
             <div class="setting-desc">{{ $t(`aiProvider.roles.${role}Desc`) }}</div>
+            <div v-if="role === 'realtime' && voiceViaPipeline" class="setting-desc">
+              {{ $t('aiProvider.roles.realtimeViaPipeline') }}
+            </div>
             <div v-if="role === 'chat' && collapseChatRoles" class="setting-desc">
               {{ $t('aiProvider.roles.chatMerged') }}
               <button type="button" class="role-split" @click="splitChatRoles = true">

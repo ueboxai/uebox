@@ -74,6 +74,7 @@ const LOGO_ALIAS = {
   'alibaba-tts': 'alibaba',
   'doubao-stt': 'bytedance',
   'alibaba-asr': 'alibaba',
+  'siliconflow-stt': 'siliconflow',
   'doubao-realtime': 'bytedance'
 
   // 3D 那三家（hyper3d / tripo / meshy）在 models.dev 里没有条目，也没有可借用的
@@ -195,6 +196,7 @@ const KEY_PAGE = {
   'alibaba-tts': 'https://bailian.console.aliyun.com/?apiKey=1',
   'doubao-stt': 'https://console.volcengine.com/speech/new/setting/apikeys',
   'alibaba-asr': 'https://bailian.console.aliyun.com/?apiKey=1',
+  'siliconflow-stt': 'https://cloud.siliconflow.cn/account/ak',
   'doubao-realtime': 'https://console.volcengine.com/speech/app',
 
   // ── 3D 生成 ──
@@ -328,6 +330,14 @@ export const CURATED = [
     baseUrl: 'https://copilot.tencent.com/v2',
     protocol: 'openai-completions',
     displayName: 'CodeBuddy / WorkBuddy',
+    supportsOAuth: true
+  },
+  {
+    id: 'zcode',
+    group: 'subscription',
+    baseUrl: 'https://zcode.z.ai/api/v1/zcode-plan/anthropic',
+    protocol: 'anthropic-messages',
+    displayName: 'ZCode Coding Plan',
     supportsOAuth: true
   },
 
@@ -601,6 +611,15 @@ export const CURATED = [
   // 这一组只转写、不回话。与上面那两家是**同一个控制台、同一把密钥**，
   // 单独列条目是因为地址不同（一个 Provider = 一个地址 + 一套凭据 + 一种用途）。
   {
+    id: 'local-tts',
+    group: 'tts',
+    // Kokoro-FastAPI 的默认地址。CosyVoice、GPT-SoVITS 的 OpenAI 兼容封装、LocalAI
+    // 改成它们自己的 /v1 —— 走的都是 /audio/speech（ai/speechOpenAi.ts）
+    baseUrl: 'http://127.0.0.1:8880/v1',
+    displayName: '本机语音合成',
+    requiresApiKey: false
+  },
+  {
     id: 'doubao-stt',
     group: 'stt',
     baseUrl: 'https://openspeech.bytedance.com/api/v3/sauc/bigmodel',
@@ -611,6 +630,25 @@ export const CURATED = [
     group: 'stt',
     baseUrl: 'wss://dashscope.aliyuncs.com/api-ws/v1/inference',
     displayName: '阿里云 Qwen-Audio 语音识别'
+  },
+  // 下面两条走 OpenAI 兼容的整段转写（ai/stt/transcriptionStt.ts）：
+  // 不是流式的，断句在我们这边做
+  {
+    id: 'siliconflow-stt',
+    group: 'stt',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    displayName: '硅基流动 SenseVoice'
+  },
+  {
+    id: 'local-stt',
+    group: 'stt',
+    // Gradio 网页界面的默认地址：SenseVoice 官方 webui.py、各种一键包都是它，
+    // 也是用户在浏览器里打开的那个。api.py 填 :50000/api/v1/asr，Xinference、FunASR、
+    // speaches 这些 OpenAI 兼容的服务填它们自己的 /v1 —— 适配器按地址认是哪一种
+    baseUrl: 'http://127.0.0.1:7860',
+    // 卡片放不下更长的名字；SenseVoice、Whisper 这些词靠模型名搜得到
+    displayName: '本机语音识别',
+    requiresApiKey: false
   },
   {
     id: 'doubao-realtime',
@@ -837,6 +875,25 @@ const model3d = (id, name, api) => ({
  *    份额不小，先手写几个主力模型；等 models.dev 收录了就把这里删掉。
  */
 const MANUAL_ENTRIES = {
+  // Subscription model ID is case-sensitive (maskeb34/zcode, routes/gateway.py).
+  // Limits verified against zcode.z.ai/api/v1/client/configs on 2026-10-13.
+  // Other account models can be added manually.
+  zcode: {
+    name: 'ZCode Coding Plan',
+    env: [],
+    doc: 'https://zcode.z.ai',
+    models: {
+      'GLM-5.2': model(
+        'GLM-5.2',
+        'GLM-5.2',
+        false,
+        true,
+        { context: 1_048_576, output: 131_072 },
+        true,
+        { release_date: '2026-06-13' }
+      )
+    }
+  },
   /**
    * CodeBuddy 会员。models.dev 没有这一家，而且它**没有** `/models` 接口，
    * 「导入模型」用不了 —— 清单不能留空（理由同下面 chatgpt 那条）。
@@ -1180,6 +1237,35 @@ const MANUAL_ENTRIES = {
         name: 'Qwen-Audio 3.0 ASR Flash Streaming'
       },
       'fun-asr-realtime': { id: 'fun-asr-realtime', name: 'Fun-ASR Realtime' }
+    }
+  },
+  'local-tts': {
+    name: '本机语音合成',
+    env: [],
+    doc: 'https://github.com/remsky/Kokoro-FastAPI',
+    models: {
+      // Kokoro 的中文女声。别的服务换成它自己的模型名和音色
+      kokoro: { id: 'kokoro', name: 'Kokoro', ttsVoice: 'zf_xiaobei' }
+    }
+  },
+  'siliconflow-stt': {
+    name: '硅基流动 SenseVoice',
+    env: ['SILICONFLOW_API_KEY'],
+    doc: 'https://docs.siliconflow.cn/cn/api-reference/audio/create-audio-transcriptions',
+    models: {
+      'FunAudioLLM/SenseVoiceSmall': {
+        id: 'FunAudioLLM/SenseVoiceSmall',
+        name: 'SenseVoice Small'
+      }
+    }
+  },
+  'local-stt': {
+    name: '本机语音识别',
+    env: [],
+    doc: 'https://github.com/FunAudioLLM/SenseVoice',
+    models: {
+      // SenseVoice 自带的服务不看这一栏；OpenAI 兼容的服务按它找模型（Xinference 里就叫这个名字）
+      SenseVoiceSmall: { id: 'SenseVoiceSmall', name: 'SenseVoice Small' }
     }
   },
   'doubao-realtime': {
@@ -1633,7 +1719,9 @@ const THINKING_OVERRIDES = {
     'gpt-6-sol': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
     'gpt-6-luna': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
     // https://developers.openai.com/api/docs/models/gpt-6.1-sol (2026-10-12)
-    'gpt-6.1-sol': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
+    // 没有 `none`：pi 不给档位时默认发 effort: "none"，400「Supported values are: 'low',
+    // 'medium', 'high', 'xhigh', and 'max'」（2026-10-15 团队换模型体检撞上）
+    'gpt-6.1-sol': { thinking: { off: null, minimal: null, xhigh: 'xhigh', max: 'max' } },
     'gpt-5.6': {
       thinking: {
         minimal: null,
@@ -1654,7 +1742,8 @@ const THINKING_OVERRIDES = {
    * 是为了让「这一档查过了、确实没有」和「还没查」在这张表里长得不一样。
    */
   chatgpt: {
-    'gpt-6.1-sol': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
+    // 同 openai 那条：6.1 Sol 没有 `none`
+    'gpt-6.1-sol': { thinking: { off: null, minimal: null, xhigh: 'xhigh', max: 'max' } },
     'gpt-6-astra': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
     'gpt-6-sol': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
     'gpt-6-luna': { thinking: { minimal: null, xhigh: 'xhigh', max: 'max' } },
@@ -1917,7 +2006,9 @@ const NO_LOGO = new Set([
   'mureka-music',
   'sunoapi-music',
   'builtin-browser',
-  'searxng'
+  'searxng',
+  'local-stt',
+  'local-tts'
 ])
 
 async function downloadLogo(id, aliasOf) {

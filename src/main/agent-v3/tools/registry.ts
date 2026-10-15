@@ -58,7 +58,9 @@ import {
   extractPackagePaths,
   getLockOwner,
   locksOwnedBy,
-  sameTeam
+  releasePaths,
+  sameTeam,
+  teamRootOf
 } from '../core/assetLock'
 import { enforceAfterWrite, suspendForWrite } from '../core/assetLockEnforcement'
 import { effectiveConnectionId } from '../core/projectTargetContext'
@@ -70,6 +72,7 @@ import {
   SET_SESSION_PROJECT_TOOL_NAME,
   rewriteCrossReferences
 } from './toolNames'
+import { UPDATE_PLAN_TOOL_NAME, WRAP_UP_TOOL_NAME } from '../../../shared/agentTurnReport'
 import type { ToolRisk, UnrealAgentTool } from './defineTool'
 import { effectiveRisk } from './defineTool'
 import { materialTools } from './ue-material'
@@ -173,6 +176,9 @@ export function allToolNames(): Set<string> {
   // 名字不在这儿的话，第一个把这套流程写进 SKILL.md 的人会被体检告知
   // 「引用了不存在的工具」，然后把唯一正确的那句删掉
   names.add(SET_SESSION_PROJECT_TOOL_NAME)
+  // 任务清单、收尾提问同理
+  names.add(UPDATE_PLAN_TOOL_NAME)
+  names.add(WRAP_UP_TOOL_NAME)
   return names
 }
 
@@ -250,6 +256,17 @@ const REGISTRATIONS: readonly Registration[] = Object.freeze([
     namespace: 'ue.blueprint',
     risk: 'safe',
     make: () => ueBlueprint.createSearchBlueprintNodesTool()
+  },
+  /**
+   * 全项目搜「哪些蓝图用了这个名字」（引擎的 Find in Blueprints，不加载蓝图）。
+   * 只读；index_unindexed 只是请编辑器弹它自己的「Index All」确认框，加不加载由用户在框里定。
+   * 分组见 toolSearch.ts：自成按需子组 ue.blueprint.usages，由 C++ 和蓝图编辑两个技能点名
+   */
+  {
+    name: 'blueprint_find_usages',
+    namespace: 'ue.blueprint',
+    risk: 'safe',
+    make: () => ueBlueprint.createFindBlueprintUsagesTool()
   },
   /**
    * 蓝图的写工具**一律 sequential**。
@@ -1550,8 +1567,24 @@ function withAssetLock(tool: UnrealAgentTool<never>): UnrealAgentTool<never> {
       //
       // 走**软锁**：只挡另一条 AI 会话、只出提示，不翻只读位。用户在主视口里
       // 干活是常态，把关卡的手动保存也拦下来，代价和收益完全不成比例。
-      if (LEVEL_SCOPED_NAMESPACES.has(tool.unrealBox.namespace)) {
+      const levelScoped = LEVEL_SCOPED_NAMESPACES.has(tool.unrealBox.namespace)
+      if (levelScoped) {
         await lock([CURRENT_LEVEL_LOCK], true)
+      }
+
+      // 工作室模式的制作人：它那一轮就是整局，锁跟着一轮走的话，它碰过的资产和「当前关卡」
+      // 到交付前队友都改不了（撞上去等 90 秒再失败）。制作人的锁只占这一次调用；
+      // 队员照旧占到这件活交回（`releaseAll` 在派活的 finally 里）。团队里全是软锁，
+      // 不翻只读位，所以这里不用管下面那一开一合
+      if (team && teamRootOf(owner) === owner) {
+        try {
+          return await inner(toolCallId, params, signal, onUpdate)
+        } finally {
+          releasePaths(effectiveConnectionId(), owner, [
+            ...paths,
+            ...(levelScoped ? [CURRENT_LEVEL_LOCK] : [])
+          ])
+        }
       }
 
       // 开合的范围是**这条会话手上的全部锁**，不是这次调用参数里那几个 ——

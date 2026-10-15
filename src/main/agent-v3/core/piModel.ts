@@ -25,7 +25,9 @@ import type { Api, Model, ProviderStreams, ThinkingLevelMap } from '@earendil-wo
 import { findCatalogEntry } from '../../ai/catalog'
 import { resolveModelLimits } from '../../ai/modelLimits'
 import { resolveRequestAuth } from '../../ai/credentials'
+import { readSettings } from '../../ai/store'
 import { isOpenCodeEndpoint, openCodeHeaders } from '../../ai/opencode'
+import { isZCodeEndpoint, withZCodeTransport } from '../../ai/zcode'
 import type { ProviderConfig } from '../../ai/types'
 import type { ModelConfig, ProviderProtocol } from '../../../shared/aiProvider'
 
@@ -118,11 +120,35 @@ function thinkingLevelMapFor(
   const known =
     (catalogModel(provider, model)?.thinkingLevelMap as ThinkingLevelMap | undefined) ??
     builtinModel(provider, model)?.thinkingLevelMap
-  if (!own) return known
+  if (!own) return known ?? unknownModelLevelMap(provider, model)
   // 用户那份没提 `off` 就跟随目录：Opus 5.5 的 `off: null`（关不掉思考）是模型的事实，
   // 以前存盘时会被滤掉 —— 丢了它，「自动」档就会发 thinking: disabled，整轮 400
   if (!('off' in own) && known && 'off' in known) return { off: known.off, ...own }
   return own
+}
+
+/** 不给档位时 pi 会替我们发 `reasoning.effort: "none"` 的那两条路 */
+const EFFORT_NONE_BY_DEFAULT: ReadonlySet<ProviderProtocol> = new Set([
+  'openai-responses',
+  'openai-codex-responses'
+])
+
+/**
+ * 哪本目录都没收录的推理模型：responses 那两条路上标成「`off` 这一档不存在」。
+ *
+ * pi 在没给档位（输入框的「自动」、入职体检这类单轮调用）时会发 `effort: "none"`，
+ * 除非表里写明 `off: null`。认不认 `none` 是逐个型号的事 —— GPT-6.1 Sol 就不认，
+ * 整轮 400。不知道的型号宁可什么都不发、按它自己的默认来，代价只是「关思考」那一档
+ * 对它不起作用；猜错的代价却是这个模型完全用不了。
+ */
+function unknownModelLevelMap(
+  provider: ProviderConfig,
+  model: ModelConfig
+): ThinkingLevelMap | undefined {
+  if (!EFFORT_NONE_BY_DEFAULT.has(provider.protocol) || !reasoningFor(provider, model)) {
+    return undefined
+  }
+  return { off: null }
 }
 
 /**
@@ -282,6 +308,13 @@ const THINKING_OFF_FIELDS: readonly { match: RegExp; body: Record<string, unknow
     // 小米 MiMo（按量 api. 与 Token Plan token-plan-cn. 两个入口）。v2.5 / v2.6 默认开思考
     match: /\.xiaomimimo\.com/i,
     body: { thinking: { type: 'disabled' } }
+  },
+  {
+    // 火山方舟。带「深度思考」标签的豆包 Seed 默认就想；Chat API 关思考是 thinking.type=disabled
+    // （官方「深度思考」文档）。不发 auto：Seed 2.1 直接 400 Unsupported thinking type。
+    // 不带这个标签的模型本来就不想，文档说直接调用即可
+    match: /ark\.[a-z-]+\.volces\.com/i,
+    body: { thinking: { type: 'disabled' } }
   }
 ]
 
@@ -343,6 +376,11 @@ export function toPiModel(provider: ProviderConfig, model: ModelConfig): Model<A
  */
 export function toPiProvider(config: ProviderConfig): Provider<Api> {
   const models = config.models.map((model) => toPiModel(config, model))
+  const streams = API_IMPL[config.protocol]()
+  const api =
+    config.protocol === 'anthropic-messages' && isZCodeEndpoint(config.baseUrl)
+      ? withZCodeTransport(streams)
+      : streams
 
   return createProvider<Api>({
     id: config.id,
@@ -357,7 +395,18 @@ export function toPiProvider(config: ProviderConfig): Provider<Api> {
         // 这里忽略传入的 credential，直接按 ProviderConfig 上的引用去取。
         // 每次请求都会调一次，所以账号登录要求的逐次请求头（CodeBuddy）也从这里带出去
         resolve: async () => {
-          const { apiKey, headers: authHeaders } = await resolveRequestAuth(config.apiKey)
+          if (
+            config.apiKey.kind === 'oauth' &&
+            config.apiKey.provider === 'zcode' &&
+            (config.protocol !== 'anthropic-messages' || !isZCodeEndpoint(config.baseUrl))
+          ) {
+            throw new Error(
+              'ZCode sign-in tokens can only be used with the ZCode subscription endpoint.'
+            )
+          }
+          const { apiKey, headers: authHeaders } = await resolveRequestAuth(config.apiKey).catch(
+            (error: unknown) => explainAuthFailure(config, error)
+          )
           const endpointHeaders = isOpenCodeEndpoint(config.baseUrl)
             ? { ...openCodeHeaders(), ...authHeaders }
             : authHeaders
@@ -377,8 +426,22 @@ export function toPiProvider(config: ProviderConfig): Provider<Api> {
     },
     // 单 provider 可能混用多种协议（比如 OpenAI 同时有 completions 和 responses），
     // 用 map 形态按 model.api 分派，以后放开混用不用改这里。
-    api: { [config.protocol]: API_IMPL[config.protocol]() } as Partial<Record<Api, ProviderStreams>>
+    api: { [config.protocol]: api } as Partial<Record<Api, ProviderStreams>>
   })
+}
+
+/**
+ * 取不到密钥时先看服务商还在不在。
+ *
+ * 对话开跑时就把服务商配置定下了，用户中途在设置里删掉它，密钥跟着删了，
+ * 密钥库那边只能报「密钥不存在」—— 真正的原因是服务商没了，照实说
+ */
+async function explainAuthFailure(config: ProviderConfig, error: unknown): Promise<never> {
+  const settings = await readSettings().catch(() => null)
+  if (settings && !settings.providers.some((provider) => provider.id === config.id)) {
+    throw new Error(`「${config.displayName}」已从模型设置中删除，请换一个模型后重试`)
+  }
+  throw error
 }
 
 /** 给状态 UI 用的密钥来源描述，不含密钥本身 */

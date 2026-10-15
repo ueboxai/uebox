@@ -113,6 +113,9 @@ const GENERIC_EVENT_CHANNELS = new Set([
   // 工作室模式的名册、任务板、留言变了。只带 sessionId，面板自己去重读 ——
   // 任务板在两轮之间也要活着，所以不挂在按运行订阅的那套事件上
   'agent-v3:team-board',
+  // 队员干活时的一条动态（调了什么工具、说了什么）。后台派的活进度推不到
+  // 已经结束的那次工具调用上，单独走这条
+  'agent-v3:team-activity',
   // 两条内核 session 抢同一个资产。必须让用户看见 —— 他可能开着两个窗口，
   // 以为两边在干不同的活
   'agent-v3:lock-conflict',
@@ -1178,37 +1181,6 @@ const api = {
       return () => ipcRenderer.removeListener('baiduyun:folder-download-progress', handler)
     }
   },
-  assistant: {
-    // 发送问题
-    ask: (args: { content: string; conversationId?: string | null }) =>
-      ipcRenderer.invoke('assistant:ask', args),
-    // 订阅片段事件
-    onChunk: (listener: (chunk: string) => void) => {
-      const handler = (_: Electron.IpcRendererEvent, payload: any) =>
-        listener(String(payload || ''))
-      ipcRenderer.on('assistant:chunk', handler)
-      return () => ipcRenderer.removeListener('assistant:chunk', handler)
-    },
-    // 订阅完成事件
-    onDone: (listener: () => void) => {
-      const handler = (_: Electron.IpcRendererEvent) => listener()
-      ipcRenderer.on('assistant:done', handler)
-      return () => ipcRenderer.removeListener('assistant:done', handler)
-    },
-    // 订阅错误事件
-    onError: (listener: (err: { message?: string; status?: number }) => void) => {
-      const handler = (_: Electron.IpcRendererEvent, payload: any) => listener(payload)
-      ipcRenderer.on('assistant:error', handler)
-      return () => ipcRenderer.removeListener('assistant:error', handler)
-    },
-    // 订阅对话 ID 事件
-    onConversation: (listener: (id: string) => void) => {
-      const handler = (_: Electron.IpcRendererEvent, payload: any) =>
-        listener(String(payload || ''))
-      ipcRenderer.on('assistant:conversation', handler)
-      return () => ipcRenderer.removeListener('assistant:conversation', handler)
-    }
-  },
   unrealPath: {
     // 扫描 Unreal 引擎
     scanEngines: () => ipcRenderer.invoke('unreal:engines:scan'),
@@ -1542,6 +1514,8 @@ const api = {
     teamState: (args: { sessionId: string }) => ipcRenderer.invoke('agent-v3:team-state', args),
     teamTaskReopen: (args: { sessionId: string; taskId: string }) =>
       ipcRenderer.invoke('agent-v3:team-task-reopen', args),
+    teamJobReopen: (args: { sessionId: string; jobId: string }) =>
+      ipcRenderer.invoke('agent-v3:team-job-reopen', args),
     teamMemberModel: (args: {
       sessionId: string
       name: string
@@ -2224,6 +2198,8 @@ const api = {
     saveProvider: (draft: unknown) => ipcRenderer.invoke('ai-provider:save-provider', draft),
     deleteProvider: (providerId: string) =>
       ipcRenderer.invoke('ai-provider:delete-provider', providerId),
+    /** 正在跑的对话里有几个用着这个服务商。删之前问 */
+    usage: (providerId: string) => ipcRenderer.invoke('ai-provider:usage', providerId),
     setRoles: (patch: unknown) => ipcRenderer.invoke('ai-provider:set-roles', patch),
     /** 连通性测试。用草稿而不是已存配置，让用户存盘前就能验 */
     test: (draft: unknown, modelId: string) =>
@@ -2502,6 +2478,8 @@ const api = {
       voice?: string
       history?: Array<{ role: 'user' | 'assistant'; text: string }>
       echoGuard?: RealtimeEchoGuard
+      /** 这条对话输入框里选的模型。拼装通话（没绑实时语音时）拿它接电话 */
+      brain?: { providerId: string; modelId: string }
     }) => ipcRenderer.invoke('realtime-voice:start', args),
     /**
      * 只转写、不回答的听写会话（全局热键 → Spotlight）。

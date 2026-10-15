@@ -1191,17 +1191,6 @@ declare global {
       filename: string
     ) => Promise<{ success: boolean; data?: string; error?: string }>
   }
-  interface AssistantAPI {
-    ask: (args: {
-      content: string
-      conversationId?: string | null
-    }) => Promise<{ success: boolean }>
-    onChunk: (listener: (chunk: string) => void) => () => void
-    onDone: (listener: () => void) => () => void
-    onError: (listener: (err: { message?: string; status?: number }) => void) => () => void
-    onConversation: (listener: (id: string) => void) => () => void
-  }
-
   // Unreal 引擎与插件 API
   interface UnrealEngineInfo {
     name: string
@@ -1674,7 +1663,6 @@ declare global {
         error?: string
       }>
     }
-    assistant: AssistantAPI
     unrealPath: UnrealPathAPI
     unrealProcess: UnrealProcessAPI
     /**
@@ -2151,6 +2139,8 @@ declare global {
       ) => Promise<
         import('../shared/aiProvider').AiProviderResult<import('../shared/aiProvider').SettingsView>
       >
+      /** 正在跑的对话里有几个用着这个服务商 */
+      usage: (providerId: string) => Promise<number>
       /** 只发改了的角色，null = 清空；主进程在最新的配置上合并 */
       setRoles: (
         patch: import('../shared/aiProvider').RoleBindingsPatch
@@ -2354,6 +2344,8 @@ declare global {
         voice?: string
         history?: Array<{ role: 'user' | 'assistant'; text: string }>
         echoGuard?: RealtimeEchoGuard
+        /** 这条对话输入框里选的模型。拼装通话（没绑实时语音时）拿它接电话 */
+        brain?: { providerId: string; modelId: string }
       }) => Promise<
         | { ok: true; inputSampleRate: number; outputSampleRate: number; connectionId: number }
         | { ok: false; error: string }
@@ -3347,6 +3339,11 @@ declare global {
         sessionId: string
         taskId: string
       }) => Promise<{ success: boolean; error?: string }>
+      /** 把一件停下的活交回制作人：任务板上加一项「用户重开」的待办 */
+      teamJobReopen: (args: {
+        sessionId: string
+        jobId: string
+      }) => Promise<{ success: boolean; error?: string }>
       /** 给一个队员换模型，记成用户定的。先过入职体检，没过带回 checkup。正在跑也行：它下一件活开始用 */
       teamMemberModel: (args: {
         sessionId: string
@@ -3767,6 +3764,15 @@ declare global {
     source: string
     verified?: { date: string; engine?: string }
     status: 'trial' | 'proven' | 'retired'
+    /** 退休的才有；这个字段出现之前退休的旧经验没有 */
+    retiredBecause?:
+      | 'capacity'
+      | 'replaced'
+      | 'failed'
+      | 'ignored'
+      | 'no-lift'
+      | 'refuted'
+      | 'script-bug'
     pinned?: boolean
     engines?: string[]
     notFor?: string[]

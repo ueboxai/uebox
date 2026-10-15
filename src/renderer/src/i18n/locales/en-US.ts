@@ -544,6 +544,9 @@ export default {
       oauthLogin: 'Sign in with {name}',
       oauthRelogin: 'Sign in again',
       oauthLinked: 'Signed in with {name}. Tokens refresh automatically',
+      zcodeLinked: 'Signed in with {name}. Sign in again when the token expires',
+      zcodeHint:
+        'Authorize your account in ZCode and activate Coding Plan before signing in with Z.ai, or enter a subscription JWT. This connection only uses the ZCode subscription and never falls back to API balance. If verification is required, complete it in ZCode and retry.',
       oauthKeyFetched: 'Key fetched from {name} and filled in above — click Save to apply',
       getKey: 'Get an API key ↗',
       oauthOpening: 'Browser opened — complete the authorization there',
@@ -632,6 +635,7 @@ export default {
       title: 'Delete {name}?',
       content:
         'Deletes this provider’s configuration and key, and clears default models that use it.',
+      inUse: '{count} running chat(s) use this provider. They will fail on their next model call.',
       ok: 'Delete',
       cancel: 'Cancel'
     },
@@ -645,20 +649,21 @@ export default {
       desc: 'Assign models by purpose.',
       unset: 'Not set',
       moreLabel: 'Show details',
-      chat: 'Chat',
-      chatDesc: 'Default model for the assistant and every chat window.',
-      chatMerged: 'Agent, Vision and Quick tasks use this model too.',
+      chat: 'Main model',
+      chatDesc:
+        'Shared by chat and Agent; the composer switches this one. Also used wherever no other model is set.',
+      chatMerged: 'Vision and Quick tasks use this model too.',
       chatSplit: 'Set separately',
       agent: 'Agent',
       agentDesc: 'For multi-step tasks. Uses the Chat model if unconfigured.',
       vision: 'Vision',
-      visionDesc: 'Used when the Chat or Agent model cannot understand images.',
+      visionDesc: 'Used when the main model cannot understand images.',
       visionMore:
         'No setup is needed if the primary model supports images. Otherwise choose a vision model; images cannot be sent if neither supports them.',
       visionMissing: 'Image requests will fail',
       summary: 'Quick tasks',
       summaryDesc:
-        'For summaries, titles, and intent classification. Uses the Chat or Agent model if unconfigured.',
+        'For summaries, titles, and intent classification. Uses the main model if unconfigured.',
       embedding: 'Embedding',
       embeddingDesc: 'Index knowledge base content for the assistant to search.',
       embeddingMore:
@@ -687,17 +692,19 @@ export default {
       musicMissing: 'Automatic music unavailable',
       ttsDesc: 'Read AI replies aloud with an AI-generated voice.',
       ttsMore:
-        'Add Doubao Text to speech, enter a Speech console API key, then select TTS 2.0 here. Change the voice in model settings.',
+        'Doubao TTS 2.0 and Alibaba Qwen-Audio are built in. A local Kokoro or CosyVoice server that speaks the OpenAI speech API works too — add the local text-to-speech entry under Add provider → Voice. Change the voice in model settings.',
       ttsMissing: 'Read aloud unavailable',
       realtimeDesc: 'Choose a real-time voice model for voice calls.',
       realtimeMore:
-        'Supports OpenAI gpt-realtime models and Doubao Seeduplex. Ordinary chat models do not apply.',
+        'Supports OpenAI gpt-realtime models and Doubao Seeduplex; ordinary chat models cannot be bound here. When unset and speech-to-text plus text-to-speech are configured, calls are answered by the chat model with slightly more delay.',
       realtimeMissing: 'Voice call unavailable',
+      realtimeViaPipeline:
+        'Unset: calls are answered by the chat model through speech-to-text and text-to-speech, with slightly more delay.',
       stt: 'Speech to text',
       sttDesc:
         'Hold the voice hotkey, speak, and get text in the search box. Falls back to the realtime voice role when unset.',
       sttMore:
-        'Doubao STT 2.0 and Alibaba Qwen-Audio ASR are built in — transcription-only endpoints that never talk back. Dictation still works when this is empty: it falls back to the realtime voice role, but only OpenAI gpt-realtime can turn off the automatic reply there, so a Doubao realtime binding reports that voice is unavailable. This role bills by audio duration, far cheaper than transcribing through a chat model.',
+        'Doubao STT 2.0, Alibaba Qwen-Audio ASR and SiliconFlow SenseVoice are built in — transcription-only endpoints that never talk back. A local SenseVoice or Whisper server that speaks the OpenAI transcription API works too. Dictation still works when this is empty: it falls back to the realtime voice role, but only OpenAI gpt-realtime can turn off the automatic reply there, so a Doubao realtime binding reports that voice is unavailable. Cloud recognition bills by audio duration, far cheaper than transcribing through a chat model; local recognition is free.',
       sttMissing: 'Speech to text unavailable',
       model3dMissing: '3D generation unavailable',
       search: 'Web search',
@@ -2394,6 +2401,8 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         ue_content_naming_audit: 'Audit asset naming',
         ue_content_dependencies: 'Inspect asset dependencies',
         ue_content_migrate: 'Migrate assets to another project',
+        ue_content_set_properties: 'Change asset settings',
+        mesh_optimize: 'Generate mesh LODs / collision',
         ue_datatable_edit: 'Edit data table',
         ue_content_delete: 'Delete asset',
         ue_fixup_redirectors: 'Fix up redirectors',
@@ -2476,7 +2485,9 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       declined: 'Left to the AI',
       cancelled: 'No answer',
       skippedOne: 'Not answered',
-      delegatedOne: 'Left to the AI'
+      delegatedOne: 'Left to the AI',
+      autoCountdown: 'Full access: continuing with the recommended option in {time}',
+      autoAnswered: 'Continued with the recommended option'
     },
     // Token usage under each reply
     tokenUsage: {
@@ -2613,15 +2624,106 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       assistant: 'Assistant'
     },
     teamBoard: {
+      ui: {
+        quest: 'Quest',
+        crew: 'Crew',
+        loot: 'Deliverables',
+        lootHint: 'Click a scroll to open it',
+        noLoot: 'Nothing delivered yet',
+        planning: 'The producer is planning the work',
+        recruiting: 'The producer has not hired anyone yet',
+        people: '{n} people',
+        phase: {
+          planning: 'Planning',
+          working: 'In progress',
+          done: 'Round complete',
+          idle: 'Standing by'
+        },
+        alertStopped: '{n} stopped',
+        alertBlocked: '{n} blocked',
+        workingCount: '{n} working',
+        roundCount: '{done}/{total} delivered',
+        state: {
+          writing: 'Writing',
+          done: 'Delivered',
+          stopped: 'Stopped',
+          lost: 'Not delivered'
+        },
+        writing: 'Writing',
+        stopped: 'Stopped',
+        lost: 'Not delivered',
+        stoppedJob: '"{title}" stopped: {reason}',
+        stopsLine: '{n} stopped · {who}',
+        stopsLineReason: '{n} stopped · {who} · Reason: {reason}',
+        stopReason: 'Why it stopped: {reason}',
+        stopSteps: 'Last steps before stopping',
+        deliveredCount: '{n} delivered this round',
+        deliveredBy: '{name} · delivered {ago}',
+        earlier: 'Earlier deliverables ({n})',
+        earlierHide: 'Hide earlier deliverables',
+        expand: 'Show full text',
+        collapse: 'Show less',
+        roll: 'Roll up',
+        job: 'Current task',
+        reports: 'Deliverables',
+        thread: 'Messages',
+        threadCount: 'Messages ({n})',
+        noThread: 'No messages yet',
+        more: '{n} more',
+        less: 'Show less',
+        open: 'Show',
+        tasksOf: 'On the task board',
+        board: 'Task board',
+        boardCount: 'Task board ({n})',
+        log: 'Log',
+        logAll: 'Show all',
+        mailTo: '{from} → {to}',
+        editor: 'Editor',
+        logDelivered: '{name} delivered "{title}"',
+        logStopped: '{name} stopped: {reason}',
+        logCrashed: 'Editor crashed',
+        logCrashedDetail: 'Editor crashed: {detail}',
+        logRecovered: 'Editor recovered automatically',
+        logRecoverFailed: 'Editor could not recover automatically: {detail}',
+        shaken: 'The editor crashed while this member was working and has recovered',
+        now: 'Now'
+      },
       title: 'Team',
-      summary: '{members} members · {done}/{total} tasks marked done',
+      tab: 'Team tasks',
+      openTab: 'View team tasks in the side panel',
+      closeTab: 'Close team tasks',
       selfReportedHint:
         'Marked by the teammate, not checked by Unreal Box — the acceptance verdict is what counts',
       objective: 'Goal',
-      noMembers: 'The producer has not added any teammates yet',
       noTasks: 'The task board is empty',
       evidence: 'Evidence: ',
-      mail: 'Notes',
+      readOnlyHint: 'Read-only: inspects the project without changing it',
+      steps: 'Recent steps',
+      stepTimes: '{n} times',
+      noSteps: 'No activity yet',
+      doneFold: '{n} completed',
+      updatedAgo: 'Updated {ago}',
+      doneAgo: 'Done {ago}',
+      sections: '{n} sections',
+      kindVerb: {
+        read: 'Inspecting project',
+        write: 'Editing project',
+        run: 'Running',
+        look: 'Viewing',
+        play: 'Playtesting',
+        talk: 'Messaging teammates'
+      },
+      statusLine: {
+        stopped: 'Stopped: {reason}',
+        blocked: 'Blocked: {reason}',
+        waiting: 'Waiting for a reply',
+        tool: '{verb}',
+        toolAt: '{verb} · {target}',
+        thinking: 'Thinking',
+        received: 'Task received, not started',
+        delivered: 'Delivered "{title}"',
+        idle: 'Idle'
+      },
       note: 'Note: ',
       blockedReason: 'Blocked on: ',
       old: 'Earlier',
@@ -2629,6 +2731,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       reopened: 'Reopened by you',
       reopen: 'Reopen',
       reopenHint: 'Move it back to To do; the producer will reassess it next round',
+      reopenJobHint: 'Hand it back to the producer; it decides next round whether to reassign it',
       reopenFailed: 'Could not reopen this task. Try again in a moment',
       end: 'End team mode',
       endHint:
@@ -2659,10 +2762,32 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         checkupNoTools:
           'The model did not call a tool after two requests and cannot be used as a teammate'
       },
-      receipt: {
-        read: 'read',
-        delivered: 'delivered',
-        queued: 'in inbox'
+      office: {
+        aria: 'Team office: {summary}',
+        noTasksFor: 'No tasks assigned to {name}',
+        styleHint: 'Switch art style',
+        style: { v1: 'Minimal', v2: 'Pixel' },
+        status: {
+          think: 'Thinking',
+          wait: 'Waiting for a reply',
+          out: 'Stopped: {reason}',
+          board: 'Planning',
+          awaiting: 'Waiting for {name} to deliver'
+        },
+        idle: {
+          idle: 'Idle',
+          coffee: 'Idle · making coffee',
+          water: 'Idle · getting water',
+          plant: 'Idle · watering the plant',
+          window: 'Idle · looking outside',
+          sofa: 'Idle · reading on the sofa',
+          desk: 'Idle · standing by at the desk',
+          stretch: 'Idle · stretching',
+          board: 'Idle · reading the board',
+          pace: 'Idle · pacing',
+          chat: 'Idle · chatting with {name}',
+          peek: 'Checking on {name}'
+        }
       },
       verdict: {
         pass: 'Accepted',
@@ -2785,6 +2910,16 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         noSteps: 'Not started yet'
       },
       tools: {
+        team_board: 'Update task board',
+        team_status: 'Check team status',
+        team_send: 'Assign task',
+        team_message: 'Send message',
+        team_deliver: 'Submit delivery',
+        team_hire: 'Add teammate',
+        team_snapshot: 'Save project snapshot',
+        ue_list: 'List items',
+        ue_project_asset_ranking: 'Rank assets by size',
+        ue_find_heavy_assets: 'Find heavy assets',
         generate_image: 'Generate Image',
         search_assets: 'Search Assets',
         generate_3d_model: 'Generate 3D Model',
@@ -2834,6 +2969,7 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         ue_content_search: 'Search project assets',
         ue_content_describe: 'Inspect asset',
         ue_inspect_components: 'Inspect components',
+        ue_light_census: 'Light census',
         ue_datatable_describe: 'Read data table',
         ue_message_log: 'Read message log',
         ue_get_crash_logs: 'Read crash logs',
@@ -2847,12 +2983,14 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         blueprint_describe: 'Inspect blueprint',
         blueprint_get_graph: 'Read blueprint graph',
         blueprint_search_nodes: 'Search blueprint nodes',
+        blueprint_find_usages: 'Find in all Blueprints',
         material_describe: 'Inspect material',
         material_get_graph: 'Read material graph',
         material_graph_slice: 'Read material slice',
         material_search_nodes: 'Search material nodes',
         material_get_referencers: 'Find material referencers',
         mesh_describe: 'Inspect mesh',
+        mesh_optimize: 'Generate mesh LODs / collision',
         widget_get_hierarchy: 'Read widget hierarchy',
         widget_preview: 'Preview widget',
         sequence_describe: 'Inspect sequence',
@@ -3413,8 +3551,18 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
         effectValue: 'Shown {shown}x, followed {adopted}x, worked {ok}x',
         lift: 'Success {without}% without it, {with}% with it',
         liftUnknown: 'Not enough comparison data yet',
+        retiredBecause: 'Retired because',
         source: 'Source',
         pin: 'Keep pinned, never auto-retire'
+      },
+      retireReason: {
+        capacity: 'The limit was reached and this one ranked lowest',
+        replaced: 'Superseded by a newer entry for the same API',
+        failed: 'The same error came back after following it',
+        ignored: 'Shown several times in a row without being followed',
+        'no-lift': 'Comparison showed no gain in success rate',
+        refuted: 'The editor shows the member does exist',
+        'script-bug': 'A bug in the script itself, not an engine rule'
       },
       deleteTitle: 'Delete this experience?',
       deleteContent:
@@ -5835,8 +5983,8 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     },
     slashCommands: {
       goal: 'Goal mode — reviews the result automatically and continues until the goal is met',
-      team: 'Team mode — from a one-line request, assembles a team and works through to a playable build',
-      teamArg: '<one line>',
+      team: 'Team mode — hand it a complex task; it assembles a team and works through to a playable build',
+      teamArg: '<complex team task>',
       image: 'Switch to image generation',
       compact: "Compact this chat's history to free up context",
       goalArg: '<objective>',
@@ -5930,7 +6078,12 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
     steerOtherProject: 'another project',
     queueAction: 'Queue',
     queueCancel: 'Remove from queue',
-    queueSteerNow: 'Send now',
+    queueSteerNow: 'Steer now',
+    queueLabel: 'Sends after this turn',
+    queueEdit: 'Take back to edit',
+    queueMore: '{count} more',
+    queueCollapse: 'Collapse',
+    placeholderQueued: 'Anything you send now queues up too',
     /** Placeholder when the queued message is attachments only — the chip still needs a label */
     queueUntitled: '(attachments)',
     sourceType: {
@@ -7707,7 +7860,14 @@ Places to start: whether this .uproject can be read at all and which EngineAssoc
       done: 'Sync complete',
       failed: 'Sync failed',
       doneContent: 'Full sync finished: {assets} asset(s), {folders} folder(s)',
-      failedContent: 'Network vault sync failed. Try again later.'
+      failedContent: 'Network vault sync failed. Try again later.',
+      // Sync progress (the main process only sends the phase code)
+      phase: {
+        preparing: 'Preparing to sync',
+        folders: 'Syncing folders ({current}/{total})',
+        assets: 'Syncing assets ({current}/{total})',
+        sweep: 'Checking local assets'
+      }
     },
     scan: {
       done: 'Scan complete'
