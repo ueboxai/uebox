@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
 import type { RouteLocationNormalized } from 'vue-router'
-import { usePersistOptions } from '../../hooks/usePersistOptions'
 import { resolveTabRoute } from '../../common/tabRoute'
 
 export interface TabItem {
@@ -813,10 +812,9 @@ export const useTabsStore = defineStore(
   },
   {
     // 持久化配置
-    // 使用类型断言绕过 pinia-plugin-persistedstate 类型定义不完整的问题
     persist: {
       key: 'tabs-store',
-      paths: ['historyTabs', 'activeTab'],
+      pick: ['historyTabs', 'activeTab'],
       storage: localStorage,
       /**
        * 数据恢复后的钩子
@@ -848,6 +846,6 @@ export const useTabsStore = defineStore(
           }
         }, 0)
       }
-    } as unknown as boolean
+    }
   }
 )

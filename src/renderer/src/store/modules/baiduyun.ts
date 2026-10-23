@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
-import { usePersistOptions } from '../../hooks/usePersistOptions'
 import { StorageUtils } from '../../common/utils/storage'
 
 export interface BaiduOAuthTokenResponse {
@@ -177,11 +176,11 @@ export const useBaiduyunStore = defineStore(
     }
   },
   {
-    persist: usePersistOptions<{ token: BaiduTokenState | null; appConfig: BaiduAppConfig }>({
+    persist: {
       key: 'baiduyun-store',
-      paths: ['token', 'appConfig'],
-      storage: 'localStorage',
+      pick: ['token', 'appConfig'],
+      storage: localStorage,
       serializer: StorageUtils.createCustomSerializer()
-    })
+    }
   }
 )

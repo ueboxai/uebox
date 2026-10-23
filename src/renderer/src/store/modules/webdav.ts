@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
-import { usePersistOptions } from '../../hooks/usePersistOptions'
 import { StorageUtils } from '../../common/utils/storage'
 
 /**
@@ -192,14 +191,11 @@ export const useWebdavStore = defineStore(
     }
   },
   {
-    persist: usePersistOptions<{
-      connection: WebdavConnectionConfig | null
-      history: WebdavConnectionConfig[]
-    }>({
+    persist: {
       key: 'webdav-store',
-      paths: ['connection', 'history'],
-      storage: 'localStorage',
+      pick: ['connection', 'history'],
+      storage: localStorage,
       serializer: StorageUtils.createCustomSerializer()
-    })
+    }
   }
 )

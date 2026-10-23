@@ -219,12 +219,6 @@
                   displayBreadcrumbItems.last.name
                 }}</span>
               </div>
-              <div v-if="assetViewStore.mode === 'baiduyun'" class="current-dir-text">
-                {{ t('assetLib.ui.currentDir') }}{{ baiduyunStore.currentDir }}
-              </div>
-              <div v-if="assetViewStore.mode === 'tagManagement'" class="current-dir-text">
-                {{ t('assetLib.ui.tagManagement') }}
-              </div>
               <!-- 团队工程：面包屑右端按需出现「主线 ▾」「最新 ▾」（方案 4.5） -->
               <TeamVersionPill v-if="libraryCaps.team" />
             </div>
@@ -7986,11 +7980,6 @@ const handleUploadProjectArchive = async (): Promise<void> => {
                 text-overflow: ellipsis;
               }
             }
-          }
-
-          .current-dir-text {
-            font-size: 13px;
-            color: var(--color-text-secondary);
           }
         }
 
