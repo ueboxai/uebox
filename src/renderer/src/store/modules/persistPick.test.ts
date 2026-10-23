@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createApp } from 'vue'
 import { StorageUtils } from '../../common/utils/storage'
+import { secureStorage } from '../../utils/secureStorage'
 import { useAIConfigStore } from './aiConfig'
 import { useAssetSelectionStore } from './assetSelectionStore'
 import { useAssetViewStore } from './assetViewStore'
@@ -31,7 +32,14 @@ type AnyStore = {
   $patch: (mutate: (state: Record<string, unknown>) => void) => void
 }
 
-const cases: { key: string; encoded: boolean; use: () => unknown; pick: string[] }[] = [
+const cases: {
+  key: string
+  encoded: boolean
+  use: () => unknown
+  pick: string[]
+  /** 凭据类 store 写主进程加密存储，测试里读它的内存副本 */
+  storage?: Pick<Storage, 'getItem'>
+}[] = [
   { key: 'ai-config-store', encoded: true, use: useAIConfigStore, pick: ['config'] },
   {
     key: 'asset-selection-store',
@@ -40,7 +48,13 @@ const cases: { key: string; encoded: boolean; use: () => unknown; pick: string[]
     pick: ['selectedShortcut', 'selectedTreeKey']
   },
   { key: 'asset-view-store', encoded: true, use: useAssetViewStore, pick: ['mode'] },
-  { key: 'baiduyun-store', encoded: true, use: useBaiduyunStore, pick: ['token', 'appConfig'] },
+  {
+    key: 'baiduyun-store',
+    encoded: true,
+    use: useBaiduyunStore,
+    pick: ['token', 'appConfig'],
+    storage: secureStorage
+  },
   {
     key: 'chat-sessions',
     encoded: false,
@@ -62,7 +76,13 @@ const cases: { key: string; encoded: boolean; use: () => unknown; pick: string[]
   },
   { key: 'note-view-store', encoded: true, use: useNoteViewStore, pick: ['tabStates'] },
   { key: 'tabs-store', encoded: false, use: useTabsStore, pick: ['historyTabs', 'activeTab'] },
-  { key: 'webdav-store', encoded: true, use: useWebdavStore, pick: ['connection', 'history'] }
+  {
+    key: 'webdav-store',
+    encoded: true,
+    use: useWebdavStore,
+    pick: ['connection', 'history'],
+    storage: secureStorage
+  }
 ]
 
 describe('store persistence writes only the picked fields', () => {
@@ -74,7 +94,7 @@ describe('store persistence writes only the picked fields', () => {
     setActivePinia(pinia)
   })
 
-  it.each(cases)('$key', async ({ key, encoded, use, pick }) => {
+  it.each(cases)('$key', async ({ key, encoded, use, pick, storage = localStorage }) => {
     const store = use() as AnyStore
     const unpicked = Object.keys(store.$state).filter((field) => !pick.includes(field))
     store.$patch((state) => {
@@ -82,11 +102,12 @@ describe('store persistence writes only the picked fields', () => {
     })
     await flushPromises()
 
-    const raw = localStorage.getItem(key)
+    const raw = storage.getItem(key)
     expect(raw).not.toBeNull()
     const saved = (encoded ? StorageUtils.decrypt(raw!) : JSON.parse(raw!)) as object
     expect(Object.keys(saved).sort()).toEqual([...pick].sort())
     expect(JSON.stringify(saved)).not.toContain(MARKER)
+    if (storage !== localStorage) expect(localStorage.getItem(key)).toBeNull()
   })
 
   it('chat sessions do not persist image drafts', async () => {

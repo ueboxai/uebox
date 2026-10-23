@@ -3075,6 +3075,16 @@ const api = {
   },
 
   /**
+   * 渲染层凭据的加密落盘（原来明文存在 localStorage）；见 main/ipc/secureStore.ts。
+   */
+  secureStore: {
+    read: (): Promise<{ available: boolean; values: Record<string, string> }> =>
+      ipcRenderer.invoke('secure-store:read'),
+    write: (key: string, value: string | null): Promise<void> =>
+      ipcRenderer.invoke('secure-store:write', key, value)
+  },
+
+  /**
    * 个性化 API：用户写给 agent 的那段常驻说明。技能的列与删在 `agentV3` 下。
    */
   personalization: {

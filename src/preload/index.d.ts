@@ -2836,6 +2836,13 @@ declare global {
       ) => Promise<void>
     }
     /**
+     * 渲染层凭据的加密落盘；available 为 false 时 write 会被拒绝
+     */
+    secureStore: {
+      read: () => Promise<{ available: boolean; values: Record<string, string> }>
+      write: (key: string, value: string | null) => Promise<void>
+    }
+    /**
      * 个性化 API：用户写给 agent 的那段常驻说明。技能的列与删在 `agentV3` 下。
      */
     personalization: {

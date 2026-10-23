@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
 import { StorageUtils } from '../../common/utils/storage'
+import { secureStorage } from '../../utils/secureStorage'
 
 export interface BaiduOAuthTokenResponse {
   expires_in: number
@@ -179,7 +180,8 @@ export const useBaiduyunStore = defineStore(
     persist: {
       key: 'baiduyun-store',
       pick: ['token', 'appConfig'],
-      storage: localStorage,
+      // 凭据：主进程加密落盘，不进 localStorage
+      storage: secureStorage,
       serializer: StorageUtils.createCustomSerializer()
     }
   }

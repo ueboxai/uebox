@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
 import { StorageUtils } from '../../common/utils/storage'
+import { secureStorage } from '../../utils/secureStorage'
 
 /**
  * WebDAV 连接配置接口
@@ -194,7 +195,8 @@ export const useWebdavStore = defineStore(
     persist: {
       key: 'webdav-store',
       pick: ['connection', 'history'],
-      storage: localStorage,
+      // 凭据：主进程加密落盘，不进 localStorage
+      storage: secureStorage,
       serializer: StorageUtils.createCustomSerializer()
     }
   }
