@@ -524,8 +524,9 @@ export async function createHybridTeamHost(
               : '现在没有在等的审批')
         )
       }
-      if (note?.trim())
-        await live.send(PRODUCER, pending.member, note.trim()).catch(() => undefined)
+      // 审批门拒绝时那句话说的是「用户拒绝」；这里是制作人拒的，跟队员说清楚，免得它去等用户
+      const say = note?.trim() || (allow ? '' : '这一步是制作人没准，换个不需要它的做法。')
+      if (say) await live.send(PRODUCER, pending.member, say).catch(() => undefined)
       pending.finish(allow ? 'approve' : 'reject')
       return allow ? `已批准 ${pending.member} 的这一步。` : `已拒绝 ${pending.member} 的这一步。`
     },
