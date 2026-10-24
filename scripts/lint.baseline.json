@@ -332,7 +332,7 @@
     "warnings": 0
   },
   "src/renderer/src/common/utils/storage.ts": {
-    "errors": 3,
+    "errors": 1,
     "warnings": 0
   },
   "src/renderer/src/components/AssetDependencyGraph.vue": {
@@ -385,10 +385,6 @@
   },
   "src/renderer/src/hooks/useLocalShortcuts.ts": {
     "errors": 1,
-    "warnings": 0
-  },
-  "src/renderer/src/hooks/usePersistOptions.ts": {
-    "errors": 2,
     "warnings": 0
   },
   "src/renderer/src/hooks/useProjects.ts": {
@@ -452,7 +448,7 @@
     "warnings": 0
   },
   "src/renderer/src/store/modules/tabs.ts": {
-    "errors": 16,
+    "errors": 15,
     "warnings": 0
   },
   "src/renderer/src/store/modules/webdav.ts": {
