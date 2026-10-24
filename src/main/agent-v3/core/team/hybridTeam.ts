@@ -162,6 +162,8 @@ export async function createHybridTeamHost(
   initial: ExternalTeamRecord,
   deps: HybridTeamDeps
 ): Promise<HybridTeamHost> {
+  // 结束的团队不再拉起宿主：制作人那条连接上还认得这张通行证，再调一次工具不能把队员救活
+  if (initial.endedAt !== undefined) throw new Error(`团队 ${initial.id} 已经结束了`)
   const now = deps.now ?? Date.now
   let record = initial
   const { store } = deps

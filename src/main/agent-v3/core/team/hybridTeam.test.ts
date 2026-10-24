@@ -20,7 +20,11 @@ import {
   type HybridTeamDeps,
   type HybridTeamHost
 } from './hybridTeam'
-import { createHybridProducerTools, withProducerMailbox } from './hybridTeamTools'
+import {
+  createHybridProducerTools,
+  hybridHireCatalog,
+  withProducerMailbox
+} from './hybridTeamTools'
 import { buildProducerBrief } from './teamPrompt'
 import { createTeamStore, PRODUCER, type TeamStore } from './teamStore'
 
@@ -401,5 +405,39 @@ describe('制作人须知', () => {
     expect(brief).not.toContain('team_deliver')
     expect(brief).not.toContain('reopens the project')
     expect(brief.length).toBeLessThan(buildProducerBrief(input).length + 400)
+  })
+})
+
+describe('招人的候选名单', () => {
+  it('混合团队的 team_hire 说明里不列名单，名单随 team_open 的须知给', async () => {
+    const { teamModelCandidates } = await import('../../../../shared/agentTeam')
+    const models = {
+      candidates: teamModelCandidates([
+        { id: 'a', kind: 'chat', models: [{ id: 'm1' }] },
+        { id: 'b', kind: 'chat', models: [{ id: 'm2' }] }
+      ] as never),
+      isAvailable: async () => true
+    }
+    const [hire] = createHybridProducerTools({
+      teamOf: () => undefined,
+      hostOf: async () => {
+        throw new Error('unused')
+      },
+      namespaces: [],
+      models
+    }).filter((t) => t.name === 'team_hire')
+    expect(hire!.description).not.toContain('b/m2')
+    expect(hire!.description).toContain('team_open')
+    expect(hybridHireCatalog(models)).toContain('b/m2')
+    expect(hybridHireCatalog(undefined)).toBe('')
+  })
+})
+
+describe('结束的团队', () => {
+  it('不再拉起宿主：制作人连接上还认得通行证，也救不活队员', async () => {
+    const record = await registry.create({ objective: '塔防', members: 'box' })
+    store = createTeamStore(registry.dirsFor(record.id))
+    const ended = await registry.update(record.id, (r) => ({ ...r, endedAt: 1 }))
+    await expect(createHybridTeamHost(ended, deps())).rejects.toThrow('已经结束了')
   })
 })

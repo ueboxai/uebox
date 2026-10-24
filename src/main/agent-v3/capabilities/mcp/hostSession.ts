@@ -72,7 +72,11 @@ import {
   type HybridEnvironment,
   type HybridTeamHost
 } from '../../core/team/hybridTeam'
-import { createHybridProducerTools, withProducerMailbox } from '../../core/team/hybridTeamTools'
+import {
+  createHybridProducerTools,
+  hybridHireCatalog,
+  withProducerMailbox
+} from '../../core/team/hybridTeamTools'
 import { buildProducerBrief } from '../../core/team/teamPrompt'
 import { teamDirsFor } from '../../core/team/teamSession'
 import { createTeamStore } from '../../core/team/teamStore'
@@ -411,11 +415,13 @@ async function setupProducerSession(): Promise<McpSessionSetup> {
     hosted: {
       brief: async (record) => {
         ;(await hostOf(record.id)).update(record)
-        return buildProducerBrief({
-          objective: record.objective,
-          workspaceDir: registry.dirsFor(record.id).workspaceDir,
-          hybrid: { teamId: record.id }
-        }).trimStart()
+        return (
+          buildProducerBrief({
+            objective: record.objective,
+            workspaceDir: registry.dirsFor(record.id).workspaceDir,
+            hybrid: { teamId: record.id }
+          }).trimStart() + hybridHireCatalog(models)
+        )
       }
     }
   })

@@ -20,10 +20,10 @@ import { defineTool, type UnrealAgentTool } from '../../tools/defineTool'
 import type { HybridTeamHost } from './hybridTeam'
 import { HYBRID_WAIT_MAX_MS } from './hybridTeam'
 import type { TeamLive } from './teamLive'
-import type { TeamModels } from './teamModels'
+import { canChooseModels, describeCandidates, type TeamModels } from './teamModels'
 import type { TeamSnapshots } from './snapshots'
 import type { TeamStore } from './teamStore'
-import { createTeamTools } from './teamTools'
+import { createTeamTools, HIRE_CANDIDATES_HEADING } from './teamTools'
 
 /** 照搬盒子里那一份的团队工具 */
 const BOX_TOOLS = [
@@ -80,6 +80,15 @@ export function createHybridProducerTools(deps: HybridProducerToolDeps): UnrealA
       (tool) =>
         ({
           ...tool,
+          // 候选名单不放在工具说明里：用户配的模型一多就超过 Claude Code 的 4096 字截断，
+          // 排在后面的模型制作人根本看不到。名单随 team_open 的须知给（`hybridHireCatalog`）
+          ...(tool.name === 'team_hire' && tool.description.includes(HIRE_CANDIDATES_HEADING)
+            ? {
+                description:
+                  tool.description.slice(0, tool.description.indexOf(HIRE_CANDIDATES_HEADING)) +
+                  '可用模型的名单在 team_open 的回话里，model 填名单里的 id。'
+              }
+            : {}),
           execute: async (_callId, params, signal, onUpdate) =>
             (await hostFor(deps)).call(tool.name, params, signal, onUpdate as never)
         }) as UnrealAgentTool<never>
@@ -148,6 +157,13 @@ export function createHybridProducerTools(deps: HybridProducerToolDeps): UnrealA
     sendTool as unknown as UnrealAgentTool<never>,
     waitTool as unknown as UnrealAgentTool<never>
   ]
+}
+
+/** 招人能挑的模型，附在混合团队 `team_open` 的须知后面。只有一个模型可选时不给（招人参数里也没有 model） */
+export function hybridHireCatalog(models: TeamModels | undefined): string {
+  return canChooseModels(models)
+    ? `\n\nModels you can hire (give the id as team_hire's model):\n${describeCandidates(models)}`
+    : ''
 }
 
 /**

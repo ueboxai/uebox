@@ -153,6 +153,10 @@ describe('混合团队制作人的工具集（X-Unreal-Box-Profile: producer）'
     // Claude Code 把握手说明和每个工具说明截在 4096 字符
     expect(instructions!.length).toBeLessThan(4096)
     for (const tool of tools) expect(tool.description.length).toBeLessThan(4096)
+    // 候选名单不在招人说明里（模型一多就被截断），随 team_open 的须知给
+    const hire = tools.find((t) => t.name === 'team_hire')!
+    expect(hire.description).not.toContain('deepseek/deepseek-v4.1-flash')
+    expect(JSON.stringify(hire.parameters)).toContain('model_reason')
     // team_open 是混合团队的那份：能选思考档位
     const open = tools.find((t) => t.name === 'team_open')!
     expect(Object.keys((open.parameters as { properties: object }).properties)).toContain(

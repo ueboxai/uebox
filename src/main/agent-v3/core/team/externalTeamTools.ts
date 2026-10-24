@@ -153,7 +153,16 @@ export const EXTERNAL_TEAM_TOOL_NAMES: ReadonlySet<string> = new Set(
 )
 
 /** 混合团队开团时能选的思考档位，同盒子输入框里那一档（`ThinkingLevelChoice`） */
-const THINKING_CHOICES = ['auto', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+const THINKING_CHOICES = [
+  'auto',
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max'
+] as const
 
 /** 进门的两个工具：不按连接认人，只认这次亲手带的通行证 */
 const ENTRY_TOOLS: ReadonlySet<string> = new Set(['team_open', 'team_join'])
