@@ -1969,6 +1969,36 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     ]
   },
   {
+    "id": "fish-audio-tts",
+    "displayName": "Fish Audio",
+    "group": "tts",
+    "kind": "tts",
+    "protocol": "openai-completions",
+    "baseUrl": "https://api.fish.audio/v1",
+    "apiKeyUrl": "https://fish.audio/app/api-keys",
+    "requiresApiKey": true,
+    "defaultEnvVar": "FISH_API_KEY",
+    "hasLogo": false,
+    "models": [
+      {
+        "id": "s2.1-pro",
+        "displayName": "Fish Audio S2.1 Pro"
+      },
+      {
+        "id": "drama-3",
+        "displayName": "Fish Audio Drama 3"
+      },
+      {
+        "id": "s2-pro",
+        "displayName": "Fish Audio S2 Pro"
+      },
+      {
+        "id": "s1",
+        "displayName": "Fish Audio S1"
+      }
+    ]
+  },
+  {
     "id": "doubao-stt",
     "displayName": "豆包语音识别 STT 2.0",
     "group": "stt",
@@ -4802,6 +4832,48 @@ export const GENERATED_CATALOG: readonly CatalogEntry[] = Object.freeze([
     "defaultEnvVar": "INFERENCE_API_KEY",
     "hasLogo": true,
     "models": []
+  },
+  {
+    "id": "meta",
+    "displayName": "Meta",
+    "group": "cloud",
+    "kind": "chat",
+    "protocol": "openai-responses",
+    "baseUrl": "https://api.meta.ai/v1",
+    "apiKeyUrl": "https://dev.meta.ai/docs",
+    "requiresApiKey": true,
+    "defaultEnvVar": "META_MODEL_API_KEY",
+    "hasLogo": true,
+    "models": [
+      {
+        "id": "muse-wonder-1.0",
+        "displayName": "Muse Wonder",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 4,
+          "output": 20
+        }
+      },
+      {
+        "id": "muse-spark-1.3",
+        "displayName": "Muse Spark 1.3",
+        "supportsVision": true,
+        "supportsVideo": true,
+        "supportsTools": true,
+        "supportsReasoning": true,
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072,
+        "cost": {
+          "input": 1.25,
+          "output": 4.25
+        }
+      }
+    ]
   },
   {
     "id": "amazon-bedrock",

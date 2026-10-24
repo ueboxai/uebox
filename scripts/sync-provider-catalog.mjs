@@ -196,6 +196,7 @@ const KEY_PAGE = {
   // 火山的**语音**控制台，不是方舟那个 —— 两条产品线的凭据互不通用
   'doubao-tts': 'https://console.volcengine.com/speech/new/setting/apikeys',
   'alibaba-tts': 'https://bailian.console.aliyun.com/?apiKey=1',
+  'fish-audio-tts': 'https://fish.audio/app/api-keys',
   'doubao-stt': 'https://console.volcengine.com/speech/new/setting/apikeys',
   'alibaba-asr': 'https://bailian.console.aliyun.com/?apiKey=1',
   'siliconflow-stt': 'https://cloud.siliconflow.cn/account/ak',
@@ -633,6 +634,12 @@ export const CURATED = [
     baseUrl: 'wss://dashscope.aliyuncs.com/api-ws/v1/inference',
     displayName: '阿里云 Qwen-Audio 3.0 语音合成'
   },
+  {
+    id: 'fish-audio-tts',
+    group: 'tts',
+    baseUrl: 'https://api.fish.audio/v1',
+    displayName: 'Fish Audio'
+  },
 
   // ── 语音识别 ──
   // 这一组只转写、不回话。与上面那两家是**同一个控制台、同一把密钥**，
@@ -740,6 +747,13 @@ export const CURATED = [
   { id: 'baseten', group: 'cloud', baseUrl: 'https://inference.baseten.co/v1' },
   { id: 'venice', group: 'cloud', baseUrl: 'https://api.venice.ai/api/v1' },
   { id: 'inference', group: 'cloud', baseUrl: 'https://api.inference.net/v1' },
+  // Meta 的 Muse 系列。只预置当前主力的两个，旧版和 contributor 变体让用户按需导入
+  {
+    id: 'meta',
+    group: 'cloud',
+    baseUrl: 'https://api.meta.ai/v1',
+    onlyModels: ['muse-spark-1.3', 'muse-wonder-1.0']
+  },
   { id: 'amazon-bedrock', group: 'cloud', baseUrl: '', requiresApiKey: true },
   { id: 'azure', group: 'cloud', baseUrl: '', requiresApiKey: true },
   { id: 'google-vertex', group: 'cloud', baseUrl: '', requiresApiKey: true },
@@ -1233,6 +1247,21 @@ const MANUAL_ENTRIES = {
         name: 'Qwen-Audio 3.0 TTS Flash',
         ttsVoice: 'longanfengyue'
       }
+    }
+  },
+  /*
+   * 音色填 fish.audio 音色页地址里的那串 ID（reference_id），留空用它的默认音色。
+   * s2.1-pro 在前当默认：接口不带 model 头时也是落到它
+   */
+  'fish-audio-tts': {
+    name: 'Fish Audio',
+    env: ['FISH_API_KEY'],
+    doc: 'https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech',
+    models: {
+      's2.1-pro': { id: 's2.1-pro', name: 'Fish Audio S2.1 Pro' },
+      'drama-3': { id: 'drama-3', name: 'Fish Audio Drama 3' },
+      's2-pro': { id: 's2-pro', name: 'Fish Audio S2 Pro' },
+      s1: { id: 's1', name: 'Fish Audio S1' }
     }
   },
   'doubao-tts': {
@@ -1925,6 +1954,14 @@ const MODEL_REMOVALS = {
 export function sourceFor(item, upstream) {
   const source = upstream[item.sourceId || item.id] || MANUAL_ENTRIES[item.id]
   if (!source) return undefined
+  if (item.onlyModels) {
+    return {
+      ...source,
+      models: Object.fromEntries(
+        Object.entries(source.models).filter(([id]) => item.onlyModels.includes(id))
+      )
+    }
+  }
   if (item.id !== 'bytedance') return source
   return {
     ...source,
