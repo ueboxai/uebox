@@ -152,10 +152,29 @@ export function createHybridProducerTools(deps: HybridProducerToolDeps): UnrealA
     }
   })
 
+  const approveInput = z.object({
+    id: z.string().min(1).describe('审批编号，消息开头 [team approval a1 …] 里的 a1'),
+    allow: z.boolean().describe('true = 准它做；false = 不准'),
+    note: z.string().optional().describe('顺带给这个队员的话：为什么不准、换什么做法')
+  })
+  const approveTool = defineTool<typeof approveInput, unknown>({
+    name: 'team_approve',
+    namespace: 'core',
+    risk: 'safe',
+    concurrency: 'parallel',
+    description:
+      '答复队员的审批请求（[team approval …] 消息）：准或不准它那一步。队员一直等到你答复，超时按不准处理。',
+    input: approveInput,
+    execute: async ({ id, allow, note }) => ({
+      text: await (await hostFor(deps)).approve(id, allow, note)
+    })
+  })
+
   return [
     ...forwarded,
     sendTool as unknown as UnrealAgentTool<never>,
-    waitTool as unknown as UnrealAgentTool<never>
+    waitTool as unknown as UnrealAgentTool<never>,
+    approveTool as unknown as UnrealAgentTool<never>
   ]
 }
 
