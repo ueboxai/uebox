@@ -885,6 +885,8 @@ export interface ProviderView {
 
 export interface SettingsView {
   providers: ProviderView[]
+  /** 停用的来源。不在 providers 里，只给模型管理弹窗列出来 */
+  disabledProviders?: ProviderView[]
   roles: RoleBindings
   /** models.json 的绝对路径，界面上显示给用户 */
   path: string

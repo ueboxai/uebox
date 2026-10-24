@@ -2162,6 +2162,12 @@ declare global {
       ) => Promise<
         import('../shared/aiProvider').AiProviderResult<import('../shared/aiProvider').SettingsView>
       >
+      setEnabled: (
+        providerId: string,
+        enabled: boolean
+      ) => Promise<
+        import('../shared/aiProvider').AiProviderResult<import('../shared/aiProvider').SettingsView>
+      >
       /** 正在跑的对话里有几个用着这个服务商 */
       usage: (providerId: string) => Promise<number>
       /** 只发改了的角色，null = 清空；主进程在最新的配置上合并 */

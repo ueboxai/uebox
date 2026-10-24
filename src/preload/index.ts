@@ -2297,6 +2297,8 @@ const api = {
     saveProvider: (draft: unknown) => ipcRenderer.invoke('ai-provider:save-provider', draft),
     deleteProvider: (providerId: string) =>
       ipcRenderer.invoke('ai-provider:delete-provider', providerId),
+    setEnabled: (providerId: string, enabled: boolean) =>
+      ipcRenderer.invoke('ai-provider:set-enabled', providerId, enabled),
     /** 正在跑的对话里有几个用着这个服务商。删之前问 */
     usage: (providerId: string) => ipcRenderer.invoke('ai-provider:usage', providerId),
     setRoles: (patch: unknown) => ipcRenderer.invoke('ai-provider:set-roles', patch),

@@ -426,6 +426,7 @@ export default {
       add: '+ 添加服务商',
       // 也搜模型名：想找 Kimi K3 的人未必记得它挂在「Kimi Code（会员）」下面
       searchPlaceholder: '搜索服务商或模型',
+      enableProvider: '启用 {name}',
       // 密钥没配好是最常见的故障，而它在列表上完全看不出来
       keyReady: '密钥已配置',
       keyMissing: '缺少密钥',
@@ -704,7 +705,7 @@ export default {
         '选择 ElevenLabs 时按描述生成写实音效，可能收费；未配置时 Agent 用本机 FFmpeg 合成合成器类音效，需先安装 FFmpeg。两种方式都输出可直接导入 UE 的 WAV。',
       ttsDesc: '朗读 AI 回复，使用 AI 合成声音。',
       ttsMore:
-        '内置豆包 TTS 2.0 与阿里云 Qwen-Audio；也可接入本机运行的 Kokoro、CosyVoice 等 OpenAI 兼容合成服务（添加服务商 → 本机语音合成）。音色可在模型设置中修改。',
+        '内置豆包 TTS 2.0、阿里云 Qwen-Audio 与 Fish Audio；也可接入本机运行的 Kokoro、CosyVoice 等 OpenAI 兼容合成服务（添加服务商 → 本机语音合成）。音色可在模型设置中修改。',
       ttsMissing: '回复朗读不可用',
       realtimeDesc: '选择实时语音模型，用于语音通话。',
       realtimeMore:

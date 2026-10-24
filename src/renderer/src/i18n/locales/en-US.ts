@@ -418,6 +418,7 @@ First work out why the install failed from the output above. If you can run comm
       empty: 'No providers yet',
       add: '+ Add Provider',
       searchPlaceholder: 'Search providers or models',
+      enableProvider: 'Enable {name}',
       keyReady: 'Key configured',
       keyMissing: 'Key missing',
       linked: 'Signed in',
@@ -722,7 +723,7 @@ First work out why the install failed from the output above. If you can run comm
         'With ElevenLabs, realistic sounds are generated from a description and may be charged. When unset, the agent synthesizes synth-style sounds with local FFmpeg, which must be installed first. Both output WAV files ready to import into UE.',
       ttsDesc: 'Read AI replies aloud with an AI-generated voice.',
       ttsMore:
-        'Doubao TTS 2.0 and Alibaba Qwen-Audio are built in. A local Kokoro or CosyVoice server that speaks the OpenAI speech API works too — add the local text-to-speech entry under Add provider → Voice. Change the voice in model settings.',
+        'Doubao TTS 2.0, Alibaba Qwen-Audio and Fish Audio are built in. A local Kokoro or CosyVoice server that speaks the OpenAI speech API works too — add the local text-to-speech entry under Add provider → Voice. Change the voice in model settings.',
       ttsMissing: 'Read aloud unavailable',
       realtimeDesc: 'Choose a real-time voice model for voice calls.',
       realtimeMore:
