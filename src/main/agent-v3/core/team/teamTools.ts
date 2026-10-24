@@ -816,7 +816,8 @@ function describeRoute(
   route: MemberRoute
 ): string {
   if (route.fellBack && member.model) {
-    return `（它的模型 ${modelLabel(models, member.model)} 现在用不了，这件活改用你的模型）`
+    // 没有「制作人的模型」（混合团队的制作人在盒子外）时退回的是盒子的默认模型，不能说成你的
+    return `（它的模型 ${modelLabel(models, member.model)} 现在用不了，这件活改用${models?.producer ? '你的模型' : '盒子的默认模型'}）`
   }
   if (!canChooseModels(models) || !route.used) return ''
   return `（${modelLabel(models, route.used)}${member.modelBy === 'user' ? '，用户定的' : ''}）`

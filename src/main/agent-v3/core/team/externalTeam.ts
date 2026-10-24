@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
+import type { ApprovalMode } from '../approval'
 import type { GoalVerdict } from '../goalLoop'
 import type { ThinkingLevelChoice } from '../streamFn'
 import { sessionsDir } from '../transcriptStore'
@@ -47,8 +48,8 @@ export interface ExternalTeamRecord {
    * 没有 = 队员也是外部客户端里的子 Agent，进门靠 `team_join`
    */
   members?: 'box'
-  /** 混合团队：队员的审批档位。现在只有 yolo（没人在盒子界面上批） */
-  approvalMode?: 'yolo'
+  /** 混合团队：队员的审批档位，同盒子输入框里那一档。没有 = auto-edit */
+  approvalMode?: ApprovalMode
   /** 混合团队：队员的思考档位，和另外几队对齐用。没有 = auto */
   thinkingLevel?: ThinkingLevelChoice
   /** 混合团队：开团之后用户最近那句话（制作人带着 team_id 再开时给的 objective）。只带给验收员 */
@@ -106,6 +107,10 @@ export interface ExternalGateFacts {
   deliveries: number
   passed: boolean
   ended: boolean
+  /** 混合团队：还在后台跑的活。有的话制作人该 `team_wait`，不是收工 */
+  pendingJobs: number
+  /** 混合团队：队员发给制作人、它还没看的话 */
+  unreadForProducer: number
 }
 
 export function gateFacts(record: ExternalTeamRecord): ExternalGateFacts {
@@ -122,7 +127,9 @@ export function gateFacts(record: ExternalTeamRecord): ExternalGateFacts {
     lastWriteAt: state.lastWriteAt ?? null,
     deliveries: state.deliveries,
     passed: state.verdict === 'pass' && !changedSince,
-    ended: record.endedAt !== undefined
+    ended: record.endedAt !== undefined,
+    pendingJobs: 0,
+    unreadForProducer: 0
   }
 }
 

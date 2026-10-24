@@ -64,6 +64,11 @@ import { createStatusTool } from './teamStatus'
 import { memberFileBase, PRODUCER, type TeamMember, type TeamStore } from './teamStore'
 import { getMetaTeamSeat } from './teamSeatContext'
 import { createBoardTool, createSnapshotTool, formatMail, renderBoard } from './teamTools'
+import { carryOverTasks, formatBoardCarryOver } from './boardRecap'
+import { startTeamRound } from './teamSession'
+
+/** 记给验收员的「用户最近那句话」最长多少字。同盒子里 `ipc/agentV3.ts` 截的那一截 */
+const LATEST_REQUEST_MAX = 2000
 
 /** 验收员进门时报的名字。队员不许叫这个（`team_hire` 里拦着） */
 export const ACCEPTOR = 'acceptor'
@@ -236,6 +241,19 @@ export interface ExternalTeamDeps {
   hosted?: {
     /** 制作人须知。团队记录已经落盘 */
     brief: (record: ExternalTeamRecord) => Promise<string>
+  }
+  /**
+   * 混合团队的宿主（`hybridTeam.ts`），交付闸和收工要问它。任何连接都给：Stop hook 走的是
+   * 普通的 CLI 连接。宿主没起来时 `facts` 回 undefined
+   */
+  hybrid?: {
+    facts: (
+      teamId: string
+    ) => Promise<{ pendingJobs: number; unreadForProducer: number } | undefined>
+    /** 制作人收工：从「谁在跑」上摘下来 */
+    stop: (teamId: string) => Promise<void>
+    /** 记录变了（用户新说的话） */
+    update: (record: ExternalTeamRecord) => void
   }
   now?: () => number
 }
@@ -580,7 +598,13 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
     thinking_level: z
       .enum(THINKING_CHOICES)
       .optional()
-      .describe('新开团队时：队员的思考档位，省略 = auto')
+      .describe('新开团队时：队员的思考档位，省略 = auto'),
+    approval_mode: z
+      .enum(['ask', 'auto-edit', 'yolo'])
+      .optional()
+      .describe(
+        '新开团队时：队员的审批档位，用户说了用哪档就填哪档。auto-edit（默认）= 能撤销的直接做、不可逆的弹窗问用户；ask = 每个改动都问；yolo = 全放行'
+      )
   })
   // 两种形状给同一个类型：普通连接上 thinking_level 永远是 undefined（同 team_hire 的 model）
   const openInput = (deps.hosted ? hostedOpenInput : baseOpenInput) as typeof hostedOpenInput
@@ -597,7 +621,7 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       `新开一个团队，或者接着已有的团队干。返回团队 id、制作人须知和你的通行证（${TEAM_SEAT_ARG}）：之后每次调用都带上它。` +
       `带着自己的 ${TEAM_SEAT_ARG} 再调一次就是补工程路径。`,
     input: openInput,
-    execute: async ({ objective, team_id, project_path, thinking_level }) => {
+    execute: async ({ objective, team_id, project_path, thinking_level, approval_mode }) => {
       const prior = presented()
       if (prior && prior.role !== 'producer') {
         throw new Error(
@@ -632,7 +656,9 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
         record = await deps.registry.create({
           objective: objective.trim(),
           ...(projectPath ? { projectPath } : {}),
-          ...(hosted ? { members: 'box' as const, approvalMode: 'yolo' as const } : {}),
+          ...(hosted
+            ? { members: 'box' as const, approvalMode: approval_mode ?? 'auto-edit' }
+            : {}),
           ...(hosted && thinking_level ? { thinkingLevel: thinking_level } : {})
         })
       }
@@ -758,6 +784,7 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
             '',
             buildExternalAcceptancePrompt({
               objective: record.objective,
+              ...(record.latestRequest ? { latestRequest: record.latestRequest } : {}),
               report,
               howToPlay: how_to_play,
               ...(record.projectPath ? { projectPath: record.projectPath } : {}),
@@ -936,6 +963,11 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       const kind = verdict === 'PASS' ? 'pass' : verdict === 'BLOCKED' ? 'blocked' : 'fail'
       // 结论只记在 external.json：虚幻盒子的团队事件账里没有「验收」这一类
       const record = await deps.registry.recordVerdict(b.teamId, { kind, reason })
+      // 每次的结论记进团队事件，任务板的往来记录里一条一条看得到（同盒子里的团队）
+      await deps
+        .storeFor(b.teamId)
+        .recordEvent({ kind: 'verdict', verdict: kind })
+        .catch(() => undefined)
       b.closed = true
       await saveSeat(b).catch(() => undefined)
       leave(b)
@@ -1102,7 +1134,15 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
   })
 
   const gateInput = z.object({
-    team_id: z.string().optional().describe('不给就是这条连接所在的团队')
+    team_id: z.string().optional().describe('不给就是这条连接所在的团队'),
+    phase: z
+      .enum(['check', 'stop', 'round'])
+      .optional()
+      .default('check')
+      .describe(
+        'check = 只看（默认）；stop = 收工检查放行了，混合团队的制作人从「在跑」上摘下来；round = 用户发了新消息'
+      ),
+    latest_request: z.string().optional().describe('phase=round 时：用户刚说的那句话')
   })
 
   const gateTool = defineTool<typeof gateInput, ExternalGateFacts>({
@@ -1111,14 +1151,35 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
     risk: 'safe',
     concurrency: 'parallel',
     description:
-      '交付闸的现状（只读）：最近一次验收结论、之后有没有再改过工程、算不算已经过了验收。给收尾检查（hook）用。',
+      '交付闸的现状：最近一次验收结论、之后有没有再改过工程、算不算已经过了验收，混合团队还有后台的活和没看的话。给收尾检查（hook）用。',
     input: gateInput,
-    execute: async ({ team_id }) => {
+    execute: async ({ team_id, phase, latest_request }) => {
       const id = team_id?.trim() || current.getStore()?.binding?.teamId
       if (!id) throw new Error('给 team_id')
-      const record = await deps.registry.get(id)
+      let record = await deps.registry.get(id)
       if (!record) throw new Error(`没有这个外部团队：${id}`)
-      const facts = gateFacts(record)
+      if (phase === 'stop' && record.members === 'box') await deps.hybrid?.stop(id)
+      let carryOver = ''
+      if (phase === 'round') {
+        // 上一轮留下没动的「进行中 / 卡住」摆给制作人看（同盒子里开局的旧账），再开新一轮
+        const since = record.state.roundStartedAt
+        const latest = latest_request?.trim().slice(-LATEST_REQUEST_MAX)
+        if (since !== undefined) {
+          carryOver = formatBoardCarryOver(
+            carryOverTasks(await deps.storeFor(id).board(), since),
+            now()
+          )
+        }
+        record = await deps.registry.update(id, (r) => ({
+          ...r,
+          state: startTeamRound(r.state, now()),
+          ...(latest && r.members === 'box' ? { latestRequest: latest } : {})
+        }))
+        deps.hybrid?.update(record)
+      }
+      const live = record.members === 'box' ? await deps.hybrid?.facts(id) : undefined
+      const facts = { ...gateFacts(record), ...live }
+      if (phase === 'round') return { text: carryOver || '新一轮已记下。', details: facts }
       return {
         text: facts.passed
           ? '已过验收，之后没有改动。'

@@ -122,6 +122,7 @@ import {
 import { activeLoop, parseTeamCommand } from '../agent-v3/core/team/teamCommand'
 import { runWithEditorKey } from '../agent-v3/core/team/editorKey'
 import { createTeamStore } from '../agent-v3/core/team/teamStore'
+import { runningHybridTeam } from '../agent-v3/core/team/hybridTeam'
 import { createTeamLive, type TeamLive } from '../agent-v3/core/team/teamLive'
 import { awaitTeamWork } from '../agent-v3/core/team/teamWait'
 import { assignMemberModel, loadTeamModels, recordReopen } from '../agent-v3/core/team/teamModels'
@@ -1859,12 +1860,15 @@ export function registerAgentV3IPC(): void {
       if (!sessionId || !name || typeof reason !== 'string') {
         return { success: false, error: 'sessionId、name、reason 都要给' }
       }
-      if (!(await loadExecutionOptions(sessionId))?.team) {
+      const hybrid = await isHybridTeam(sessionId)
+      if (!hybrid && !(await loadExecutionOptions(sessionId))?.team) {
         return { success: false, error: '这条 session 不是团队模式' }
       }
       const store = createTeamStore(teamDirsFor(sessionId))
+      // 混合团队的队员跑在宿主上（`core/team/hybridTeam.ts`），谁在跑问它
+      const live = hybrid ? runningHybridTeam(sessionId)?.live : liveTeams.get(sessionId)
       // 没在跑的时候，账上挂着的「在干」是上次被打断留下的，下一轮开局会收掉，不算手上有活
-      const running = activeAgents.has(sessionId)
+      const running = hybrid ? live !== undefined : activeAgents.has(sessionId)
       const openJobs = running
         ? (await store.jobs()).filter((job) => job.endedAt === undefined)
         : []
@@ -1876,7 +1880,7 @@ export function registerAgentV3IPC(): void {
           reason: reason.slice(0, 500),
           isBusy: (who) =>
             running &&
-            (!!liveTeams.get(sessionId)?.isRunning(who) ||
+            (!!live?.isRunning(who) ||
               openJobs.some((job) => job.member.toLowerCase() === who.toLowerCase()))
         })
       } catch (error) {

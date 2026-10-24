@@ -27,8 +27,11 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 
 import type { UnrealAgentTool } from '../../tools/defineTool'
+import type { ApprovalDeps } from '../approval'
 import type { SessionContext } from '../createAgent'
+import { projectPathKey } from '../projectPathKey'
 import type { RuntimeEnvelope } from '../runtimeEnvelope'
+import { buildCrashNotice, type EditorWatchEvent } from './editorWatch'
 import type { TeamToolDeps } from './teamTools'
 import type { ExternalTeamRecord } from './externalTeam'
 import type { TeamSnapshots } from './snapshots'
@@ -128,6 +131,19 @@ export interface HybridTeamDeps {
   onChange?: () => void
   /** 队员的一条动态：界面当场显示 */
   onActivity?: Parameters<typeof createTeamLive>[2]
+  /**
+   * 队员的审批找谁批。混合团队没有盒子侧的对话，确认框弹在盒子主窗口上（应用级的那张卡）。
+   * 不给 = 没人能批：除了 yolo，要问的一律按拒绝（审批门的规矩）
+   */
+  requestApproval?: ApprovalDeps['request']
+  /**
+   * 看护编辑器：团队的工程崩了自动重开（`ipc/teamEditorWatch.ts`）。宿主活着就一直看着，
+   * 经过记进团队的账、告诉制作人。返回停掉看护的函数
+   */
+  watchEditor?: (
+    isOurs: (projectDir: string) => boolean,
+    onEvent: (event: EditorWatchEvent) => void
+  ) => () => void
   now?: () => number
 }
 
@@ -154,6 +170,14 @@ export interface HybridTeamHost {
   wait(ms: number, signal?: AbortSignal, report?: (text: string) => void): Promise<string>
   /** 取走制作人信箱里还没看的。没有给空串 */
   drain(): Promise<string>
+  /**
+   * 制作人收工了（Claude Code 的 Stop hook 放行）：从「谁在跑」上摘下来，之后给它的话进信箱，
+   * 等它的队员会被告知「它没在跑」。制作人下一次调团队工具时自动挂回来（`resume`）
+   */
+  pause(): Promise<void>
+  resume(): void
+  /** 交付闸要的两件事：还有几件后台的活、制作人还有几条没看的话 */
+  gateFacts(): Promise<{ pendingJobs: number; unreadForProducer: number }>
   /** 团队结束：停掉后台的活，从「谁在跑」上摘掉制作人 */
   dispose(): Promise<void>
 }
@@ -192,19 +216,45 @@ export async function createHybridTeamHost(
     wakers = []
     for (const w of list) w()
   }
-  const detach = live.attach(PRODUCER, {
-    steer: (text) => {
-      mailbox.push(text)
-      wake()
-    }
-  })
+  const attachProducer = (): (() => Promise<void>) =>
+    live.attach(PRODUCER, {
+      steer: (text) => {
+        mailbox.push(text)
+        wake()
+      }
+    })
+  let detach: (() => Promise<void>) | undefined = attachProducer()
 
   const controller = new AbortController()
+  /** 「本对话内都允许」记在团队上：几个队员、几件活共用，同盒子里一个对话一份 */
+  const alwaysAllowed = new Set<string>()
+
+  // 编辑器看护：只认团队此刻的工程，补了工程路径之后自然跟过去
+  const stopWatch = deps.watchEditor?.(
+    (projectDir) =>
+      Boolean(record.projectPath) &&
+      projectPathKey(record.projectPath) === projectPathKey(projectDir),
+    (event) => {
+      void store
+        .recordEvent(
+          event.kind === 'crashed'
+            ? { kind: 'crashed', ...(event.reason ? { detail: event.reason.slice(0, 200) } : {}) }
+            : event.kind === 'recovered'
+              ? { kind: 'recovered' }
+              : { kind: 'recoverFailed', detail: event.why.slice(0, 200) }
+        )
+        .catch(() => undefined)
+      mailbox.push(buildCrashNotice(event))
+      wake()
+    }
+  )
 
   const parentOf = (scope: HybridJobScope): SessionContext => ({
     ...scope.parent,
     sessionId: record.id,
-    approvalMode: record.approvalMode ?? 'yolo',
+    approvalMode: record.approvalMode ?? 'auto-edit',
+    alwaysAllowed,
+    ...(deps.requestApproval ? { requestApproval: deps.requestApproval } : {}),
     thinkingLevel: record.thinkingLevel ?? 'auto',
     pacedRequests: true,
     team: {
@@ -352,11 +402,30 @@ export async function createHybridTeamHost(
 
     drain,
 
+    async pause() {
+      const off = detach
+      detach = undefined
+      await off?.()
+    },
+
+    resume() {
+      detach ??= attachProducer()
+    },
+
+    async gateFacts() {
+      const queued = (await store.mail().catch(() => [])).filter(
+        (m) => m.to === PRODUCER && !m.deliveredAt
+      ).length
+      return { pendingJobs: live.pendingJobs().length, unreadForProducer: mailbox.length + queued }
+    },
+
     async dispose() {
       controller.abort(new Error('团队已结束'))
       if (liveTimer) clearTimeout(liveTimer)
+      stopWatch?.()
       wake()
-      await detach()
+      await detach?.()
+      detach = undefined
     }
   }
 }

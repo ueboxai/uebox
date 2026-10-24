@@ -11,7 +11,11 @@ import type { UnrealAgentTool } from '../../tools/defineTool'
 import type { SubAgentResult } from '../../tools/builtin/task'
 import type { RunMemberInput, TeamToolDeps } from './teamTools'
 import { editorKeyActive } from './editorKey'
-import { createExternalTeamRegistry, type ExternalTeamRegistry } from './externalTeam'
+import {
+  createExternalTeamRegistry,
+  type ExternalTeamRecord,
+  type ExternalTeamRegistry
+} from './externalTeam'
 import { createExternalTeamSession } from './externalTeamTools'
 import {
   createHybridTeamHost,
@@ -23,6 +27,7 @@ import {
 import {
   createHybridProducerTools,
   hybridHireCatalog,
+  openedProjectPath,
   withProducerMailbox
 } from './hybridTeamTools'
 import { buildProducerBrief } from './teamPrompt'
@@ -126,7 +131,7 @@ describe('混合团队的宿主', () => {
     expect(parent.sessionId).toBe(host.teamId)
     expect(parent.externalClient).toBeUndefined()
     expect(parent).toMatchObject({
-      approvalMode: 'yolo',
+      approvalMode: 'auto-edit',
       pacedRequests: true,
       thinkingLevel: 'auto'
     })
@@ -267,6 +272,11 @@ describe('混合团队的制作人连接', () => {
     call: (name: string, args?: Record<string, unknown>) => Promise<string>
     tools: UnrealAgentTool<never>[]
     hostOf: (id: string) => Promise<HybridTeamHost>
+    /** 一条普通连接（Claude Code 的 Stop hook 走的那种），同样认得混合团队的宿主 */
+    plain: (
+      name: string,
+      args: Record<string, unknown>
+    ) => Promise<{ text: string; details: unknown }>
   } {
     const made = new Map<string, Promise<HybridTeamHost>>()
     const ready = new Map<string, HybridTeamHost>()
@@ -285,11 +295,27 @@ describe('混合团队的制作人连接', () => {
       return host
     }
     const storeFor = (id: string): TeamStore => createTeamStore(registry.dirsFor(id))
+    const hybrid = {
+      facts: async (id: string) => ready.get(id)?.gateFacts(),
+      stop: async (id: string) => {
+        await ready.get(id)?.pause()
+      },
+      update: (record: ExternalTeamRecord) => ready.get(record.id)?.update(record)
+    }
+    const plainSession = createExternalTeamSession({
+      registry,
+      storeFor,
+      namespaces: ['ue.level'],
+      resolveTarget: (projectPath) => ({ projectPath }),
+      hybrid
+    })
+    const plainTools = plainSession.guard(plainSession.tools)
     const team = createExternalTeamSession({
       registry,
       storeFor,
       namespaces: ['ue.level'],
       resolveTarget: (projectPath) => ({ projectPath }),
+      hybrid,
       hosted: {
         brief: async (record) => {
           ;(await hostOf(record.id)).update(record)
@@ -318,6 +344,15 @@ describe('混合团队的制作人连接', () => {
     return {
       tools,
       hostOf,
+      plain: async (name, args) => {
+        const result = await plainTools
+          .find((t) => t.name === name)!
+          .execute(`x${++seq}`, args as never)
+        return {
+          text: result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n'),
+          details: result.details
+        }
+      },
       call: async (name, args = {}) => {
         const tool = tools.find((t) => t.name === name)
         if (!tool) throw new Error(`没有 ${name}`)
@@ -334,7 +369,81 @@ describe('混合团队的制作人连接', () => {
     expect(text).not.toContain('team_deliver')
     expect(text).not.toContain('team_join')
     const [record] = await registry.list()
-    expect(record).toMatchObject({ members: 'box', approvalMode: 'yolo', thinkingLevel: 'high' })
+    expect(record).toMatchObject({
+      members: 'box',
+      approvalMode: 'auto-edit',
+      thinkingLevel: 'high'
+    })
+  })
+
+  it('交付闸：还有活在跑、有话没看都报出来；收工摘信箱，再调工具挂回来', async () => {
+    const conn = producerConnection()
+    await conn.call('team_open', { objective: '做一个塔防' })
+    await conn.call('team_hire', { name: '策划', role: '写设计文档' })
+    const [record] = await registry.list()
+    const id = record!.id
+    let finish!: () => void
+    behave = () => new Promise((resolve) => (finish = () => resolve(done('写好了'))))
+    await conn.call('team_send', { to: '策划', message: '写' })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+
+    const busy = await conn.plain('team_gate', { team_id: id })
+    expect(busy.details).toMatchObject({ pendingJobs: 1, unreadForProducer: 0 })
+    finish()
+    const host = await conn.hostOf(id)
+    await vi.waitFor(async () => expect((await host.gateFacts()).unreadForProducer).toBe(1))
+
+    // 收工：制作人从「谁在跑」上摘下来，队员再发话就进信箱
+    await conn.plain('team_gate', { team_id: id, phase: 'stop' })
+    expect(host.live.view().running).not.toContain(PRODUCER)
+    const queued = await host.live.send('策划', PRODUCER, '还有个问题')
+    expect(queued.delivery).toBe('queued')
+    // 制作人再调工具：挂回来，攒下的话一起交到手上
+    const text = await conn.call('team_wait', { seconds: 1 })
+    expect(text).toContain('写好了')
+    expect(text).toContain('还有个问题')
+    expect(host.live.view().running).toContain(PRODUCER)
+  })
+
+  it('新一轮：用户那句话记给验收员，任务板旧账带回来；验收员的提示词里有它，结论进团队事件', async () => {
+    const conn = producerConnection()
+    await conn.call('team_open', { objective: '做一个塔防' })
+    const [record] = await registry.list()
+    const id = record!.id
+    // 上一轮开工前就挂着「进行中」、整轮没人动过的，下一轮开局要摆出来
+    await conn.call('team_board', {
+      action: 'update',
+      tasks: [{ id: 't1', title: '做主角', status: 'doing' }]
+    })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const first = await conn.plain('team_gate', {
+      team_id: id,
+      phase: 'round',
+      latest_request: '加一个 Boss'
+    })
+    expect(first.text).not.toContain('<team_board_carryover>')
+    const second = await conn.plain('team_gate', {
+      team_id: id,
+      phase: 'round',
+      latest_request: 'Boss 要会飞'
+    })
+    expect(second.text).toContain('<team_board_carryover>')
+    expect(second.text).toContain('t1')
+    expect((await registry.get(id))?.latestRequest).toBe('Boss 要会飞')
+
+    const joined = await conn.plain('team_join', {
+      team_id: id,
+      member: 'acceptor',
+      report: '做好了',
+      how_to_play: '打开 Main'
+    })
+    expect(joined.text).toContain('Boss 要会飞')
+    const seat = (joined.details as { seat: string }).seat
+    await conn.plain('team_verdict', { verdict: 'FAIL', reason: 'Boss 不会飞', team_seat: seat })
+    expect((await createTeamStore(registry.dirsFor(id)).events()).at(-1)).toMatchObject({
+      kind: 'verdict',
+      verdict: 'fail'
+    })
   })
 
   it('招人、派活、等结果；队员给制作人的话附在下一个工具结果后面', async () => {
@@ -397,14 +506,16 @@ describe('制作人须知', () => {
     )
   })
 
-  it('混合版：带团队 id，派活后台 + team_wait，不提交付验收和编辑器看护', () => {
+  it('混合版：带团队 id，派活后台 + team_wait，验收走 uebox-acceptor 子 Agent，能开已有工程', () => {
     const brief = buildProducerBrief({ ...input, hybrid: { teamId: 'ext-1' } })
     expect(brief).toContain('team id: ext-1')
     expect(brief).toContain('team_wait')
     expect(brief).toContain('`model_reason`')
+    expect(brief).toContain('uebox-acceptor')
+    expect(brief).toContain('uebox team use ext-1')
+    expect(brief).toContain('open_project')
+    expect(brief).toContain('project_package')
     expect(brief).not.toContain('team_deliver')
-    expect(brief).not.toContain('reopens the project')
-    expect(brief.length).toBeLessThan(buildProducerBrief(input).length + 400)
   })
 })
 
@@ -439,5 +550,96 @@ describe('结束的团队', () => {
     store = createTeamStore(registry.dirsFor(record.id))
     const ended = await registry.update(record.id, (r) => ({ ...r, endedAt: 1 }))
     await expect(createHybridTeamHost(ended, deps())).rejects.toThrow('已经结束了')
+  })
+})
+
+describe('宿主的审批、看护和退回模型', () => {
+  it('父上下文带上审批通道和团队共用的「本对话内都允许」', async () => {
+    const record = await registry.create({ objective: '塔防', members: 'box', approvalMode: 'ask' })
+    store = createTeamStore(registry.dirsFor(record.id))
+    const requestApproval = vi.fn(async () => 'approve' as const)
+    const host = await createHybridTeamHost(record, { ...deps(), requestApproval })
+    hosts.push(host)
+    await host.call('team_hire', { name: '策划', role: '写' })
+    await host.send({ to: '策划', message: '一', wait: true })
+    await host.send({ to: '策划', message: '二', wait: true })
+    const [a, b] = seen.map((s) => s.parent as unknown as Record<string, unknown>)
+    expect(a).toMatchObject({ approvalMode: 'ask', requestApproval })
+    expect(a!.alwaysAllowed).toBeInstanceOf(Set)
+    expect(a!.alwaysAllowed).toBe(b!.alwaysAllowed)
+  })
+
+  it('编辑器崩了：只认团队的工程，记进团队事件，告诉制作人；团队结束停掉看护', async () => {
+    const record = await registry.create({
+      objective: '塔防',
+      members: 'box',
+      projectPath: 'D:/Games/TD'
+    })
+    store = createTeamStore(registry.dirsFor(record.id))
+    let isOurs!: (dir: string) => boolean
+    let emit!: (event: import('./editorWatch').EditorWatchEvent) => void
+    const stop = vi.fn()
+    const host = await createHybridTeamHost(record, {
+      ...deps(),
+      watchEditor: (ours, onEvent) => {
+        isOurs = ours
+        emit = onEvent
+        return stop
+      }
+    })
+    expect(isOurs('d:\\games\\td\\')).toBe(true)
+    expect(isOurs('D:/Games/Other')).toBe(false)
+    emit({ kind: 'crashed', projectDir: 'D:/Games/TD', reason: 'Access violation' } as never)
+    await vi.waitFor(async () =>
+      expect((await store.events()).at(-1)).toMatchObject({ kind: 'crashed' })
+    )
+    expect(await host.drain()).toContain('crash')
+    await host.dispose()
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('队员的模型用不了、又没有制作人的模型：回话说改用盒子的默认模型，不说「你的模型」', async () => {
+    const record = await registry.create({ objective: '塔防', members: 'box' })
+    store = createTeamStore(registry.dirsFor(record.id))
+    const models = {
+      candidates: [
+        { key: 'a/m1', providerId: 'a', modelId: 'm1', name: 'M1', providerName: 'A' },
+        { key: 'b/m2', providerId: 'b', modelId: 'm2', name: 'M2', providerName: 'B' }
+      ],
+      isAvailable: async () => false
+    } as never
+    const host = await createHybridTeamHost(record, { ...deps(), models })
+    hosts.push(host)
+    await store.putMember({
+      name: '策划',
+      persona: '写',
+      tier: 'strong',
+      model: { providerId: 'b', modelId: 'm2' },
+      readOnly: false,
+      hiredAt: 0
+    })
+    await host.send({ to: '策划', message: '写', wait: true })
+    const reply = await host.drain()
+    expect(reply).toContain('改用盒子的默认模型')
+    expect(reply).not.toContain('改用你的模型')
+  })
+})
+
+describe('制作人开的工程', () => {
+  it('建工程、开工程：认出工程目录；别的动作和认不出来的不算', () => {
+    expect(
+      openedProjectPath(
+        { action: 'create_project' },
+        { projectPath: 'D:/Games/TD', uprojectPath: 'x' }
+      )
+    ).toBe('D:/Games/TD')
+    expect(
+      openedProjectPath({ action: 'open_project' }, { openedPath: 'D:\\Games\\TD\\TD.uproject' })
+    ).toBe('D:\\Games\\TD')
+    expect(openedProjectPath({ action: 'open_project', projectPath: 'E:/Fab/Tpl' }, {})).toBe(
+      'E:/Fab/Tpl'
+    )
+    expect(openedProjectPath({ action: 'open_project', projectKey: 'k' }, {})).toBeUndefined()
+    expect(openedProjectPath({ action: 'list_projects' }, { projectPath: 'x' })).toBeUndefined()
   })
 })

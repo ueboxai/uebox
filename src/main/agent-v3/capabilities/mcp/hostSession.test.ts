@@ -137,6 +137,8 @@ describe('混合团队制作人的工具集（X-Unreal-Box-Profile: producer）'
     } as never)
 
     expect(tools.map((t) => t.name).sort()).toEqual([
+      'project_list',
+      'project_manage',
       'team_board',
       'team_dismiss',
       'team_gate',
@@ -148,11 +150,16 @@ describe('混合团队制作人的工具集（X-Unreal-Box-Profile: producer）'
       'team_send',
       'team_snapshot',
       'team_status',
-      'team_wait'
+      'team_wait',
+      'ue_session_health'
     ])
     // Claude Code 把握手说明和每个工具说明截在 4096 字符
     expect(instructions!.length).toBeLessThan(4096)
     for (const tool of tools) expect(tool.description.length).toBeLessThan(4096)
+    // 制作人的 project_manage 只认建工程、开工程（同盒子里的 producerTools）
+    const manage = tools.find((t) => t.name === 'project_manage')!
+    expect(JSON.stringify(manage.parameters)).toContain('open_project')
+    expect(JSON.stringify(manage.parameters)).not.toContain('enable_plugins')
     // 候选名单不在招人说明里（模型一多就被截断），随 team_open 的须知给
     const hire = tools.find((t) => t.name === 'team_hire')!
     expect(hire.description).not.toContain('deepseek/deepseek-v4.1-flash')

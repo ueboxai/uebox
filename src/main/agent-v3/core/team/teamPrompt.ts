@@ -85,8 +85,13 @@ export function buildProducerBrief(input: {
     EXPOSURE_NOTE,
     ...(hybrid
       ? [
+          "- `project_manage` creates a project or opens an existing one (`open_project`, e.g. a template project the user already has — no need to create a new one); `project_list` lists projects and templates. Whichever you open becomes the team's project: teammates' engine tools, snapshots and the editor watchdog follow it. Opening returns at once while the editor loads; check with `ue_session_health` until the project is connected instead of calling `open_project` again.",
+          '- If the editor crashes, Unreal Box reopens the project on its own and tells you. Whatever was not saved is lost, so save as work lands.',
           '- Every time a teammate hands back work that changed something, Unreal Box snapshots the project. `team_snapshot` lists them and can roll the project back to one.',
-          '- When the work is done, reply with a delivery report: what was built, how to play it, known gaps, and a polish list for the user — where to start and which parameters to tune.'
+          `- Run \`uebox team use ${hybrid.teamId}\` once in your working directory: the delivery check that runs when you try to finish finds the team through it.`,
+          '- You are not done until acceptance passes: start the `uebox-acceptor` subagent with the team id, your delivery report and how to play (plus the packaged exe if a teammate built one with `project_package`). It did not build the game; it plays it against the bar above and records PASS / FAIL / BLOCKED. On FAIL, have teammates fix what it found, check the whole game against the bar again, then run acceptance again — a cut-down game that is easier to pass is not a fix. On BLOCKED, stop and tell the user what is needed. Any teammate change after a PASS voids it.',
+          '- While teammates are still working or have messages for you, the delivery check sends you back to `team_wait` instead of letting you finish.',
+          '- After it passes, reply with a delivery report: what was built, how to play it, known gaps, and a polish list for the user — where to start and which parameters to tune.'
         ]
       : [
           '- If the editor crashes, Unreal Box reopens the project on its own and tells you. Whatever was not saved is lost, so save as work lands.',

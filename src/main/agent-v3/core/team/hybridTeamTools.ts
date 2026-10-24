@@ -159,6 +159,29 @@ export function createHybridProducerTools(deps: HybridProducerToolDeps): UnrealA
   ]
 }
 
+/**
+ * `project_manage` 这次建好或打开的工程目录。看参数里的路径和结果里的路径（建工程回 `projectPath`，
+ * 开工程回 `openedPath`，都可能是 .uproject）。认不出来给 undefined：只给了 projectKey、又没回路径时
+ * 制作人得用 team_open 补
+ */
+export function openedProjectPath(params: unknown, details: unknown): string | undefined {
+  const pick = (value: unknown, keys: string[]): string | undefined => {
+    if (!value || typeof value !== 'object') return undefined
+    for (const key of keys) {
+      const v = (value as Record<string, unknown>)[key]
+      if (typeof v === 'string' && v.trim()) return v.trim()
+    }
+    return undefined
+  }
+  const action = pick(params, ['action'])
+  if (action !== 'create_project' && action !== 'open_project') return undefined
+  const found =
+    pick(details, ['projectPath', 'openedPath', 'uprojectPath']) ??
+    (action === 'open_project' ? pick(params, ['projectPath']) : undefined)
+  if (!found) return undefined
+  return /\.uproject$/i.test(found) ? found.replace(/[\\/][^\\/]+$/, '') : found
+}
+
 /** 招人能挑的模型，附在混合团队 `team_open` 的须知后面。只有一个模型可选时不给（招人参数里也没有 model） */
 export function hybridHireCatalog(models: TeamModels | undefined): string {
   return canChooseModels(models)
@@ -180,12 +203,15 @@ export function withProducerMailbox(
   }
 ): UnrealAgentTool<never>[] {
   return tools.map((tool) => {
-    if (tool.name === 'team_wait') return tool
     const inner = tool.execute.bind(tool)
     return {
       ...tool,
       execute: async (...args: Parameters<typeof inner>) => {
+        // 制作人又在调工具了：收工时摘下的信箱挂回来，队员的话重新当场送到
+        const before = deps.teamOf()
+        if (before) deps.running(before)?.resume()
         const result = await inner(...args)
+        if (tool.name === 'team_wait') return result
         const teamId = deps.teamOf()
         const host = teamId ? deps.running(teamId) : undefined
         const mail = host ? await host.drain() : ''

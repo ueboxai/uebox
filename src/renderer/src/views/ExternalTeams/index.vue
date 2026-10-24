@@ -52,6 +52,7 @@
         @end="endSelected"
         @open-models="board.loadModels"
         @set-model="board.setMemberModel"
+        @dismiss="board.dismissMember"
       />
       <AppEmpty v-else class="detail-empty" :title="t('externalTeams.pick')" />
     </section>
