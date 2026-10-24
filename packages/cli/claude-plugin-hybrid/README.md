@@ -20,10 +20,11 @@
 在一个空的工作目录里：
 
 ```bash
-claude --plugin-dir <这个目录的路径> --disallowedTools "Write Edit MultiEdit NotebookEdit"
+claude --plugin-dir <这个目录的路径> --permission-mode bypassPermissions --disallowedTools "Write Edit MultiEdit NotebookEdit"
 ```
 
-进去后 `/mcp` 里只有 `uebox-producer` 一条盒子连接，15 个工具：`team_*`、`project_manage`、`project_list`、`ue_session_health`。
+`bypassPermissions` 让盒子工具不停下来问；hook 在这个模式下照样生效，守卫照拦。
+进去后 `/mcp` 里只有 `uebox-producer` 一条盒子连接，16 个工具：`team_*`（含 `team_approve`）、`project_manage`、`project_list`、`ue_session_health`。
 
 ## 插件里有什么
 
@@ -39,8 +40,8 @@ claude --plugin-dir <这个目录的路径> --disallowedTools "Write Edit MultiE
 
 跟制作人说要做什么。它会 `team_open` 开团队，跑一次 `uebox team use <团队 id>`（hook 靠它找团队），
 `project_manage` 开或建工程，`team_hire` 招人，`team_send` 派活、`team_wait` 等结果，最后起
-`uebox-acceptor` 验收。进度、模型、用量在盒子的「外部团队」页上看；队员要做不可逆的操作时，
-确认框弹在盒子窗口上。
+`uebox-acceptor` 验收。进度、模型、用量在盒子的「外部团队」页上看。队员要做不可逆的操作时，
+默认发给制作人（`[team approval …]` 消息，用 `team_approve` 答），盒子不弹框。
 
 想一次等满 10 分钟，再设 `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=660000`（Claude Code 对 HTTP 的 MCP 调用
 5 分钟没动静就掐）；不设的话 `team_wait` 默认每次等 280 秒，照样能用。

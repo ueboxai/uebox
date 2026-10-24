@@ -139,6 +139,7 @@ describe('混合团队制作人的工具集（X-Unreal-Box-Profile: producer）'
     expect(tools.map((t) => t.name).sort()).toEqual([
       'project_list',
       'project_manage',
+      'team_approve',
       'team_board',
       'team_dismiss',
       'team_gate',

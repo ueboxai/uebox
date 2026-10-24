@@ -48,8 +48,11 @@ export interface ExternalTeamRecord {
    * 没有 = 队员也是外部客户端里的子 Agent，进门靠 `team_join`
    */
   members?: 'box'
-  /** 混合团队：队员的审批档位，同盒子输入框里那一档。没有 = auto-edit */
-  approvalMode?: ApprovalMode
+  /**
+   * 混合团队：队员的审批档位。`producer`（没有时也是它）= 要问的那几步交给制作人用 team_approve 答，
+   * 盒子不弹框；其余三档同盒子输入框里那一档，要问的弹在盒子主窗口上
+   */
+  approvalMode?: ApprovalMode | 'producer'
   /** 混合团队：队员的思考档位，和另外几队对齐用。没有 = auto */
   thinkingLevel?: ThinkingLevelChoice
   /** 混合团队：开团之后用户最近那句话（制作人带着 team_id 再开时给的 objective）。只带给验收员 */

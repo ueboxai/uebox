@@ -371,7 +371,7 @@ describe('混合团队的制作人连接', () => {
     const [record] = await registry.list()
     expect(record).toMatchObject({
       members: 'box',
-      approvalMode: 'auto-edit',
+      approvalMode: 'producer',
       thinkingLevel: 'high'
     })
   })
@@ -641,5 +641,87 @@ describe('制作人开的工程', () => {
     )
     expect(openedProjectPath({ action: 'open_project', projectKey: 'k' }, {})).toBeUndefined()
     expect(openedProjectPath({ action: 'list_projects' }, { projectPath: 'x' })).toBeUndefined()
+  })
+})
+
+describe('制作人审批（approval_mode: producer，默认）', () => {
+  /** 队员的这一步要过审批：照审批门那样调父上下文的 requestApproval */
+  const destroy = {
+    sessionId: 'ext-x:mate-搭建',
+    toolCallId: 'c1',
+    toolName: 'ue_destroy_actor',
+    namespace: 'ue.actor',
+    risk: 'destructive' as const,
+    args: { targets: { names: ['TempCube'] } },
+    allowAlways: true,
+    allowForever: false
+  }
+
+  async function hostWith(
+    timeoutMs = 60_000
+  ): Promise<{ host: HybridTeamHost; verdicts: string[]; release: () => void }> {
+    const record = await registry.create({ objective: '塔防', members: 'box' })
+    store = createTeamStore(registry.dirsFor(record.id))
+    const boxPopup = vi.fn(async () => 'approve' as const)
+    const host = await createHybridTeamHost(record, {
+      ...deps(),
+      requestApproval: boxPopup,
+      approvalTimeoutMs: timeoutMs
+    })
+    hosts.push(host)
+    await host.call('team_hire', { name: '搭建', role: '摆东西' })
+    const verdicts: string[] = []
+    let release!: () => void
+    behave = async () => {
+      const parent = seen.at(-1)!.parent as unknown as {
+        approvalMode: string
+        requestApproval: (r: typeof destroy) => Promise<string>
+      }
+      expect(parent.approvalMode).toBe('auto-edit')
+      expect(parent.requestApproval).not.toBe(boxPopup)
+      verdicts.push(await parent.requestApproval(destroy))
+      await new Promise<void>((resolve) => (release = resolve))
+      return done('删完了')
+    }
+    expect(boxPopup).not.toHaveBeenCalled()
+    return { host, verdicts, release: () => release() }
+  }
+
+  it('不可逆的一步不弹盒子的框，进制作人信箱；批准后队员接着干', async () => {
+    const { host, verdicts, release } = await hostWith()
+    // wait=true 时有审批进来就先回来，不和等批的队员互等
+    const sent = await host.send({ to: '搭建', message: '删掉 TempCube', wait: true })
+    expect(sent).toContain('有审批在等你答复')
+    const mail = await host.drain()
+    expect(mail).toContain('[team approval a1 · from 搭建]')
+    expect(mail).toContain('ue_destroy_actor')
+    expect(mail).toContain('TempCube')
+    expect(await host.approve('a1', true)).toContain('已批准')
+    await vi.waitFor(() => expect(verdicts).toEqual(['approve']))
+    await expect(host.approve('a1', true)).rejects.toThrow('已经答过或超时')
+    release()
+  })
+
+  it('拒绝：附言当场插给队员', async () => {
+    const { host, verdicts, release } = await hostWith()
+    let heard = ''
+    const detachMember = host.live.attach('搭建', { steer: (text) => (heard += text) })
+    await host.send({ to: '搭建', message: '删掉 TempCube' })
+    expect(await host.wait(60_000)).toContain('team approval a1')
+    expect(await host.approve('a1', false, '别删，挪到角落')).toContain('已拒绝')
+    await vi.waitFor(() => expect(verdicts).toEqual(['reject']))
+    expect(heard).toContain('别删，挪到角落')
+    await detachMember()
+    release()
+  })
+
+  it('制作人一直不答：到点按拒绝，告诉制作人和队员', async () => {
+    const { host, verdicts, release } = await hostWith(50)
+    await host.send({ to: '搭建', message: '删掉 TempCube' })
+    await vi.waitFor(() => expect(verdicts).toEqual(['reject']))
+    const mail = await host.drain()
+    expect(mail).toContain('team approval a1')
+    expect(mail).toContain('已按拒绝处理')
+    release()
   })
 })

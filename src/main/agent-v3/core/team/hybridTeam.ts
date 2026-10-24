@@ -27,7 +27,7 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 
 import type { UnrealAgentTool } from '../../tools/defineTool'
-import type { ApprovalDeps } from '../approval'
+import type { ApprovalDeps, ApprovalVerdict } from '../approval'
 import type { SessionContext } from '../createAgent'
 import { projectPathKey } from '../projectPathKey'
 import type { RuntimeEnvelope } from '../runtimeEnvelope'
@@ -48,6 +48,15 @@ import { describePendingJobs } from './teamWait'
  * 但它发不发 progressToken 文档没写），单次请求默认又只等 60 秒（要把服务器的 `timeout` 调大）
  */
 export const HYBRID_SEND_WAIT_MS = 280_000
+
+/**
+ * 队员的审批交给制作人时（`approval_mode: 'producer'`），等制作人答复最多多久。到点按拒绝处理：
+ * 队员不能无限期挂着，制作人可能正在一次很长的思考里
+ */
+export const PRODUCER_APPROVAL_WAIT_MS = 10 * 60_000
+
+/** 审批请求里参数原文最多给制作人看多少字 */
+const APPROVAL_ARGS_SHOWN = 1500
 
 /** `team_wait` 最多等多久 */
 export const HYBRID_WAIT_MAX_MS = 600_000
@@ -136,6 +145,8 @@ export interface HybridTeamDeps {
    * 不给 = 没人能批：除了 yolo，要问的一律按拒绝（审批门的规矩）
    */
   requestApproval?: ApprovalDeps['request']
+  /** 交给制作人的审批等多久按拒绝处理。默认 `PRODUCER_APPROVAL_WAIT_MS`，测试改短 */
+  approvalTimeoutMs?: number
   /**
    * 看护编辑器：团队的工程崩了自动重开（`ipc/teamEditorWatch.ts`）。宿主活着就一直看着，
    * 经过记进团队的账、告诉制作人。返回停掉看护的函数
@@ -176,6 +187,11 @@ export interface HybridTeamHost {
    */
   pause(): Promise<void>
   resume(): void
+  /**
+   * 制作人答复一条审批（`team_approve`）。`note` 当场插给那个队员。
+   * 没有这条（答过、超时、编号错）就抛
+   */
+  approve(id: string, allow: boolean, note?: string): Promise<string>
   /** 交付闸要的两件事：还有几件后台的活、制作人还有几条没看的话 */
   gateFacts(): Promise<{ pendingJobs: number; unreadForProducer: number }>
   /** 团队结束：停掉后台的活，从「谁在跑」上摘掉制作人 */
@@ -249,12 +265,80 @@ export async function createHybridTeamHost(
     }
   )
 
+  // ── 制作人审批 ──
+  // 档位是 producer（默认）时，队员要问的那几步（不可逆的删、覆盖、回滚这类）不弹盒子的确认框，
+  // 进制作人信箱，由制作人用 team_approve 答。可撤销的改动照 auto-edit 直接做，不打扰制作人
+  const approvals = new Map<string, { member: string; finish: (v: ApprovalVerdict) => void }>()
+  let approvalSeq = 0
+  const approvalWaitMs = deps.approvalTimeoutMs ?? PRODUCER_APPROVAL_WAIT_MS
+  /** 队员子 Agent 的会话 id 是 `<团队>:mate-<名字>`（`runSubAgent`） */
+  const memberOf = (sessionId: string): string => {
+    const at = sessionId.indexOf(':mate-')
+    return at >= 0 ? sessionId.slice(at + ':mate-'.length) : sessionId
+  }
+  const askProducer: ApprovalDeps['request'] = (req, signal) =>
+    new Promise<ApprovalVerdict>((resolve) => {
+      const id = `a${++approvalSeq}`
+      const member = memberOf(req.sessionId)
+      let settled = false
+      const finish = (verdict: ApprovalVerdict): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
+        approvals.delete(id)
+        resolve(verdict)
+      }
+      const onAbort = (): void => finish('reject')
+      const timer = setTimeout(() => {
+        finish('reject')
+        const minutes = Math.round(approvalWaitMs / 60_000)
+        mailbox.push(
+          `[team approval ${id} · expired] ${member} 的 ${req.toolName} 等了 ${minutes} 分钟没等到答复，已按拒绝处理。`
+        )
+        wake()
+        void live
+          .send(
+            PRODUCER,
+            member,
+            `你刚才的 ${req.toolName} 制作人 ${minutes} 分钟内没答复，按拒绝处理了。换个不需要批准的做法，或者在结论里写明要制作人批什么`
+          )
+          .catch(() => undefined)
+      }, approvalWaitMs)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      approvals.set(id, { member, finish })
+      let args = ''
+      try {
+        args = JSON.stringify(req.args) ?? ''
+      } catch {
+        args = String(req.args)
+      }
+      mailbox.push(
+        [
+          `[team approval ${id} · from ${member}] This is not the user speaking.`,
+          `${member} wants to run \`${req.toolName}\` (${req.risk}) and is waiting for your decision:`,
+          args.length > APPROVAL_ARGS_SHOWN ? `${args.slice(0, APPROVAL_ARGS_SHOWN)}…` : args,
+          `Answer with team_approve {"id": "${id}", "allow": true|false, "note": optional}. ` +
+            `No answer within ${Math.round(approvalWaitMs / 60_000)} minutes counts as denied.`
+        ].join('\n')
+      )
+      wake()
+    })
+
+  const producerDecides = (): boolean => (record.approvalMode ?? 'producer') === 'producer'
+
   const parentOf = (scope: HybridJobScope): SessionContext => ({
     ...scope.parent,
     sessionId: record.id,
-    approvalMode: record.approvalMode ?? 'auto-edit',
+    approvalMode: producerDecides()
+      ? 'auto-edit'
+      : (record.approvalMode as Exclude<NonNullable<typeof record.approvalMode>, 'producer'>),
     alwaysAllowed,
-    ...(deps.requestApproval ? { requestApproval: deps.requestApproval } : {}),
+    ...(producerDecides()
+      ? { requestApproval: askProducer }
+      : deps.requestApproval
+        ? { requestApproval: deps.requestApproval }
+        : {}),
     thinkingLevel: record.thinkingLevel ?? 'auto',
     pacedRequests: true,
     team: {
@@ -322,10 +406,14 @@ export async function createHybridTeamHost(
     return [...steered, formatMail('【给你的留言】', queued)].filter(Boolean).join('\n\n')
   }
 
-  /** 等到信箱里有东西、到点或被取消。到点不是错 */
-  const nextMail = (ms: number, signal?: AbortSignal): Promise<void> =>
+  /** 等到信箱里有东西（或 `ready` 说可以了）、到点或被取消。到点不是错 */
+  const nextMail = (
+    ms: number,
+    signal?: AbortSignal,
+    ready: () => boolean = () => mailbox.length > 0
+  ): Promise<void> =>
     new Promise<void>((resolve) => {
-      if (mailbox.length || signal?.aborted) return resolve()
+      if (ready() || signal?.aborted) return resolve()
       const done = (): void => {
         clearTimeout(timer)
         signal?.removeEventListener('abort', done)
@@ -369,16 +457,30 @@ export async function createHybridTeamHost(
       const busy = (): boolean =>
         live.pendingJobs().some((job) => job.member.toLowerCase() === name.toLowerCase())
       const stop = heartbeat(report)
+      // 有审批在等就先回来：队员正等着制作人批一步，制作人卡在这里等它交活就成了互等
+      const gotMail = (): boolean => approvals.size > 0
       try {
-        while (busy() && !signal?.aborted && now() < deadline) {
-          await live.nextSettle(deadline - now(), signal).catch(() => undefined)
+        while (busy() && !gotMail() && !signal?.aborted && now() < deadline) {
+          const local = new AbortController()
+          const stopLocal = (): void => local.abort()
+          signal?.addEventListener('abort', stopLocal, { once: true })
+          try {
+            await Promise.race([
+              live.nextSettle(deadline - now(), local.signal).catch(() => undefined),
+              nextMail(deadline - now(), local.signal, gotMail)
+            ])
+          } finally {
+            local.abort()
+            signal?.removeEventListener('abort', stopLocal)
+          }
         }
       } finally {
         stop()
       }
-      return busy()
-        ? `已派给 ${name}。${Math.round(HYBRID_SEND_WAIT_MS / 1000)} 秒内还没交回，它接着在后台干；用 team_wait 等。`
-        : `${name} 交回了，结论在下面。`
+      if (!busy()) return `${name} 交回了，结论在下面。`
+      return gotMail()
+        ? `${name} 还在干，有审批在等你答复（在下面），答完用 team_wait 接着等。`
+        : `已派给 ${name}。${Math.round(HYBRID_SEND_WAIT_MS / 1000)} 秒内还没交回，它接着在后台干；用 team_wait 等。`
     },
 
     async wait(ms, signal, report) {
@@ -412,6 +514,22 @@ export async function createHybridTeamHost(
       detach ??= attachProducer()
     },
 
+    async approve(id, allow, note) {
+      const pending = approvals.get(id.trim())
+      if (!pending) {
+        throw new Error(
+          `没有在等答复的审批「${id}」：可能已经答过或超时了。` +
+            (approvals.size
+              ? `还在等的：${[...approvals.keys()].join('、')}`
+              : '现在没有在等的审批')
+        )
+      }
+      if (note?.trim())
+        await live.send(PRODUCER, pending.member, note.trim()).catch(() => undefined)
+      pending.finish(allow ? 'approve' : 'reject')
+      return allow ? `已批准 ${pending.member} 的这一步。` : `已拒绝 ${pending.member} 的这一步。`
+    },
+
     async gateFacts() {
       const queued = (await store.mail().catch(() => [])).filter(
         (m) => m.to === PRODUCER && !m.deliveredAt
@@ -421,6 +539,7 @@ export async function createHybridTeamHost(
 
     async dispose() {
       controller.abort(new Error('团队已结束'))
+      for (const pending of [...approvals.values()]) pending.finish('reject')
       if (liveTimer) clearTimeout(liveTimer)
       stopWatch?.()
       wake()

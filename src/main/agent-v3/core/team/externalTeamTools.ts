@@ -123,6 +123,7 @@ const ROLE_TEAM_TOOLS: Record<Role | 'none', ReadonlySet<string>> = {
     'team_send',
     'team_dismiss',
     'team_wait',
+    'team_approve',
     'team_board',
     'team_message',
     'team_inbox',
@@ -600,10 +601,10 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       .optional()
       .describe('新开团队时：队员的思考档位，省略 = auto'),
     approval_mode: z
-      .enum(['ask', 'auto-edit', 'yolo'])
+      .enum(['producer', 'ask', 'auto-edit', 'yolo'])
       .optional()
       .describe(
-        '新开团队时：队员的审批档位，用户说了用哪档就填哪档。auto-edit（默认）= 能撤销的直接做、不可逆的弹窗问用户；ask = 每个改动都问；yolo = 全放行'
+        '新开团队时：队员的审批档位。producer（默认）= 能撤销的直接做，不可逆的发给你用 team_approve 批；auto-edit / ask = 在盒子窗口弹框问用户；yolo = 全放行'
       )
   })
   // 两种形状给同一个类型：普通连接上 thinking_level 永远是 undefined（同 team_hire 的 model）
@@ -656,9 +657,7 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
         record = await deps.registry.create({
           objective: objective.trim(),
           ...(projectPath ? { projectPath } : {}),
-          ...(hosted
-            ? { members: 'box' as const, approvalMode: approval_mode ?? 'auto-edit' }
-            : {}),
+          ...(hosted ? { members: 'box' as const, approvalMode: approval_mode ?? 'producer' } : {}),
           ...(hosted && thinking_level ? { thinkingLevel: thinking_level } : {})
         })
       }
