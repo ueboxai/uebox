@@ -27,6 +27,8 @@
  *     存来源按标题存进已有知识库，而不是每存一条新建一个。
  */
 
+import { basename } from 'path'
+
 import type { WebContents } from 'electron'
 
 import { appSettingsManager } from '../../../appSettingsManager'
@@ -35,14 +37,43 @@ import { currentMainLanguage } from '../../../i18n'
 import { projectManager } from '../../../services/project/projectManager'
 import {
   buildSystemPrompt,
+  createTeamRunners,
   resolveAgentTools,
   runSubAgent,
   type SessionContext
 } from '../../core/createAgent'
-import { EDITOR_SCREENSHOT_DEFAULT } from '../../core/editorScreenshotScope'
-import type { TargetProjectRef } from '../../core/projectTargetContext'
-import { sharedExternalTeamRegistry } from '../../core/team/externalTeam'
+import {
+  EDITOR_SCREENSHOT_DEFAULT,
+  runWithEditorScreenshotScope
+} from '../../core/editorScreenshotScope'
+import {
+  getTargetProjectPath,
+  runWithTargetConnectionId,
+  type TargetProjectRef
+} from '../../core/projectTargetContext'
+import {
+  createRuntimeScopeId,
+  formatLocalNow,
+  runWithRuntimeScope,
+  type RuntimeEnvelope
+} from '../../core/runtimeEnvelope'
+import { runWithEditorKey } from '../../core/team/editorKey'
+import {
+  sharedExternalTeamRegistry,
+  type ExternalTeamRecord,
+  type ExternalTeamRegistry
+} from '../../core/team/externalTeam'
 import { createExternalTeamSession } from '../../core/team/externalTeamTools'
+import {
+  createHybridTeamHost,
+  hybridParentContext,
+  hybridTeamHost,
+  runningHybridTeam,
+  type HybridEnvironment,
+  type HybridTeamHost
+} from '../../core/team/hybridTeam'
+import { createHybridProducerTools, withProducerMailbox } from '../../core/team/hybridTeamTools'
+import { buildProducerBrief } from '../../core/team/teamPrompt'
 import { teamDirsFor } from '../../core/team/teamSession'
 import { createTeamStore } from '../../core/team/teamStore'
 import {
@@ -57,10 +88,14 @@ import type { UnrealAgentTool } from '../../tools/defineTool'
 import { applySkillLearningMode, discoverEnabledSkills } from '../skills'
 import { readUserInstructions } from '../userInstructions'
 import { createTeamSnapshots } from '../../../ipc/teamSnapshots'
+import { experienceHomeContext } from '../../experience/scheduler'
 import { elicitQuestions } from './elicitQuestions'
-import { ExternalTargetError, resolveExternalTarget } from './externalTarget'
+import { ExternalTargetError, normalizeProjectPath, resolveExternalTarget } from './externalTarget'
 import { ensureConnected } from './index'
 import type { McpSessionRequest, McpSessionSetup } from './McpServerHost'
+
+/** 混合团队制作人的工具集（`X-Unreal-Box-Profile: producer`） */
+export const PRODUCER_PROFILE = 'producer'
 
 /**
  * 笔记、知识库那几个工具要一个 `sender` 给界面发「变了，刷新一下」。
@@ -119,6 +154,15 @@ function externalTeamTarget(projectPath: string): TargetProjectRef {
  * 一轮之内工具不变是同一个道理：浏览器、ask_user 这些现造的工具带着自己的状态。
  */
 export async function setupMcpSession(request: McpSessionRequest): Promise<McpSessionSetup> {
+  if (request.profile !== undefined) {
+    // 认错了就说出来：一个拼错的头悄悄换成完整工具集，制作人手上就多了全套写工具
+    if (request.profile.toLowerCase() !== PRODUCER_PROFILE) {
+      throw new Error(
+        `不认识的工具集 "${request.profile}"（X-Unreal-Box-Profile），可用：${PRODUCER_PROFILE}`
+      )
+    }
+    return setupProducerSession()
+  }
   const settings = appSettingsManager.getSettings()
   const [shellAvailable, userInstructions, mcp, models] = await Promise.all([
     isShellAvailable(),
@@ -198,4 +242,198 @@ export async function setupMcpSession(request: McpSessionRequest): Promise<McpSe
     )
 
   return { tools, instructions, dispose: team.dispose }
+}
+
+// ── 混合团队：制作人在客户端，队员在盒子里 ─────────────────────────────
+
+/** 制作人连接的握手说明。工具说明和 `team_open` 回的须知里已经写全，这里只指路 */
+const PRODUCER_INSTRUCTIONS = [
+  '# Unreal Box — producer',
+  '',
+  'You are connected to Unreal Box as the producer of a hybrid team: you plan and coordinate here, and your teammates are models that run inside Unreal Box.',
+  'Start with `team_open` (a new objective, or `team_id` to continue). It returns your brief and your team_seat.'
+].join('\n')
+
+type HybridEngine = Pick<
+  HybridEnvironment,
+  'ueConnected' | 'project' | 'sessionProject' | 'outOfScopeProjects' | 'runtime'
+> & { target?: TargetProjectRef }
+
+/** 团队的工程此刻在不在：队员的引擎工具、环境块和运行信息都按它来 */
+function hybridEngine(record: ExternalTeamRecord): HybridEngine {
+  const connected = projectManager.getInteractiveProjects()
+  const wanted = record.projectPath ? normalizeProjectPath(record.projectPath) : undefined
+  // 记着工程就只认它；没记着、恰好连着一个，就是那一个（同普通外部会话）
+  const match = wanted
+    ? connected.find((p) => normalizeProjectPath(p.projectPath) === wanted)
+    : connected.length === 1
+      ? connected[0]
+      : undefined
+  const project = match
+    ? {
+        name: match.projectName,
+        ...(match.engineVersion ? { engineVersion: match.engineVersion } : {}),
+        ...(match.projectPath ? { path: match.projectPath } : {})
+      }
+    : undefined
+  const sessionProject = record.projectPath
+    ? {
+        name: project?.name ?? basename(record.projectPath),
+        ...(project?.engineVersion ? { engineVersion: project.engineVersion } : {}),
+        path: record.projectPath,
+        connected: Boolean(match)
+      }
+    : undefined
+  const others = sessionProject && !match ? connected.map((p) => p.projectName).filter(Boolean) : []
+  const runtime: RuntimeEnvelope = {
+    runtimeScopeId: createRuntimeScopeId(),
+    observedAt: formatLocalNow(),
+    engineLink: match ? 'target' : connected.length ? 'other_project' : 'none',
+    ...(project
+      ? {
+          targetProject: {
+            name: project.name,
+            ...(project.engineVersion ? { engineVersion: project.engineVersion } : {}),
+            ...(project.path ? { pathOnRecord: project.path } : {})
+          }
+        }
+      : {}),
+    ...(sessionProject
+      ? { sessionProject: { name: sessionProject.name, pathOnRecord: sessionProject.path } }
+      : {}),
+    ...(others.length ? { outOfScopeProjects: others } : {})
+  }
+  return {
+    ueConnected: Boolean(match),
+    ...(project ? { project } : {}),
+    ...(sessionProject ? { sessionProject } : {}),
+    ...(others.length ? { outOfScopeProjects: others } : {}),
+    runtime,
+    ...(record.projectPath ? { target: externalTeamTarget(record.projectPath) } : {})
+  }
+}
+
+/** 拉起一个混合团队的宿主。队员的父上下文对着盒子里 `/team` 那一轮的 ctx 写（`hybridParentContext`） */
+async function startHybridHost(
+  record: ExternalTeamRecord,
+  registry: ExternalTeamRegistry,
+  namespaces: string[]
+): Promise<HybridTeamHost> {
+  const id = record.id
+  const changed = (): void => sendToAppWindows('agent-v3:team-board', { sessionId: id })
+  return createHybridTeamHost(record, {
+    store: createTeamStore(teamDirsFor(id), Date.now, changed),
+    snapshots: createTeamSnapshots(),
+    // 制作人不在盒子里，没有「制作人的模型」：招人一律给模型、过体检
+    models: await loadTeamModels(),
+    namespaces,
+    jobScope: async (current) => {
+      const [shellAvailable, userInstructions, mcp] = await Promise.all([
+        isShellAvailable(),
+        readUserInstructions(),
+        ensureConnected()
+      ])
+      const { target, ...engine } = hybridEngine(current)
+      return {
+        parent: hybridParentContext({
+          shellAvailable,
+          userInstructions,
+          uiLanguage: currentMainLanguage(),
+          ...experienceHomeContext(),
+          mcp,
+          sender: broadcastSender,
+          editorScreenshotEnabled: EDITOR_SCREENSHOT_DEFAULT,
+          ...engine
+        }),
+        run: (fn) =>
+          runWithRuntimeScope(engine.runtime.runtimeScopeId, () =>
+            target ? runWithTargetConnectionId(target, fn) : fn()
+          )
+      }
+    },
+    runTool: (current, fn) =>
+      runWithEditorScreenshotScope(EDITOR_SCREENSHOT_DEFAULT, () =>
+        runWithEditorKey(() =>
+          current.projectPath && !getTargetProjectPath()
+            ? runWithTargetConnectionId(externalTeamTarget(current.projectPath), fn)
+            : fn()
+        )
+      ),
+    runners: createTeamRunners,
+    noteWrite: (teamId) => registry.noteWrite(teamId),
+    onChange: changed,
+    onActivity: (activity) =>
+      sendToAppWindows('agent-v3:team-activity', { sessionId: id, ...activity })
+  })
+}
+
+/**
+ * 混合团队制作人的一条连接：只有团队工具，没有盒子的读写工具（制作人用客户端自己的读文件、联网）。
+ * 进门、认人、交付闸照旧走外部团队那道门（`createExternalTeamSession`）
+ */
+async function setupProducerSession(): Promise<McpSessionSetup> {
+  const [shellAvailable, models] = await Promise.all([isShellAvailable(), loadTeamModels()])
+  const skills = applySkillLearningMode(await discoverEnabledSkills(), 'ask')
+  // 招人能选的命名空间：队员手上那一池，同盒子里制作人招人时看到的那份
+  const namespaces = [
+    ...new Set(
+      resolveAgentTools(
+        {
+          sessionId: 'hybrid-namespaces',
+          ueConnected: true,
+          shellAvailable,
+          sender: broadcastSender
+        },
+        skills
+      ).map((tool) => tool.unrealBox.namespace)
+    )
+  ]
+    .filter((ns) => ns !== 'core')
+    .sort()
+
+  const registry = sharedExternalTeamRegistry()
+  const hostOf = (teamId: string): Promise<HybridTeamHost> =>
+    hybridTeamHost(teamId, async () => {
+      const record = await registry.get(teamId)
+      if (!record || record.members !== 'box') throw new Error(`${teamId} 不是混合团队`)
+      return startHybridHost(record, registry, namespaces)
+    })
+
+  const team = createExternalTeamSession({
+    registry,
+    storeFor: (id) =>
+      createTeamStore(teamDirsFor(id), Date.now, () =>
+        sendToAppWindows('agent-v3:team-board', { sessionId: id })
+      ),
+    snapshots: createTeamSnapshots(),
+    namespaces,
+    resolveTarget: externalTeamTarget,
+    hosted: {
+      brief: async (record) => {
+        ;(await hostOf(record.id)).update(record)
+        return buildProducerBrief({
+          objective: record.objective,
+          workspaceDir: registry.dirsFor(record.id).workspaceDir,
+          hybrid: { teamId: record.id }
+        }).trimStart()
+      }
+    }
+  })
+  const fromGate = new Set(['team_open', 'team_inbox', 'team_list', 'team_gate'])
+  const tools = team.guard(
+    withProducerMailbox(
+      [
+        ...team.tools.filter((tool) => fromGate.has(tool.name)),
+        ...createHybridProducerTools({
+          teamOf: team.producerTeam,
+          hostOf,
+          namespaces,
+          ...(models ? { models } : {}),
+          snapshots: true
+        })
+      ],
+      { teamOf: team.producerTeam, running: runningHybridTeam }
+    )
+  )
+  return { tools, instructions: PRODUCER_INSTRUCTIONS, dispose: team.dispose }
 }

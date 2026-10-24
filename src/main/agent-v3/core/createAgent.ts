@@ -112,7 +112,8 @@ import {
   createBoardTool,
   createMessageTool,
   createTeamTools,
-  producerTools
+  producerTools,
+  type TeamToolDeps
 } from './team/teamTools'
 import { createStatusTool } from './team/teamStatus'
 import { pacedStreamFn, stallGuardStreamFn, type PacedStreamDeps } from './team/requestGate'
@@ -1493,8 +1494,89 @@ function attachTeamLive(ctx: SessionContext, agent: Agent): void {
 }
 
 /** 队员的锁主。不带 `:sub-`，所以不会被 `rootSessionId` 归回制作人 */
-function memberLockOwner(sessionId: string, name: string): string {
+export function memberLockOwner(sessionId: string, name: string): string {
   return `${sessionId}:mate-${memberFileBase(name)}`
+}
+
+/**
+ * 团队里真正跑模型的那两件：派给队员的活、交付验收。
+ *
+ * `parentOf` 每件活现取一次父上下文：盒子里的团队就是制作人这一轮的 ctx，
+ * 混合团队（`team/hybridTeam.ts`）每件活现算一份（引擎连没连上、工程在哪会变）。
+ * 验收要 `team`（目标、用户最近那句话），没有就报错。
+ */
+export function createTeamRunners(
+  parentOf: () => SessionContext
+): Pick<TeamToolDeps, 'runMember' | 'runAcceptance'> {
+  return {
+    runMember: async ({
+      member,
+      message,
+      history,
+      signal,
+      onProgress,
+      ledger,
+      keepMessages,
+      keepUsage,
+      pin
+    }) => {
+      const ctx = parentOf()
+      // 队员用自己的锁主：两个队员改同一个资产会被挡下，而不是像 `task` 那样
+      // 父子共用一把锁、互相不设防。它这件活干完就放锁 —— 队员的「一轮」就是一件活
+      const owner = memberLockOwner(ctx.sessionId, member.name)
+      return runWithLockOwner(owner, async () => {
+        try {
+          return await runSubAgent(ctx, {
+            prompt: message,
+            member,
+            ...(pin ? { model: pin } : {}),
+            seedMessages: history,
+            ledger,
+            onProgress,
+            keepMessages,
+            ...(keepUsage ? { keepUsage } : {}),
+            ...(member.namespaces ? { namespaces: member.namespaces } : {}),
+            ...(member.readOnly ? { readOnly: true } : {}),
+            ...(signal ? { signal } : {})
+          })
+        } finally {
+          releaseAll(owner)
+        }
+      })
+    },
+    runAcceptance: async ({
+      report,
+      howToPlay,
+      projectPath,
+      packageExe,
+      signal,
+      onProgress,
+      keepUsage
+    }) => {
+      const ctx = parentOf()
+      const team = ctx.team
+      if (!team) throw new Error('不是团队，没有验收')
+      // 验收员什么都不带：不看制作过程，只看交付说明和游戏本身。
+      // 不给审批通道，理由同 `/goal` 的审计员：它的授权边界就是 `isAuditorTool`
+      const result = await runSubAgent(ctx, {
+        prompt: buildAcceptancePrompt({
+          objective: team.objective,
+          ...(team.latestRequest ? { latestRequest: team.latestRequest } : {}),
+          report,
+          howToPlay,
+          ...(projectPath ? { projectPath } : {}),
+          ...(packageExe ? { packageExe } : {})
+        }),
+        auditorJudges: ACCEPTANCE_JUDGES,
+        withoutApproval: true,
+        seedMessages: [],
+        onProgress,
+        keepUsage,
+        ...(signal ? { signal } : {})
+      })
+      return result.text
+    }
+  }
 }
 
 /**
@@ -1531,69 +1613,7 @@ function teamToolsFor(
     objective: team.objective,
     namespaces,
     ...(models ? { models } : {}),
-    runMember: async ({
-      member,
-      message,
-      history,
-      signal,
-      onProgress,
-      ledger,
-      keepMessages,
-      keepUsage,
-      pin
-    }) => {
-      // 队员用自己的锁主：两个队员改同一个资产会被挡下，而不是像 `task` 那样
-      // 父子共用一把锁、互相不设防。它这件活干完就放锁 —— 队员的「一轮」就是一件活
-      const owner = memberLockOwner(ctx.sessionId, member.name)
-      return runWithLockOwner(owner, async () => {
-        try {
-          return await runSubAgent(ctx, {
-            prompt: message,
-            member,
-            ...(pin ? { model: pin } : {}),
-            seedMessages: history,
-            ledger,
-            onProgress,
-            keepMessages,
-            ...(keepUsage ? { keepUsage } : {}),
-            ...(member.namespaces ? { namespaces: member.namespaces } : {}),
-            ...(member.readOnly ? { readOnly: true } : {}),
-            ...(signal ? { signal } : {})
-          })
-        } finally {
-          releaseAll(owner)
-        }
-      })
-    },
-    runAcceptance: async ({
-      report,
-      howToPlay,
-      projectPath,
-      packageExe,
-      signal,
-      onProgress,
-      keepUsage
-    }) => {
-      // 验收员什么都不带：不看制作过程，只看交付说明和游戏本身。
-      // 不给审批通道，理由同 `/goal` 的审计员：它的授权边界就是 `isAuditorTool`
-      const result = await runSubAgent(ctx, {
-        prompt: buildAcceptancePrompt({
-          objective: team.objective,
-          ...(team.latestRequest ? { latestRequest: team.latestRequest } : {}),
-          report,
-          howToPlay,
-          ...(projectPath ? { projectPath } : {}),
-          ...(packageExe ? { packageExe } : {})
-        }),
-        auditorJudges: ACCEPTANCE_JUDGES,
-        withoutApproval: true,
-        seedMessages: [],
-        onProgress,
-        keepUsage,
-        ...(signal ? { signal } : {})
-      })
-      return result.text
-    },
+    ...createTeamRunners(() => ctx),
     ...(team.onVerdict ? { onVerdict: team.onVerdict } : {}),
     ...(team.snapshots ? { snapshots: team.snapshots } : {}),
     ...(team.live ? { live: team.live } : {})

@@ -45,9 +45,13 @@
         :team="board.team.value"
         :session-id="selectedId"
         :activity="board.activity.value"
+        :model-choices="board.team.value.hostedMembers ? board.modelChoices.value : undefined"
+        :models-loaded="board.modelsLoaded.value"
         @reopen="board.reopen"
         @reopen-job="board.reopenJob"
         @end="endSelected"
+        @open-models="board.loadModels"
+        @set-model="board.setMemberModel"
       />
       <AppEmpty v-else class="detail-empty" :title="t('externalTeams.pick')" />
     </section>

@@ -121,9 +121,9 @@ import {
 } from '../agent-v3/core/goalLoop'
 import { activeLoop, parseTeamCommand } from '../agent-v3/core/team/teamCommand'
 import { runWithEditorKey } from '../agent-v3/core/team/editorKey'
-import { createTeamStore, PRODUCER } from '../agent-v3/core/team/teamStore'
+import { createTeamStore } from '../agent-v3/core/team/teamStore'
 import { createTeamLive, type TeamLive } from '../agent-v3/core/team/teamLive'
-import { formatMail } from '../agent-v3/core/team/teamTools'
+import { awaitTeamWork } from '../agent-v3/core/team/teamWait'
 import { assignMemberModel, loadTeamModels, recordReopen } from '../agent-v3/core/team/teamModels'
 import { createTrackRecord } from '../agent-v3/core/team/trackRecord'
 import { loadModelDossiers, recheckModel } from '../agent-v3/core/team/modelDossier'
@@ -137,6 +137,7 @@ import {
   endExternalTeam,
   externalTeamExists,
   isExternalTeamId,
+  isHybridTeam,
   listExternalTeams,
   readExternalTeamState
 } from './externalTeams'
@@ -792,7 +793,7 @@ function attachTeamGate(
       followUp: (text) => agent.followUp({ role: 'user', content: text, timestamp: 0 }),
       report: (message) =>
         emit('agent-v3:notice', { sessionId: ctx.sessionId, message, level: 'info' }),
-      awaitTeam: (signal) => awaitTeamWork(ctx, signal),
+      awaitTeam: (signal) => awaitTeamWork(ctx.team, signal),
       checkBoard: async (state) => {
         const since = state.roundStartedAt
         if (since === undefined) return null
@@ -830,44 +831,6 @@ async function teamCarryOverBlock(
   } catch {
     return dismissed
   }
-}
-
-/** 制作人想收尾时，最多等一件后台的活多久。到点就提醒它一声，再接着等 */
-const TEAM_SETTLE_WAIT_MS = 10 * 60_000
-
-/**
- * 制作人想收尾时，团队这边还有没有事：
- * 后台派出去的活还在跑，就等下一件交回来（结论会插进制作人的下一步）；
- * 等太久就提醒它一声谁还在干、干了多久；信箱里有没看的留言就补给它。
- */
-async function awaitTeamWork(
-  ctx: SessionContext,
-  signal?: AbortSignal
-): Promise<{ continued?: boolean; followUp?: string } | null> {
-  const team = ctx.team
-  if (!team?.live) return null
-  const pending = team.live.pendingJobs()
-  if (pending.length > 0) {
-    const settled = await team.live.nextSettle(TEAM_SETTLE_WAIT_MS, signal)
-    if (settled) return { continued: true }
-    const now = Date.now()
-    return {
-      followUp: [
-        '[team mode · still working] This is not the user speaking.',
-        `Teammates are still on background work: ${pending
-          .map((job) => `${job.member} (${Math.round((now - job.startedAt) / 60_000)} min)`)
-          .join(', ')}.`,
-        'Their results will come to you as notes. Wait by ending your turn again, or check in with team_message.'
-      ].join('\n')
-    }
-  }
-  const inbox = await team.store.takeInbox(PRODUCER)
-  if (inbox.length > 0) {
-    return {
-      followUp: formatMail('[team mode · notes for you] This is not the user speaking.', inbox)
-    }
-  }
-  return null
 }
 
 /** 正在看护的编辑器，按会话记。一轮结束（`finally` 里）就停 */
@@ -1864,7 +1827,7 @@ export function registerAgentV3IPC(): void {
       if (!sessionId || !name || !providerId || !modelId) {
         return { success: false, error: 'sessionId、name、providerId、modelId 都要给' }
       }
-      if (!(await loadExecutionOptions(sessionId))?.team) {
+      if (!(await loadExecutionOptions(sessionId))?.team && !(await isHybridTeam(sessionId))) {
         return { success: false, error: '这条 session 不是团队模式' }
       }
       // 先过入职体检：不会调工具的模型换上去也干不了活，当场说清卡在哪比派活时才出错好

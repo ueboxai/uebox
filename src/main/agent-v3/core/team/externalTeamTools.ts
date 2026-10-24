@@ -114,6 +114,10 @@ const ROLE_TEAM_TOOLS: Record<Role | 'none', ReadonlySet<string>> = {
   producer: new Set([
     'team_open',
     'team_hire',
+    // 混合团队的制作人（`hybridTeamTools.ts`）：队员在盒子里跑，派活、辞人、等结果都走盒子
+    'team_send',
+    'team_dismiss',
+    'team_wait',
     'team_board',
     'team_message',
     'team_inbox',
@@ -147,6 +151,9 @@ const ROLE_TEAM_TOOLS: Record<Role | 'none', ReadonlySet<string>> = {
 export const EXTERNAL_TEAM_TOOL_NAMES: ReadonlySet<string> = new Set(
   Object.values(ROLE_TEAM_TOOLS).flatMap((names) => [...names])
 )
+
+/** 混合团队开团时能选的思考档位，同盒子输入框里那一档（`ThinkingLevelChoice`） */
+const THINKING_CHOICES = ['auto', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 
 /** 进门的两个工具：不按连接认人，只认这次亲手带的通行证 */
 const ENTRY_TOOLS: ReadonlySet<string> = new Set(['team_open', 'team_join'])
@@ -212,6 +219,15 @@ export interface ExternalTeamDeps {
    * 「认不出来」的目标，免得编辑器命令落进旁边另一个连着的工程（见 `projectTargetContext.ts`）
    */
   resolveTarget: (projectPath: string) => TargetProjectRef
+  /**
+   * 混合团队（队员由盒子托管，`hybridTeam.ts`）。给了它，这条连接是混合制作人的：
+   * `team_open` 建的团队记成 `members: 'box'`，回话里的制作人须知由它给（顺带把宿主拉起来）。
+   * 不给的连接开不了混合团队，混合团队的队员也不经 `team_join` 进门
+   */
+  hosted?: {
+    /** 制作人须知。团队记录已经落盘 */
+    brief: (record: ExternalTeamRecord) => Promise<string>
+  }
   now?: () => number
 }
 
@@ -224,6 +240,10 @@ export interface ExternalTeamSession {
   dispose: () => Promise<void>
   /** 测试用：不带通行证时这条连接被认成谁 */
   binding: () => Readonly<Binding> | undefined
+  /**
+   * 这次调用是哪个团队的制作人。只在 `guard` 包着的调用里有值：混合团队的制作人工具靠它找到宿主
+   */
+  producerTeam: () => string | undefined
 }
 
 /**
@@ -539,7 +559,7 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
     }
   }
 
-  const openInput = z.object({
+  const baseOpenInput = z.object({
     objective: z.string().optional().describe('新开团队时必填：用户要的那一句话'),
     team_id: z.string().optional().describe('接着已有的团队干（换天、换会话、补工程路径）'),
     project_path: z
@@ -547,6 +567,14 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       .optional()
       .describe('团队在哪个虚幻工程里干（.uproject 所在目录的绝对路径）。工程建好之后补上')
   })
+  const hostedOpenInput = baseOpenInput.extend({
+    thinking_level: z
+      .enum(THINKING_CHOICES)
+      .optional()
+      .describe('新开团队时：队员的思考档位，省略 = auto')
+  })
+  // 两种形状给同一个类型：普通连接上 thinking_level 永远是 undefined（同 team_hire 的 model）
+  const openInput = (deps.hosted ? hostedOpenInput : baseOpenInput) as typeof hostedOpenInput
 
   const openTool = defineTool<typeof openInput, unknown>({
     name: 'team_open',
@@ -554,11 +582,13 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
     risk: 'safe',
     concurrency: 'sequential',
     description:
-      '外部团队（你当制作人，队员和验收员是你客户端里的子 Agent，盒子只提供任务板、留言、锁、快照、验收记录）。' +
+      (deps.hosted
+        ? '混合团队（你当制作人，队员是盒子里跑的模型，你招人时给它挑模型）。'
+        : '外部团队（你当制作人，队员和验收员是你客户端里的子 Agent，盒子只提供任务板、留言、锁、快照、验收记录）。') +
       `新开一个团队，或者接着已有的团队干。返回团队 id、制作人须知和你的通行证（${TEAM_SEAT_ARG}）：之后每次调用都带上它。` +
       `带着自己的 ${TEAM_SEAT_ARG} 再调一次就是补工程路径。`,
     input: openInput,
-    execute: async ({ objective, team_id, project_path }) => {
+    execute: async ({ objective, team_id, project_path, thinking_level }) => {
       const prior = presented()
       if (prior && prior.role !== 'producer') {
         throw new Error(
@@ -568,17 +598,33 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       sameTeam(prior, team_id?.trim())
       const projectPath = project_path?.trim() || undefined
       const existingId = team_id?.trim() || prior?.teamId
+      const hosted = deps.hosted
       let record
       if (existingId) {
         record = await openRecord(existingId)
-        if (projectPath && projectPath !== record.projectPath) {
-          record = await deps.registry.update(record.id, (r) => ({ ...r, projectPath }))
+        if (Boolean(hosted) !== (record.members === 'box')) {
+          throw new Error(
+            record.members === 'box'
+              ? `团队 ${record.id} 的队员由盒子托管：用混合制作人的连接（请求头 X-Unreal-Box-Profile: producer）接着开`
+              : `团队 ${record.id} 的队员是客户端里的子 Agent，不是混合团队：用普通的盒子连接接着开`
+          )
+        }
+        // 混合团队带着 team_id 再开时给的 objective 是用户新说的话：记下来给验收员，目标原文不动
+        const latest = hosted ? objective?.trim() : undefined
+        if ((projectPath && projectPath !== record.projectPath) || latest) {
+          record = await deps.registry.update(record.id, (r) => ({
+            ...r,
+            ...(projectPath ? { projectPath } : {}),
+            ...(latest ? { latestRequest: latest } : {})
+          }))
         }
       } else {
         if (!objective?.trim()) throw new Error('新开团队要给 objective；接着干给 team_id')
         record = await deps.registry.create({
           objective: objective.trim(),
-          ...(projectPath ? { projectPath } : {})
+          ...(projectPath ? { projectPath } : {}),
+          ...(hosted ? { members: 'box' as const, approvalMode: 'yolo' as const } : {}),
+          ...(hosted && thinking_level ? { thinkingLevel: thinking_level } : {})
         })
       }
       const store = deps.storeFor(record.id)
@@ -617,12 +663,14 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
         text: [
           seatNote(b.seat),
           '',
-          buildExternalProducerBrief({
-            teamId: record.id,
-            objective: record.objective,
-            workspaceDir,
-            ...(record.projectPath ? { projectPath: record.projectPath } : {})
-          }),
+          hosted
+            ? await hosted.brief(record)
+            : buildExternalProducerBrief({
+                teamId: record.id,
+                objective: record.objective,
+                workspaceDir,
+                ...(record.projectPath ? { projectPath: record.projectPath } : {})
+              }),
           '',
           `团队 ${record.id}：${roster.length ? `现有 ${roster.map((m) => m.name).join('、')}` : '还没有队员'}。`,
           renderBoard(await store.board())
@@ -662,8 +710,16 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       const record = await openRecord(team_id.trim())
       const store = deps.storeFor(record.id)
       const { workspaceDir } = deps.registry.dirsFor(record.id)
+      const asAcceptor = member.trim().toLowerCase() === ACCEPTOR
 
-      if (member.trim().toLowerCase() === ACCEPTOR) {
+      // 混合团队的队员是盒子里的子 Agent，制作人用 team_send 派活；客户端里再起一个同名的就是两份记忆、两本账
+      if (record.members === 'box' && !asAcceptor) {
+        throw new Error(
+          `团队 ${record.id} 的队员由盒子托管，不用 team_join 进门。制作人用 team_send 给「${member.trim()}」派活`
+        )
+      }
+
+      if (asAcceptor) {
         if (prior?.role === 'member' || (!prior && !shared && servedAsMember)) {
           throw new Error(
             `${prior ? '这张通行证' : '这条连接'}干过队员的活，不能再当验收员。` +
@@ -1121,6 +1177,10 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
     binding: () => {
       const b = boundSeat ? seats.get(boundSeat) : undefined
       return b instanceof Promise ? undefined : b
+    },
+    producerTeam: () => {
+      const b = current.getStore()?.binding
+      return b && b.role === 'producer' && !inactive(b) ? b.teamId : undefined
     },
     async dispose() {
       const b = !shared && boundSeat ? seats.get(boundSeat) : undefined
