@@ -601,10 +601,10 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
       .optional()
       .describe('新开团队时：队员的思考档位，省略 = auto'),
     approval_mode: z
-      .enum(['producer', 'ask', 'auto-edit', 'yolo'])
+      .enum(['yolo', 'producer', 'ask', 'auto-edit'])
       .optional()
       .describe(
-        '新开团队时：队员的审批档位。producer（默认）= 能撤销的直接做，不可逆的发给你用 team_approve 批；auto-edit / ask = 在盒子窗口弹框问用户；yolo = 全放行'
+        '新开团队时：队员的审批档位。yolo（默认）= 全放行，队员自己判断；producer = 不可逆的发给你用 team_approve 批；auto-edit / ask = 在盒子窗口弹框问用户'
       )
   })
   // 两种形状给同一个类型：普通连接上 thinking_level 永远是 undefined（同 team_hire 的 model）
@@ -657,7 +657,7 @@ export function createExternalTeamSession(deps: ExternalTeamDeps): ExternalTeamS
         record = await deps.registry.create({
           objective: objective.trim(),
           ...(projectPath ? { projectPath } : {}),
-          ...(hosted ? { members: 'box' as const, approvalMode: approval_mode ?? 'producer' } : {}),
+          ...(hosted ? { members: 'box' as const, approvalMode: approval_mode ?? 'yolo' } : {}),
           ...(hosted && thinking_level ? { thinkingLevel: thinking_level } : {})
         })
       }
