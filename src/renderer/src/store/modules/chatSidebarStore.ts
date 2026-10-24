@@ -202,7 +202,7 @@ export const useChatSidebarStore = defineStore(
         'manualProjects',
         'hiddenProjects',
         'pinnedProjects'
-      ],
+      ] satisfies (keyof ChatSidebarState)[],
       storage: localStorage
     }
   }
