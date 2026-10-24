@@ -462,7 +462,9 @@ const REGISTRATIONS: readonly Registration[] = Object.freeze([
     name: 'ue_content_search',
     namespace: 'ue.content',
     risk: 'safe',
-    make: () => ueContent.createSearchAssetsTool()
+    make: () => ueContent.createSearchAssetsTool(),
+    // 盘点大工程时目录清单和资产列表各能上万字符，留在上下文里之后每一步都要重发
+    archive: { lists: { folders: ['path', 'assets'], results: ['path', 'class'] } }
   },
   {
     name: 'ue_content_describe',

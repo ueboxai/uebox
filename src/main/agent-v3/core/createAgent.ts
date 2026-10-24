@@ -686,6 +686,8 @@ export interface CreatedAgent {
   allTools: UnrealAgentTool<never>[]
   runtime: AgentModelRuntime
   skills: SkillMetadata[]
+  /** 不看阈值压掉已装进来的历史，见 `createAutoCompact` 的 `compactHistory` */
+  compactHistory: (signal?: AbortSignal) => Promise<boolean>
 }
 
 /** 子 agent 序号，用于生成唯一 sessionId */
@@ -719,12 +721,16 @@ export async function createUnrealAgent(ctx: SessionContext): Promise<CreatedAge
    * `runSubAgent` 的 `namespaces` / `toolNames` / `readOnly` 都是可选的，不带白名单
    * 派出去的子任务拿的是**完整工具池**，那恰恰是折叠最划算的场景。按身份关等于
    * 把一个没发生的收窄当成发生了。
+   *
+   * **队员的 `namespaces` 也不算收窄。** 制作人给队员一配就是十来个命名空间，
+   * 真机上队员第一个请求 2.2–2.7 万 token，直接对话折叠后只有 1.4 万；
+   * 队员一件活几十个请求，每个都多带一万。
    */
   if (
     ctx.readOnly ||
     ctx.mode === 'ask' ||
     ctx.toolNames?.length ||
-    ctx.namespaces?.length ||
+    (ctx.namespaces?.length && !ctx.teamMember) ||
     ctx.auditorJudges
   )
     ctx.toolSearchEnabled = false
@@ -1124,7 +1130,8 @@ export async function createUnrealAgent(ctx: SessionContext): Promise<CreatedAge
     allTools: search ? [...onlineTools, search.tool] : onlineTools,
     runtime,
     skills,
-    toolSearchEnabled: ctx.toolSearchEnabled
+    toolSearchEnabled: ctx.toolSearchEnabled,
+    compactHistory: (signal) => autoCompact.compactHistory(agent.state.messages, signal)
   }
 }
 
@@ -1256,7 +1263,7 @@ export async function runSubAgent(
     ? `${parent.sessionId}:mate-${memberFileBase(input.member.name)}`
     : `${parent.sessionId}:sub-${++subAgentSeq}`
 
-  const { agent, allTools } = await createUnrealAgent({
+  const { agent, allTools, compactHistory } = await createUnrealAgent({
     ...parent,
     sessionId: subId,
     isSubAgent: true,
@@ -1323,6 +1330,13 @@ export async function runSubAgent(
 
   if (input.seedMessages.length > 0) {
     restoreTranscript(agent, input.seedMessages)
+    // 队员接新活：之前几件活的过程压成摘要，最近一段（含上件活的交活报告）留原文。
+    // 历史本来就短的话压不动，原样往下走
+    if (input.member) {
+      const compacted = await compactHistory(input.signal)
+      input.signal?.throwIfAborted()
+      if (compacted) input.onProgress?.('之前几件活的记录已压成摘要')
+    }
   }
   // 「这一路新产生的」从这里往后算。不能用 seedMessages.length：开头有子 agent
   // 自己那条提示词，继承来的父历史里的 system 消息又被 restoreTranscript 丢了
