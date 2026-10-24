@@ -326,6 +326,9 @@ function createDismissTool(
 
 // ── 招人 ────────────────────────────────────────────────────────────────
 
+/** `team_hire` 说明里候选名单的开头。混合团队把名单挪进 `team_open` 的回话，按它切（`hybridTeamTools.ts`） */
+export const HIRE_CANDIDATES_HEADING = '可用模型：\n'
+
 function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<TeamMember> {
   const models = deps.models
   const choosable = canChooseModels(models)
@@ -386,7 +389,8 @@ function createHireTool(deps: TeamToolDeps, now: () => number): UnrealAgentTool<
         ? '\n\n每个队员可以用不同的模型。看这个岗位的活要多强、量多大、要不要换一家的眼光来查，自己判断；' +
           '用户在任务板上亲手改过的模型（回话里标着「用户定的」），除非用户开口别再改。' +
           '某个岗位的活老被用户打回，可以同名再招一次换个模型，回话里跟用户说清依据。' +
-          '挑了你以外的模型，盒子会先给它做一次入职体检（通不通、会不会调工具），没过会告诉你。可用模型：\n' +
+          '挑了你以外的模型，盒子会先给它做一次入职体检（通不通、会不会调工具），没过会告诉你。' +
+          HIRE_CANDIDATES_HEADING +
           describeCandidates(models)
         : ''),
     input: hireInput,
@@ -812,7 +816,8 @@ function describeRoute(
   route: MemberRoute
 ): string {
   if (route.fellBack && member.model) {
-    return `（它的模型 ${modelLabel(models, member.model)} 现在用不了，这件活改用你的模型）`
+    // 没有「制作人的模型」（混合团队的制作人在盒子外）时退回的是盒子的默认模型，不能说成你的
+    return `（它的模型 ${modelLabel(models, member.model)} 现在用不了，这件活改用${models?.producer ? '你的模型' : '盒子的默认模型'}）`
   }
   if (!canChooseModels(models) || !route.used) return ''
   return `（${modelLabel(models, route.used)}${member.modelBy === 'user' ? '，用户定的' : ''}）`

@@ -75,7 +75,7 @@ const ZH = `虚幻盒子 CLI —— 从终端调用虚幻引擎能力
   --output <path>           截图存到哪，只接受 .png，相对路径按当前目录算
   --world auto|editor       截图拍哪个世界，默认 auto：PIE 在跑就拍游戏
   --overwrite               截图允许覆盖已存在的文件
-  --hook                    team gate/round 按 Claude Code hook 的约定读写
+  --hook                    team gate/round、team guard 按 hook 约定读写
   --config <path>           盒子的配置文件，装在别处时用；或设 UEBOX_HOST_CONFIG
   --timeout <seconds>       整条命令的期限，默认 120
   --lang zh-CN|en-US        帮助与提示用哪种语言
@@ -162,7 +162,7 @@ Options (before or after the command):
   --output <path>           Screenshot file, .png only, relative to cwd
   --world auto|editor       Which world to capture; auto captures PIE if running
   --overwrite               Let the screenshot replace an existing file
-  --hook                    team gate/round: speak the Claude Code hook format
+  --hook                    team gate/round, team guard: Claude Code hook format
   --config <path>           The box's config file if installed elsewhere;
                             or set UEBOX_HOST_CONFIG
   --timeout <seconds>       Deadline for the whole command, default 120

@@ -15,7 +15,9 @@ import { randomUUID } from 'crypto'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
+import type { ApprovalMode } from '../approval'
 import type { GoalVerdict } from '../goalLoop'
+import type { ThinkingLevelChoice } from '../streamFn'
 import { sessionsDir } from '../transcriptStore'
 import { applyVerdict, newTeamState, noteWrite, teamDirsFor, type TeamState } from './teamSession'
 import type { TeamDirs } from './teamStore'
@@ -41,6 +43,17 @@ export interface ExternalTeamRecord {
   seats?: Record<string, ExternalSeat>
   /** 交付闸状态：验收结论、最近一次写工程的时刻。和盒子里的团队同一个形状 */
   state: TeamState
+  /**
+   * 队员在哪跑。`box` = 混合团队：制作人在外部客户端，队员是盒子里的子 Agent（`hybridTeam.ts`）。
+   * 没有 = 队员也是外部客户端里的子 Agent，进门靠 `team_join`
+   */
+  members?: 'box'
+  /** 混合团队：队员的审批档位，同盒子输入框里那一档。没有 = auto-edit */
+  approvalMode?: ApprovalMode
+  /** 混合团队：队员的思考档位，和另外几队对齐用。没有 = auto */
+  thinkingLevel?: ThinkingLevelChoice
+  /** 混合团队：开团之后用户最近那句话（制作人带着 team_id 再开时给的 objective）。只带给验收员 */
+  latestRequest?: string
 }
 
 /**
@@ -94,6 +107,10 @@ export interface ExternalGateFacts {
   deliveries: number
   passed: boolean
   ended: boolean
+  /** 混合团队：还在后台跑的活。有的话制作人该 `team_wait`，不是收工 */
+  pendingJobs: number
+  /** 混合团队：队员发给制作人、它还没看的话 */
+  unreadForProducer: number
 }
 
 export function gateFacts(record: ExternalTeamRecord): ExternalGateFacts {
@@ -110,13 +127,20 @@ export function gateFacts(record: ExternalTeamRecord): ExternalGateFacts {
     lastWriteAt: state.lastWriteAt ?? null,
     deliveries: state.deliveries,
     passed: state.verdict === 'pass' && !changedSince,
-    ended: record.endedAt !== undefined
+    ended: record.endedAt !== undefined,
+    pendingJobs: 0,
+    unreadForProducer: 0
   }
 }
 
 export interface ExternalTeamRegistry {
   dirsFor(id: string): TeamDirs
-  create(input: { objective: string; projectPath?: string }): Promise<ExternalTeamRecord>
+  create(
+    input: { objective: string; projectPath?: string } & Pick<
+      ExternalTeamRecord,
+      'members' | 'approvalMode' | 'thinkingLevel'
+    >
+  ): Promise<ExternalTeamRecord>
   get(id: string): Promise<ExternalTeamRecord | undefined>
   /** 改一份记录。`change` 回 null = 不用改（不落盘） */
   update(
@@ -194,11 +218,14 @@ export function createExternalTeamRegistry(deps: ExternalTeamRegistryDeps): Exte
   const registry: ExternalTeamRegistry = {
     dirsFor: deps.dirsFor,
 
-    async create({ objective, projectPath }) {
+    async create({ objective, projectPath, members, approvalMode, thinkingLevel }) {
       const record: ExternalTeamRecord = {
         id: newId(),
         objective,
         ...(projectPath ? { projectPath } : {}),
+        ...(members ? { members } : {}),
+        ...(approvalMode ? { approvalMode } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {}),
         createdAt: now(),
         state: newTeamState(objective)
       }
