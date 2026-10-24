@@ -131,7 +131,7 @@ describe('混合团队的宿主', () => {
     expect(parent.sessionId).toBe(host.teamId)
     expect(parent.externalClient).toBeUndefined()
     expect(parent).toMatchObject({
-      approvalMode: 'auto-edit',
+      approvalMode: 'yolo',
       pacedRequests: true,
       thinkingLevel: 'auto'
     })
@@ -371,7 +371,7 @@ describe('混合团队的制作人连接', () => {
     const [record] = await registry.list()
     expect(record).toMatchObject({
       members: 'box',
-      approvalMode: 'producer',
+      approvalMode: 'yolo',
       thinkingLevel: 'high'
     })
   })
@@ -644,7 +644,7 @@ describe('制作人开的工程', () => {
   })
 })
 
-describe('制作人审批（approval_mode: producer，默认）', () => {
+describe('制作人审批（approval_mode: producer）', () => {
   /** 队员的这一步要过审批：照审批门那样调父上下文的 requestApproval */
   const destroy = {
     sessionId: 'ext-x:mate-搭建',
@@ -660,7 +660,11 @@ describe('制作人审批（approval_mode: producer，默认）', () => {
   async function hostWith(
     timeoutMs = 60_000
   ): Promise<{ host: HybridTeamHost; verdicts: string[]; release: () => void }> {
-    const record = await registry.create({ objective: '塔防', members: 'box' })
+    const record = await registry.create({
+      objective: '塔防',
+      members: 'box',
+      approvalMode: 'producer'
+    })
     store = createTeamStore(registry.dirsFor(record.id))
     const boxPopup = vi.fn(async () => 'approve' as const)
     const host = await createHybridTeamHost(record, {

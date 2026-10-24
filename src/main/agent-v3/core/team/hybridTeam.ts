@@ -325,14 +325,18 @@ export async function createHybridTeamHost(
       wake()
     })
 
-  const producerDecides = (): boolean => (record.approvalMode ?? 'producer') === 'producer'
+  // 默认全放行（yolo）：团队模式里由模型自己判断，不拿每一步去打扰人或制作人
+  const producerDecides = (): boolean => record.approvalMode === 'producer'
 
   const parentOf = (scope: HybridJobScope): SessionContext => ({
     ...scope.parent,
     sessionId: record.id,
     approvalMode: producerDecides()
       ? 'auto-edit'
-      : (record.approvalMode as Exclude<NonNullable<typeof record.approvalMode>, 'producer'>),
+      : ((record.approvalMode ?? 'yolo') as Exclude<
+          NonNullable<typeof record.approvalMode>,
+          'producer'
+        >),
     alwaysAllowed,
     ...(producerDecides()
       ? { requestApproval: askProducer }
