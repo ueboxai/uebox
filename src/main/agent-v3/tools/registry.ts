@@ -225,7 +225,9 @@ const REGISTRATIONS: readonly Registration[] = Object.freeze([
     name: 'ue_get_actor',
     namespace: 'ue.actor',
     risk: 'safe',
-    make: () => ueActor.createGetActorTool()
+    make: () => ueActor.createGetActorTool(),
+    // 整关列 Actor 一次就是几百行、六万字符；目录页给名字和类型，属性按编号取
+    archive: { lists: { actors: ['name', 'class', 'path'] } }
   },
   {
     name: 'ue_set_property',
@@ -470,7 +472,9 @@ const REGISTRATIONS: readonly Registration[] = Object.freeze([
     name: 'ue_content_describe',
     namespace: 'ue.content',
     risk: 'safe',
-    make: () => ueContent.createDescribeAssetTool()
+    make: () => ueContent.createDescribeAssetTool(),
+    // 一个关卡的依赖动辄两三百个
+    archive: { lists: { dependencies: ['path', 'class'], referencers: ['path', 'class'] } }
   },
   {
     name: 'ue_content_audit_optimization',

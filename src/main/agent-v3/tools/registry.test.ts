@@ -92,6 +92,11 @@ describe('buildAllTools', () => {
     const byName = new Map(buildAllTools().map((t) => [t.name, t]))
     expect(byName.get('search_assets')?.unrealBox.archive?.lists.assets).toContain('name')
     expect(byName.get('project_list')?.unrealBox.archive?.lists.templates).toContain('name')
+    expect(byName.get('ue_get_actor')?.unrealBox.archive?.lists.actors).toContain('name')
+    expect(byName.get('ue_content_describe')?.unrealBox.archive?.lists.dependencies).toContain(
+      'path'
+    )
+    expect(byName.get('ue_content_search')?.unrealBox.archive?.lists.folders).toContain('path')
     expect(byName.get('project_manage')?.unrealBox.archive).toBeUndefined()
   })
 

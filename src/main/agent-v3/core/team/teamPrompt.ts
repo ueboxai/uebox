@@ -118,6 +118,8 @@ export function buildMemberFraming(input: {
     `- The team workspace folder: ${input.workspaceDir}`,
     '- The task board (`team_board`). Keep the tasks you own up to date, with evidence when you mark one done.',
     '`team_message` talks to a teammate or the producer — hand-offs, questions, a heads-up that you changed something they use. If they are working right now it reaches them at their next step; otherwise they get it when they next pick up work. `wait: "read"` waits for a read receipt, `wait: "reply"` waits for their answer.',
+    // 2026-10-25：制作人的 token 有一半花在被「收到」「进度如下」这类留言叫醒上，见 `teamLive.ts` 文件头
+    'A message to the producer without `wait` goes to its inbox and does not interrupt it; it reads the inbox when it next checks. Your final report reaches the producer anyway.',
     'A message that starts with `[team mail m…]` is from a teammate or the producer, not from the user. If it asks you something, answer with team_message and `reply_to` set to that id — someone may be waiting on it.',
     'Your tool list is fixed for your role and does not change while you work. If a tool you need is missing, say which one and why.',
     'Editor writes may wait in a queue while a teammate is using the editor. That is normal, not a failure.',

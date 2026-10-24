@@ -776,12 +776,15 @@ function createSendTool(
         const live = deps.live
         // 后台跑：进度照样冒到这次调用的泳道上，结论作为留言送回制作人
         const job = assign(member, message, ctx).then(
-          ({ text }) => live.send(member.name, PRODUCER, `【交活】${text}`),
+          ({ text }) =>
+            live.send(member.name, PRODUCER, `【交活】${text}`, undefined, { interrupt: true }),
           (error: unknown) =>
             live.send(
               member.name,
               PRODUCER,
-              `【没干完】${member.name} 这件活停下了：${error instanceof Error ? error.message : String(error)}`
+              `【没干完】${member.name} 这件活停下了：${error instanceof Error ? error.message : String(error)}`,
+              undefined,
+              { interrupt: true }
             )
         )
         live.track(member.name, job)
@@ -869,7 +872,7 @@ export function createMessageTool(
       : delivery === 'live'
         ? `${to} 正在干活，已插进它的下一步。`
         : to === PRODUCER
-          ? '制作人这会儿没在跑，已放进它的信箱。'
+          ? '已放进制作人的信箱，它下次看信箱时会读到。'
           : `${to} 这会儿没在干活，已放进它的信箱，下次接活时会看到。`
 
   return defineTool<typeof messageInput, unknown>({
@@ -881,6 +884,7 @@ export function createMessageTool(
     description:
       `给队友或制作人（"${PRODUCER}"）说话：交接产出、提问、提醒对方你改了什么。**它不派活** —— ` +
       '对方正在干活的话，这句会插进它的下一步；对方空闲的话只是进信箱，不会让它开工（要它干活用 team_send）。' +
+      '发给制作人的话不带 wait 只进它的信箱，不打断它。' +
       'wait=read 等回执（对方真的读到），wait=reply 等对方回话。',
     input: messageInput,
     execute: async ({ to, text, reply_to, wait, wait_seconds }, ctx) => {
@@ -912,7 +916,10 @@ export function createMessageTool(
         return { text: deliveryNote(target, 'queued'), details: mail }
       }
 
-      const { mail, delivery } = await live.send(from, target, text, reply_to)
+      // 给制作人的话只有对方要等的才当场插进去，见 `teamLive.ts` 文件头
+      const { mail, delivery } = await live.send(from, target, text, reply_to, {
+        interrupt: wait !== 'none'
+      })
       const lines = [`已发出 ${mail.id}。${deliveryNote(target, delivery)}`]
       // 2026-09-26 真机反馈：制作人给空闲的队员发 team_message 当派活，其实只进了信箱，
       // 白等一整轮才发现得再用 team_send 发一遍
