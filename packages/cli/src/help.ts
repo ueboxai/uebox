@@ -67,6 +67,7 @@ const ZH = `虚幻盒子 CLI —— 从终端调用虚幻引擎能力
   --json                    stdout 只输出一个 JSON 对象；诊断走 stderr
   --project <path>          目标工程，.uproject 文件或其所在目录都行
   --allow-write             允许这条命令改动工程
+  --model <id>              ask 用哪个模型，盒子里配了多个模型时才能选
   --search <text>           tools list 按名字或描述筛选
   --args <JSON>             tools call 的参数
   --args-file <path>        从文件读参数；写 - 表示从标准输入读
@@ -82,7 +83,7 @@ const ZH = `虚幻盒子 CLI —— 从终端调用虚幻引擎能力
   -v, --version             看版本号
 
 ask：
-  用的是盒子里配置的模型，费用记在那个模型的账上。子任务只碰引擎、
+  默认用盒子里配置的模型，费用记在实际用的模型上。子任务只碰引擎、
   素材库和工程库；shell、本地文件、浏览器、第三方 MCP 一律不给。
   不加 --allow-write 时它只能查，不能改。进度打在 stderr 上；
   --timeout 对它算的是多久没有任何进度，不是总时长。
@@ -153,6 +154,7 @@ Options (before or after the command):
   --json                    Emit one JSON object on stdout; diagnostics stderr
   --project <path>          Target project; .uproject or its directory
   --allow-write             Let this command change the project
+  --model <id>              ask: which of the box's models to run on
   --search <text>           tools list: filter by name or description
   --args <JSON>             tools call: arguments
   --args-file <path>        Read arguments from a file; - means stdin
@@ -169,11 +171,10 @@ Options (before or after the command):
   -v, --version             Show the version
 
 ask:
-  Runs on the model configured in the box, billed to that model. The subtask
-  only touches the engine and the asset and project libraries; shell, local
-  files, browser and third-party MCP are never given. Without --allow-write it
-  can look but not change. Progress goes to stderr; for ask, --timeout means
-  how long without any progress, not total time.
+  Default model unless --model picks another. The subtask only touches the
+  engine and the asset and project libraries; no shell, local files, browser
+  or third-party MCP. Without --allow-write it can look, not change. Progress
+  goes to stderr; --timeout means time without progress, not total time.
 
 Writes:
   Without --allow-write only read-only tools are called. With it, anything the

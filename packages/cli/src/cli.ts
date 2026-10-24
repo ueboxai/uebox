@@ -106,6 +106,7 @@ async function dispatch(parsed: ParsedArgs, env: NodeJS.ProcessEnv, io: RunIO): 
         prompt: parsed.command.slice(1).join(' '),
         allowWrite: parsed.allowWrite,
         ...(parsed.project ? { project: parsed.project } : {}),
+        ...(parsed.model ? { model: parsed.model } : {}),
         ...(io.progress ? { onProgress: io.progress } : {})
       })
 
