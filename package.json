@@ -125,7 +125,7 @@
     "better-sqlite3": "^12.11.1",
     "cors": "^2.8.6",
     "dayjs": "^1.11.23",
-    "diff": "8.0.4",
+    "diff": "9.0.0",
     "dompurify": "3.4.17",
     "dotenv": "^17.4.2",
     "electron-log": "^5.4.4",
