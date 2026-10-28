@@ -254,6 +254,7 @@
       :url="browserUrl"
       :navigation="browserNavigation"
       :group="browserGroup"
+      :find="browserFind"
       :visible="paneActive"
       @select-review="selectReviewTab"
       @close-review="closeFileReview"
@@ -2702,7 +2703,8 @@ const {
   open: browserPaneOpen,
   url: browserUrl,
   navigation: browserNavigation,
-  group: browserGroup
+  group: browserGroup,
+  find: browserFind
 } = useSessionBrowser(browserSessionId, paneActive, () => {
   message.error(t('assistant.browserPane.restoreFailed'))
 })

@@ -1,5 +1,6 @@
 import type {
   BrowserGroupState,
+  BrowserCommand,
   BrowserTabCommand,
   BrowserNavigationState,
   BrowserToolbarAction
@@ -152,6 +153,8 @@ const GENERIC_EVENT_CHANNELS = new Set([
   'agent-v3:user-message',
   // Agent 浏览器的开关状态。嵌入模式下助手页面据此决定要不要给它留位置
   'agent-browser:state',
+  // 焦点在网页里按了 Ctrl+L / Ctrl+F：主进程让面板打开地址栏或查找条
+  'agent-browser:ui',
   'app:blur-active-element',
   'asset:repairVaultThumbnailsProgress',
   'chat-sessions:refresh',
@@ -1399,6 +1402,18 @@ const api = {
       error?: string
       code?: string
     }> => ipcRenderer.invoke('agent-browser:open-url', sessionId, address),
+    /** 焦点在面板上时按的浏览器快捷键 */
+    command: (
+      sessionId: string,
+      command: BrowserCommand
+    ): Promise<{ success: boolean; data: null; error?: string; code?: string }> =>
+      ipcRenderer.invoke('agent-browser:command', sessionId, command),
+    /** 页内查找，传 null 收起 */
+    find: (
+      sessionId: string,
+      query: { text: string; forward?: boolean; findNext?: boolean } | null
+    ): Promise<{ success: boolean; data: null; error?: string; code?: string }> =>
+      ipcRenderer.invoke('agent-browser:find', sessionId, query),
     /** 报告嵌入面板的位置；传 null 表示此刻不该显示 */
     setBounds: (
       bounds: { x: number; y: number; width: number; height: number } | null,

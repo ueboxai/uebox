@@ -1,5 +1,6 @@
 import type {
   BrowserGroupState,
+  BrowserCommand,
   BrowserTabCommand,
   BrowserNavigationState,
   BrowserToolbarAction
@@ -3285,6 +3286,14 @@ declare global {
         error?: string
         code?: string
       }>
+      command: (
+        sessionId: string,
+        command: BrowserCommand
+      ) => Promise<{ success: boolean; data: null; error?: string; code?: string }>
+      find: (
+        sessionId: string,
+        query: { text: string; forward?: boolean; findNext?: boolean } | null
+      ) => Promise<{ success: boolean; data: null; error?: string; code?: string }>
       /** 报告嵌入面板的位置；传 null 表示此刻不该显示 */
       setBounds: (
         bounds: { x: number; y: number; width: number; height: number } | null,
