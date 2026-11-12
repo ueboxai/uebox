@@ -140,7 +140,6 @@
     "mammoth": "^1.13.0",
     "markdown-it": "^15.0.3",
     "marked": "^18.1.1",
-    "mermaid": "^11.17.2",
     "morphdom": "^2.7.8",
     "multer": "^2.5.0",
     "photoswipe": "^5.4.4",
@@ -248,9 +247,6 @@
     "vite": {
       "nanoid": "3.3.18"
     },
-    "vue-mermaid-string": {
-      "nanoid": "5.1.16"
-    },
     "better-sqlite3": {
       "prebuild-install": {
         "tar-fs": "2.1.4"
@@ -284,7 +280,6 @@
       "tern>minimatch": "3.1.4",
       "router>path-to-regexp": "8.4.2",
       "vite>nanoid": "3.3.18",
-      "vue-mermaid-string>nanoid": "5.1.16",
       "prebuild-install>tar-fs": "2.1.4",
       "@electron/rebuild@4>node-abi": "4.35.0"
     },

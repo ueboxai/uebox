@@ -18,8 +18,7 @@ import DOMPurify from 'dompurify'
  * `html: false` 会改变用户可见行为：手写在笔记里的 HTML 会失效。消毒只摘掉
  * 危险构造，其余照常渲染。
  *
- * dompurify 本来就已经在包里（经 mermaid 传递依赖），`THIRD-PARTY-NOTICES.md`
- * 也登记过它的许可证，所以这一步不新增依赖、不改许可证声明。
+ * dompurify 是直接依赖，`THIRD-PARTY-NOTICES.md` 登记过它的许可证。
  */
 
 /**
