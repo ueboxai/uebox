@@ -156,7 +156,9 @@ describe('混合团队的宿主', () => {
       behave = () => new Promise(() => undefined)
       let reply: string | undefined
       void host.send({ to: '策划', message: '写', wait: true }).then((text) => (reply = text))
-      for (let minute = 0; minute < 20 && reply === undefined; minute++) {
+      // 等待计时器要等落盘走完才挂上，CI 的慢盘上可能晚好几「分钟」：按真实时间兜底，不按拨了几分钟
+      const deadline = performance.now() + 8_000
+      while (reply === undefined && performance.now() < deadline) {
         for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve))
         await vi.advanceTimersByTimeAsync(60_000)
       }
