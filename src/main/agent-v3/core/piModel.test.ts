@@ -549,15 +549,35 @@ describe('toPiModel', () => {
      * 400「requires adaptive thinking」。中转站常见的 one-api 渠道也要覆盖到。
      */
     it('两本目录都没有的新 Claude 按版本号走自适应', () => {
-      const relay = { ...claude([]), id: 'one-api', catalogId: 'one-api', baseUrl: 'https://relay.example.com' }
-      for (const id of ['claude-fable-5-2', 'claude-opus-6', 'claude-sonnet-5-7-20270101', 'anthropic/claude-fable-5.2']) {
+      const relay = {
+        ...claude([]),
+        id: 'one-api',
+        catalogId: 'one-api',
+        baseUrl: 'https://relay.example.com'
+      }
+      for (const id of [
+        'claude-fable-5-2',
+        'claude-opus-6',
+        'claude-sonnet-5-7-20270101',
+        'anthropic/claude-fable-5.2'
+      ]) {
         expect(adaptiveOf(toPiModel(relay, { id })), id).toBe(true)
       }
     })
 
     it('两本目录都没有的老 Claude 或认不出版本号的照旧走预算', () => {
-      const relay = { ...claude([]), id: 'one-api', catalogId: 'one-api', baseUrl: 'https://relay.example.com' }
-      for (const id of ['claude-3-5-sonnet-20990101', 'claude-opus-4-20990514', 'claude-sonnet-4-5-x', 'claude-latest']) {
+      const relay = {
+        ...claude([]),
+        id: 'one-api',
+        catalogId: 'one-api',
+        baseUrl: 'https://relay.example.com'
+      }
+      for (const id of [
+        'claude-3-5-sonnet-20990101',
+        'claude-opus-4-20990514',
+        'claude-sonnet-4-5-x',
+        'claude-latest'
+      ]) {
         expect(adaptiveOf(toPiModel(relay, { id })), id).toBeUndefined()
       }
     })
