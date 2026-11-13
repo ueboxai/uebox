@@ -26,12 +26,22 @@
  * 什么都拿不到。这份投影是**临时的**，只作用于发出去的那一份，本地存的
  * transcript 一个字节都不动 —— 换了个上限更宽的模型，那些图照样回来。
  *
- * ## 为什么要「多丢一点」
+ * ## 丢哪几张不能每轮重算
  *
- * 丢到刚好压线的话，下一轮多一张图就又超，于是每轮丢的前缀都在变 ——
- * 而变动的前缀会把厂商的 prompt 缓存整段打掉。所以一旦要丢就丢到低水位
- * （预算的 60%），让这个前缀在随后几轮里保持不变。DeepSeek 用的是 64MB 一个
- * 量子成批丢，同一个道理。
+ * 厂商的 prompt 缓存按前缀命中：这一轮丢的图和上一轮不一样，从最靠前那张变动的图
+ * 往后就全部重新计费。原来那版每轮按「大的先丢、丢到低水位」现算一遍名单，
+ * 真机上（会话 4c95ca6e，每张试玩截图 13～16 万字节）请求体过线之后来一张新图
+ * 名单就变一次，变动落在对话很靠前的位置：8 次，每次全价重读 18～25 万 token。
+ *
+ * 所以名单必须**只由请求体有多大决定，而且只增不减**，不靠记状态
+ * （agent 每条用户消息重建一次，记在闭包里的状态活不过一轮）：
+ *
+ * - **从老到新丢。** 名单永远是「最老的 N 张」，N 只会变大。
+ * - **按整档丢。** 超出预算的部分向上取整到一档（预算的 40%），丢够这一档为止。
+ *   请求体再涨，只要没跨进下一档，名单一张不变；跨档那一次重读一遍，之后又稳住。
+ *
+ * 代价：不再是「丢的张数最少」。几张图里最大的那张如果恰好最新，先丢的是前面的小图。
+ * 单独一张就放不进预算的图另算，见 `projectWithinBudget`。
  *
  * ## 预算从哪来
  *
@@ -57,7 +67,7 @@ import { onSettingsChanged } from '../../ai/store'
  */
 export const DEFAULT_REQUEST_MAX_BYTES = 3 * 1024 * 1024
 
-/** 触发投影后丢到哪个水位。留出余量，免得每轮都要重丢一次，见文件头 */
+/** 一档丢多少：预算减去这个水位。见文件头「丢哪几张不能每轮重算」 */
 const LOW_WATER_RATIO = 0.6
 
 /**
@@ -248,31 +258,20 @@ export function projectWithinBudget(context: Context, maxBytes: number): Project
 
   // **只有比占位文字大的图才值得丢。** 状态小图标、1×1 像素这种，换成占位文字
   // 之后请求反而更大 —— 真机上 MCP server 返这种图很常见，而原来那版会因此
-  // 一路「丢」到底：`remaining` 每轮反向增长，永远到不了预算，最后报告
-  // 「全都要丢」，把每一张图都换成了更长的一段话。
-  const order = dropOrder(sizes).filter((index) => sizes[index] > placeholder)
-  if (order.length === 0) {
+  // 一路「丢」到底，把每一张图都换成了更长的一段话。
+  const saving = (index: number): number => sizes[index] - placeholder
+  const worth = sizes.map((_, index) => index).filter((index) => saving(index) > 0)
+  if (worth.length === 0) {
     // 没有能省下东西的图 —— 纯文本撑爆的，这一层无能为力。
     // 照常发出去，让厂商的报错带着真实原因回来，别在这里编一个。
     console.warn(`[requestBudget] 请求 ${bytes} 字节超出 ${maxBytes} 预算，但里面没有图可丢`)
     return { context, bytes, droppedImages: 0 }
   }
 
-  const plan = (limit: number): { drop: number[]; remaining: number } => {
-    let remaining = bytes
-    const drop: number[] = []
-    for (const index of order) {
-      if (remaining <= limit) break
-      remaining -= sizes[index] - placeholder
-      drop.push(index)
-    }
-    return { drop, remaining }
-  }
-
   // 图全丢光都到不了预算，说明撑爆的是文本。那就一张都别丢 —— 丢了照样 413，
   // 只是白白搭上模型正在看的那几张图。
-  const required = plan(maxBytes)
-  if (required.remaining > maxBytes) {
+  const excess = bytes - maxBytes
+  if (worth.reduce((sum, index) => sum + saving(index), 0) < excess) {
     console.warn(
       `[requestBudget] 请求 ${bytes} 字节超出 ${maxBytes} 预算，` +
         '但把图全丢光也压不下来（文本本身就超了），原样发出去'
@@ -280,15 +279,31 @@ export function projectWithinBudget(context: Context, maxBytes: number): Project
     return { context, bytes, droppedImages: 0 }
   }
 
-  // 低水位是为了少丢几次（见文件头），**不是为了多丢一张**。所以按低水位丢，
-  // 但最新那张留着 —— 那是模型这一轮正在看的东西，除非它本来就在必丢名单里。
-  const newest = Math.max(...order)
-  const dropped = new Set(
-    plan(Math.floor(maxBytes * LOW_WATER_RATIO)).drop.filter(
-      (index) => index !== newest || required.drop.includes(index)
-    )
-  )
-  if (dropped.size === 0) return { context, bytes, droppedImages: 0 }
+  const dropped = new Set<number>()
+  let saved = 0
+  const drop = (index: number): void => {
+    dropped.add(index)
+    saved += saving(index)
+  }
+
+  // 单独一张就放不进预算的图先丢：留着它，别的图丢光也救不回来（3.5MB 的 UV 图那次）
+  const withoutImages = bytes - sizes.reduce((sum, size) => sum + size, 0)
+  for (const index of worth) {
+    if (withoutImages + sizes[index] > maxBytes) drop(index)
+  }
+
+  // 其余的从老到新丢，丢够 `target` 为止（为什么是整档，见文件头「丢哪几张不能每轮重算」）
+  const quantum = maxBytes - Math.floor(maxBytes * LOW_WATER_RATIO)
+  const target = Math.ceil(excess / quantum) * quantum
+  const newest = worth[worth.length - 1]
+  for (const index of worth) {
+    if (saved >= target) break
+    if (dropped.has(index)) continue
+    // 多丢的那部分是为了以后少丢几次，**不是为了多丢一张**：最新那张是模型这一轮
+    // 正在看的东西，已经压进预算了就留着
+    if (index === newest && saved >= excess) break
+    drop(index)
+  }
 
   let seen = -1
   const messages = context.messages.map((message) => {
@@ -304,26 +319,6 @@ export function projectWithinBudget(context: Context, maxBytes: number): Project
 
   const projected: Context = { ...context, messages }
   return { context: projected, bytes: measureContextBytes(projected), droppedImages: dropped.size }
-}
-
-/**
- * 丢图的顺序：**大的先丢，一样大的从老到新**。
- *
- * 单纯按「从老到新」会护着错的那张：用户刚让模型看一张 1.8MB 的精灵图，
- * 而它恰好是最新的一张 —— 于是循环把之前两张 80KB 的截图挨个换成占位文字，
- * 刚好压线就停手，肇事的那张原封不动留着。模型丢掉的是它正在推理用的东西，
- * 留下的是它根本看不清的那张。
- *
- * 按大小排还有一个好处：**丢的张数最少**。原来用「超过预算一半才算大图」
- * 那种阈值，三张各占 40% 的图一张都算不上「大」，顺序退回从老到新，
- * 上面那个坑原样复现 —— 阈值挪一挪就漏，而「先丢大的」不需要任何常数。
- *
- * 「最新那张尽量留着」不在这里管，由 `required.drop` 那一层决定。
- */
-function dropOrder(sizes: number[]): number[] {
-  return sizes
-    .map((_, index) => index)
-    .sort((a, b) => (sizes[b] !== sizes[a] ? sizes[b] - sizes[a] : a - b))
 }
 
 export const __testing = {

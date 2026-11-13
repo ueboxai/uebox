@@ -247,10 +247,11 @@ describe('超预算时丢最老的图', () => {
   })
 
   /**
-   * 「从老到新」不能护着肇事的那张，而阈值挪一挪就漏 —— 三张各占 40% 的图
-   * 一张都算不上「大」，顺序退回从老到新，坑原样复现。按大小排不需要常数。
+   * 名单只由请求体有多大决定，而且永远是「最老的 N 张」。原来按「大的先丢」每轮现算，
+   * 来一张新图名单就变，变动落在对话很靠前的位置，厂商的 prompt 缓存从那儿往后全部重读
+   * （真机会话 4c95ca6e：8 次，每次 18～25 万 token）。
    */
-  it('几张一样大的图，先丢大的那张而不是最老的', () => {
+  it('从老到新丢，大图排在后面也不插队', () => {
     const context = {
       messages: [image(300), image(300), image(900)].map((img) => ({
         role: 'user',
@@ -262,16 +263,46 @@ describe('超预算时丢最老的图', () => {
     const result = projectWithinBudget(context, 1024 * 1024)
     const messages = result.context.messages as Array<{ content: Array<{ type: string }> }>
 
-    expect(result.droppedImages).toBe(1)
-    expect(messages[2]?.content.some((block) => block.type === 'image')).toBe(false)
-    expect(messages[0]?.content.some((block) => block.type === 'image')).toBe(true)
+    expect(messages[0]?.content.some((block) => block.type === 'image')).toBe(false)
+    expect(messages[2]?.content.some((block) => block.type === 'image')).toBe(true)
+  })
+
+  it('对话接着涨，丢掉的还是那几张，直到跨进下一档', () => {
+    const budget = 1000 * 1024
+    const droppedAt = (extraKb: number): number[] => {
+      const context = {
+        messages: [
+          ...Array.from({ length: 8 }, () => ({
+            role: 'user',
+            content: [image(150)],
+            timestamp: 0
+          })),
+          { role: 'user', content: [{ type: 'text', text: 'x'.repeat(extraKb * 1024) }] }
+        ]
+      } as unknown as Ctx
+      const messages = projectWithinBudget(context, budget).context.messages as Array<{
+        content: Array<{ type: string }>
+      }>
+      return messages.flatMap((message, index) =>
+        message.content.some((block) => block.type === 'image') || index === 8 ? [] : [index]
+      )
+    }
+
+    // 8 张 150KB 已经超了 200KB：丢一档（400KB），也就是最老的 3 张
+    expect(droppedAt(0)).toEqual([0, 1, 2])
+    // 文本又涨了 150KB，还在同一档里：名单一张不变
+    expect(droppedAt(50)).toEqual([0, 1, 2])
+    expect(droppedAt(150)).toEqual([0, 1, 2])
+    // 跨进下一档：只往后多丢，前面丢过的不会回来
+    expect(droppedAt(250)).toEqual([0, 1, 2, 3, 4, 5])
   })
 
   /**
    * 用户刚让模型看一张巨大的精灵图，它恰好是最新的一张。按纯粹的从老到新，
-   * 循环会把之前两张小截图挨个换掉、刚好压线就停手 —— 肇事的那张原封不动。
+   * 循环会把之前两张小截图挨个换掉 —— 而肇事的那张单独一张就放不进预算，
+   * 小图丢光也救不回来。这种图先丢。
    */
-  it('一张就吃掉大半预算的图优先丢，哪怕它是最新的', () => {
+  it('单独一张就放不进预算的图先丢，哪怕它是最新的', () => {
     const context = {
       messages: [image(80), image(80), image(1800)].map((img) => ({
         role: 'user',

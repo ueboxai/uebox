@@ -521,7 +521,7 @@ export async function resolveAgentModel(
     if (projected.droppedImages > 0) {
       console.warn(
         `[streamFn] 本轮请求超出 ${target.providerId} 的预算，` +
-          `已丢掉 ${projected.droppedImages} 张图（最大的优先），换成占位文字`
+          `已丢掉 ${projected.droppedImages} 张图（最老的优先），换成占位文字`
       )
     }
     // 发不出去的那几类先换成说明，剩下的（如果还有）在 onPayload 里换成链接
