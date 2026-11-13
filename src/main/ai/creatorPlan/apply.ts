@@ -192,7 +192,9 @@ function chatModel(spec: CreatorPlanChatSpec): ModelConfig {
             THINKING_LEVELS.map((level) => [level, efforts.has(level) ? level : null])
           )
         }
-      : {})
+      : {}),
+    // 中转站比盒子自带的目录先知道新型号：思考格式听它的，不用等盒子发版
+    ...(spec.adaptive_thinking === true ? { adaptiveThinking: true } : {})
   }
 }
 

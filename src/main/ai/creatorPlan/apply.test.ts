@@ -140,6 +140,26 @@ describe('planProviders', () => {
     })
     // 不支持推理的模型不给档位表
     expect(provider!.models.find((m) => m.id === 'uebox-vision')!.thinkingLevelMap).toBeUndefined()
+    // 清单没说就不写这一位，交给盒子自己的目录判断
+    expect(agent.adaptiveThinking).toBeUndefined()
+  })
+
+  /**
+   * 中转站比盒子自带的目录先知道新型号。Fable 5.2 上架时盒子目录里没有它，
+   * 清单不带这一位，盒子就发老式 budget_tokens，对面整轮 400。
+   */
+  it('清单标了自适应思考就照写进模型，落盘后还在', () => {
+    const fable: CreatorPlanManifest = {
+      ...manifest,
+      roles: { chat: chatSpec('claude-fable-5-2', { adaptive_thinking: true }) }
+    }
+    const settings = normalizeSettings({
+      ...base,
+      providers: [...base.providers, ...planProviders(fable, keyRef)]
+    })
+    const model = settings.providers.find((p) => p.id === PLAN_PROVIDER_ID)!.models[0]
+    expect(model.id).toBe('claude-fable-5-2')
+    expect(model.adaptiveThinking).toBe(true)
   })
 
   it('落盘归一化后字段不丢', () => {

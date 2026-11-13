@@ -33,6 +33,8 @@ export interface CreatorPlanChatSpec {
   supports_tools: boolean
   supports_reasoning: boolean
   reasoning_efforts?: string[]
+  /** Claude 走自适应思考（`thinking: adaptive` + `output_config.effort`），不走老式 budget_tokens */
+  adaptive_thinking?: boolean
   structured_output: 'json-schema' | 'json-object' | 'none'
 }
 
