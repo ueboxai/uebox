@@ -222,12 +222,31 @@ function reasoningFor(provider: ProviderConfig, model: ModelConfig): boolean {
  * 我们的目录兜底 pi 快照还没收录的新型号（比如 Claude Fable 5.1）。
  */
 function adaptiveThinkingFor(provider: ProviderConfig, model: ModelConfig): boolean {
-  return (
-    model.adaptiveThinking ??
-    catalogModel(provider, model)?.adaptiveThinking ??
-    builtinAdaptiveThinking(provider, model) ??
-    false
-  )
+  const listed = model.adaptiveThinking ?? catalogModel(provider, model)?.adaptiveThinking
+  if (listed !== undefined) return listed
+  const builtin = builtinAdaptiveThinking(provider, model)
+  if (builtin !== undefined) return builtin
+  if (catalogModel(provider, model) || builtinModel(provider, model)) return false
+  return unlistedClaudeIsAdaptive(model.id)
+}
+
+/**
+ * 两本目录都没收的 Claude 型号按版本号定：4.6 起走自适应思考。
+ *
+ * 目录查不到的型号几乎都是比两份快照新的，而新型号只认自适应 —— Fable 5.2 上架时
+ * 两本目录都没有，盒子退回老式预算，中转站整轮回「requires adaptive thinking」
+ * （2026-11-13）。目录里有的型号不走这里，照目录上的标记办。
+ *
+ * 老型号反过来不认 `output_config.effort`，所以只认得出版本号、且不低于 4.6 才算；
+ * 认不出版本号的照旧走预算。型号名的两种写法都要认：`claude-opus-4-6`、
+ * `claude-3-5-sonnet-20241022`；日期后缀不能当成小版本（`claude-opus-4-20250514` 是 4.0）。
+ */
+function unlistedClaudeIsAdaptive(modelId: string): boolean {
+  const match = /claude-(?:[a-z]+-)?(\d+)(?:[-.](\d)(?!\d))?/i.exec(modelId)
+  if (!match) return false
+  const major = Number(match[1])
+  const minor = Number(match[2] ?? 0)
+  return major > 4 || (major === 4 && minor >= 6)
 }
 
 /**
