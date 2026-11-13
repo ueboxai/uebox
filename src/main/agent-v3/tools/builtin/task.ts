@@ -17,7 +17,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { z } from 'zod'
 
-import type { TeamModel } from '../../../../shared/agentTeam'
+import type { TeamModel, TeamUsage } from '../../../../shared/agentTeam'
 import {
   formatInterruptedWrites,
   summarizeDoneWrites,
@@ -98,6 +98,11 @@ export interface SubAgentResult {
   writes?: WriteEntry[]
   /** 这一路是不是以只读模式跑的 */
   readOnly?: boolean
+  /**
+   * 这一路花掉的 token。跟着结果进主会话记录：子任务的请求不写进主会话，
+   * 不留这一份，事后查用量时子任务那部分是看不见的（真机上它是主对话的 1.8 倍）。
+   */
+  usage?: TeamUsage
 }
 
 /**
@@ -172,7 +177,8 @@ const taskInput = z.object({
   prompt: z
     .string()
     .describe(
-      '给子 agent 的任务描述。不需要重复背景 —— 它默认能看到当前对话的全部上下文。\n' +
+      '给子 agent 的任务描述。它默认看不到当前对话：目标、已经查清的事实（资产路径、node_id、结论）、' +
+        '约束、要交回什么，都写在这里。\n' +
         '**别派「先打开工程再干活」这种活。** 子 agent 的工具清单在它开工那一刻就定死了：' +
         '它就算真把工程打开了，这一轮也拿不到引擎工具，只会回一句「引擎没连上」。' +
         '要开工程就自己先开完，再把后面的活派出去。'
@@ -196,11 +202,11 @@ const taskInput = z.object({
   context_mode: z
     .enum(['inherit', 'summary', 'fresh'])
     .optional()
-    .default('inherit')
+    .default('fresh')
     .describe(
-      'inherit=继承完整对话（默认，信息最全）；' +
-        'summary=只给父对话的摘要（父对话很长时用）；' +
-        'fresh=只给 prompt，不带任何历史（任务与当前对话无关时用）'
+      'fresh=只给 prompt，不带任何历史（默认）；' +
+        'summary=另给一份父对话的摘要；' +
+        'inherit=继承完整对话。它每一步都要带着整段对话，只在背景多到 prompt 里写不下时用'
     )
 })
 
@@ -242,7 +248,7 @@ export function createTaskTool(deps: TaskToolDeps): UnrealAgentTool<SubAgentResu
 开了它写工具根本不在子 agent 手上；不开的话，在 prompt 里写多少条「禁止修改」都拦不住它
 「顺手修好」，而它改的是用户的工程。
 
-子 agent 默认继承当前对话的完整上下文，**你不需要把背景重复写进 prompt**。
+子 agent 默认从零开始，**看不到当前对话**：把目标、已经查清的事实、约束和要交回的东西写进 prompt。
 它返回的是最终结论，中间过程不会进入当前对话；结论末尾会附一行它实际做过的写操作。`,
     input: deps.models ? withModelInput(deps.models.catalog) : taskInput,
     execute: async (args, ctx) => {

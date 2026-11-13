@@ -55,7 +55,7 @@ function makeAgent(tools: UnrealAgentTool<never>[]): {
 }
 
 describe('task 子 agent 端到端', () => {
-  it('模型调 task → 子 agent 拿到父对话 → 结论回到父上下文', async () => {
+  it('模型调 task（inherit）→ 子 agent 拿到父对话 → 结论回到父上下文', async () => {
     // 子 agent 收到的 seedMessages —— V3 与 V2 的本质区别就在这里
     let seedSeen: AgentMessage[] = []
 
@@ -70,7 +70,9 @@ describe('task 子 agent 端到端', () => {
     const { agent, faux } = makeAgent([taskTool])
 
     faux.setResponses([
-      fauxAssistantMessage([fauxToolCall('task', { prompt: '找到那个材质' }, { id: 'c1' })]),
+      fauxAssistantMessage([
+        fauxToolCall('task', { prompt: '找到那个材质', context_mode: 'inherit' }, { id: 'c1' })
+      ]),
       fauxAssistantMessage('材质在 /Game/Env/M_Wood，我接着改')
     ])
 

@@ -94,19 +94,21 @@ describe('stripPendingToolCalls', () => {
 describe('task 子 agent 工具', () => {
   // 这是 V3 相对 V2 最关键的一处差异。V2 的 route_to_specialist 只能传一个
   // 字符串，工具描述里明写着「专家无法看到对话历史！」，每次委派都丢信息。
-  it('默认把父 agent 的完整 transcript 传给子 agent，而不是字符串', async () => {
+  it('context_mode=inherit 时把父 agent 的完整 transcript 传给子 agent，而不是字符串', async () => {
     const { runSubAgent, tool } = makeTool()
 
-    await tool.execute('c1', { prompt: '调整粗糙度' })
+    await tool.execute('c1', { prompt: '调整粗糙度', context_mode: 'inherit' })
 
     expect(runSubAgent).toHaveBeenCalledTimes(1)
     expect(runSubAgent.mock.calls[0][0].seedMessages).toEqual(PARENT)
   })
 
-  it('context_mode=fresh 时不带任何历史', async () => {
+  // 默认带着整段对话的话，子任务每一步都重读一遍主对话，而且用不上主对话的缓存：
+  // 真机上 51 个子任务的请求量是主对话的 1.8 倍
+  it('默认不带任何历史', async () => {
     const { runSubAgent, tool } = makeTool()
 
-    await tool.execute('c1', { prompt: '与当前对话无关的任务', context_mode: 'fresh' })
+    await tool.execute('c1', { prompt: '把 /Game/Env/Materials/M_Wood 的粗糙度调到 0.4' })
 
     expect(runSubAgent.mock.calls[0][0].seedMessages).toEqual([])
   })

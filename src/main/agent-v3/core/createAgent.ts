@@ -1449,7 +1449,8 @@ export async function runSubAgent(
           messageCount: withoutSystemMessages(agent.state.messages.slice(seededCount)).length,
           writeToolCalls: ledger.counts(),
           writes: ledger.list(),
-          readOnly: Boolean(input.readOnly)
+          readOnly: Boolean(input.readOnly),
+          usage: spent
         }
       }
     )
@@ -1756,10 +1757,8 @@ export function buildSystemPrompt(
     ...(ctx.isSubAgent
       ? []
       : [
-          // 对外 MCP 会话不把对话交给子 agent（hostSession 的 getParentMessages 是空的）
-          ctx.externalClient
-            ? '- `task`: hand a well-scoped subtask to a sub-agent, which starts fresh — put everything it needs in the prompt'
-            : '- `task`: hand a well-scoped subtask to a sub-agent, which inherits this conversation in full'
+          // 子 agent 默认不带对话（`task.ts` 的 `context_mode`）：带着的话它每一步都重读整段主对话
+          '- `task`: hand a well-scoped subtask to a sub-agent, which starts fresh — put everything it needs in the prompt'
         ]),
     // 没有 skill 时 createSkillTools() 返回空数组，这两个工具根本不存在 ——
     // 照样列在能力清单里，模型会去调一个没注册的工具。
@@ -1958,7 +1957,7 @@ export function buildSystemPrompt(
   } else if (ctx.isSubAgent) {
     lines.push(
       '',
-      'You are a sub-agent working on a task handed over by the main agent, and you can see the full conversation that led here.',
+      "You are a sub-agent working on a task handed over by the main agent. Your task is the last user message; any conversation above it is the main agent's, handed to you as background.",
       // 不写这句，模型会照着「派子任务」这个通用习惯去找一个它没有的工具
       'You cannot delegate further: there is no `task` tool in your list. Do the work yourself, or report back what is blocking you.',
       /*
@@ -1971,7 +1970,7 @@ export function buildSystemPrompt(
        *
        * 所以这件事必须在这里说清：清单是**按层**给的，不是随时间变的。
        */
-      "Your tool list is scoped to this subtask and does not change while you run. It is smaller than the main conversation's — delegation is gone, and a read-only subtask also loses every write tool. The transcript you inherited is written in the first person by the main agent, so it will describe using tools you do not have; that is a difference of scope, not tools disappearing over time. If a tool is missing, say which one and what you needed it for, and never report that the tools are degrading.",
+      "Your tool list is scoped to this subtask and does not change while you run. It is smaller than the main conversation's — delegation is gone, and a read-only subtask also loses every write tool. A transcript you inherited is written in the first person by the main agent, so it will describe using tools you do not have; that is a difference of scope, not tools disappearing over time. If a tool is missing, say which one and what you needed it for, and never report that the tools are degrading.",
       'You cannot talk to the user. When something genuinely needs the user to decide, write the situation up and return it to the main agent instead of assuming.',
       'Finish with one paragraph: what you did, how it turned out, and what the main agent needs to know.'
     )
