@@ -93,9 +93,27 @@ const UNSTABLE_TEXT =
 const HOPELESS_TEXT =
   /insufficient.?quota|余额不足|额度不足|billing|invalid.?api.?key|unauthorized|context.?length|context window|prompt is too long/i
 
+/** 中转没分到线路：状态码和错误类型都可能写成「请求有误」，但过一会儿换条线路就好 */
+const NO_CHANNEL_TEXT = /无可用渠道|no available channel|令牌未覆盖|未覆盖供应商|负载已饱和/i
+
+/**
+ * 错误体里明说「请求本身写错了」（`invalid_request_error`）。
+ *
+ * 状态码靠不住：真机上中转站把上游的 400「claude-fable-5-2 requires adaptive thinking」
+ * 包成 500 往回传，盒子当成中转暂时不行，每 60 秒重发一次、整整 30 分钟。
+ * 错误类型是厂商写在体里的固定字段，比状态码可信，也不用去背报错文字。
+ */
+function isRequestMistake(errorMessage: string): boolean {
+  return (
+    classifyProviderError(errorMessage).code === 'invalid_request_error' &&
+    !NO_CHANNEL_TEXT.test(errorMessage)
+  )
+}
+
 /** 持续模式认的失败：断线（含卡死重发到头的那句）加上中转暂时不行 */
 export function isRetryableUnstable(errorMessage: string | undefined): boolean {
   if (!errorMessage || HOPELESS_TEXT.test(errorMessage)) return false
+  if (isRequestMistake(errorMessage)) return false
   return (
     GATE_EXHAUSTED.test(errorMessage) ||
     DISCONNECT_TEXT.test(errorMessage) ||

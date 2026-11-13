@@ -79,6 +79,24 @@ const CAPABILITIES = [
 ] as const
 
 const showAdvanced = ref(false)
+
+/**
+ * 思考请求格式：自动 / 自适应 / 思考预算，存成 `thinkingFormat`（自动 = 不写）。
+ *
+ * 绝大多数时候留「自动」：盒子按目录、中转站清单、型号版本号自己判断。只有中转站把型号
+ * 改了名（认不出版本号）、或者厂商又换了格式时，用户才需要手动指定。
+ * 只有 Anthropic 协议读这一位，别的协议不显示。
+ */
+const showThinkingFormat = computed(
+  () =>
+    props.state.draft.value?.protocol === 'anthropic-messages' && !!model.value?.supportsReasoning
+)
+const thinkingFormat = computed<'auto' | 'adaptive' | 'budget'>({
+  get: () => model.value?.thinkingFormat ?? 'auto',
+  set: (value) => {
+    if (model.value) model.value.thinkingFormat = value === 'auto' ? undefined : value
+  }
+})
 </script>
 
 <template>
@@ -184,6 +202,15 @@ const showAdvanced = ref(false)
           <span class="field-label">{{ $t('aiProvider.model.ladder') }}</span>
           <ThinkingLadderField v-model="model.thinkingLevelMap" />
         </div>
+
+        <label v-if="showThinkingFormat" class="field">
+          <span class="field-label">{{ $t('aiProvider.model.thinkingFormat') }}</span>
+          <select v-model="thinkingFormat" class="field-input">
+            <option value="auto">{{ $t('aiProvider.model.thinkingFormats.auto') }}</option>
+            <option value="adaptive">{{ $t('aiProvider.model.thinkingFormats.adaptive') }}</option>
+            <option value="budget">{{ $t('aiProvider.model.thinkingFormats.budget') }}</option>
+          </select>
+        </label>
       </div>
     </section>
   </div>

@@ -222,6 +222,7 @@ function reasoningFor(provider: ProviderConfig, model: ModelConfig): boolean {
  * 我们的目录兜底 pi 快照还没收录的新型号（比如 Claude Fable 5.1）。
  */
 function adaptiveThinkingFor(provider: ProviderConfig, model: ModelConfig): boolean {
+  if (model.thinkingFormat) return model.thinkingFormat === 'adaptive'
   const listed = model.adaptiveThinking ?? catalogModel(provider, model)?.adaptiveThinking
   if (listed !== undefined) return listed
   const builtin = builtinAdaptiveThinking(provider, model)

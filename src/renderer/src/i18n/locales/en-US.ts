@@ -482,6 +482,12 @@ First work out why the install failed from the output above. If you can run comm
         custom: 'Custom'
       },
       ladderReset: 'Reset all to built-in',
+      thinkingFormat: 'Thinking request format',
+      thinkingFormats: {
+        auto: 'Auto',
+        adaptive: 'Adaptive (adaptive)',
+        budget: 'Thinking budget (budget_tokens)'
+      },
       limits: 'Context and output limits',
       contextWindow: 'Context window (Tokens)',
       maxOutputTokens: 'Maximum output (Tokens)',

@@ -170,6 +170,11 @@ function normalizeModel(
     // 逐级找 —— 写成 false 会把回落链掐断，老用户存过的 Anthropic 就永远
     // 停在预算那条路上（xhigh / max 与 high 同义）。
     adaptiveThinking: source.adaptiveThinking === true ? true : undefined,
+    // 用户在模型设置里亲手指定的思考格式，压过上面所有自动判断。没选就是「自动」
+    thinkingFormat:
+      source.thinkingFormat === 'adaptive' || source.thinkingFormat === 'budget'
+        ? source.thinkingFormat
+        : undefined,
     contextWindow: positiveInt(source.contextWindow),
     maxOutputTokens: positiveInt(source.maxOutputTokens),
     ttsVoice: kind === 'tts' ? str(source.ttsVoice) || defaultSpeechVoice(id, baseUrl) : undefined,

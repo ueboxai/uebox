@@ -163,13 +163,18 @@ describe('过载判断', () => {
     'net::ERR_CONNECTION_CLOSED',
     'read ECONNRESET',
     'socket hang up',
-    '请求过于频繁，已触发限流'
+    '请求过于频繁，已触发限流',
+    // 没分到线路，换条线路就好
+    '503 {"error":{"type":"invalid_request_error","message":"当前分组 default 下对于模型 x 无可用渠道"}}'
   ])('算过载：%s', (text) => expect(isOverloadError(text)).toBe(true))
 
-  it.each(['401 Unauthorized', '400 context length exceeded', 'Invalid API key'])(
-    '不算过载：%s',
-    (text) => expect(isOverloadError(text)).toBe(false)
-  )
+  it.each([
+    '401 Unauthorized',
+    '400 context length exceeded',
+    'Invalid API key',
+    // 中转站把上游的 400 包成 500：错误体写明请求本身有误，重发也一样
+    '500 {"error":{"type":"invalid_request_error","message":"claude-fable-5-2 requires adaptive thinking"}}'
+  ])('不算过载：%s', (text) => expect(isOverloadError(text)).toBe(false))
 })
 
 describe('调度包装', () => {

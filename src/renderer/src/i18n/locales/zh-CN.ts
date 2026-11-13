@@ -488,6 +488,12 @@ export default {
         custom: '自定义'
       },
       ladderReset: '全部恢复为跟随内置',
+      thinkingFormat: '思考请求格式',
+      thinkingFormats: {
+        auto: '自动',
+        adaptive: '自适应（adaptive）',
+        budget: '思考预算（budget_tokens）'
+      },
       limits: '上下文与输出上限',
       contextWindow: '上下文窗口（Token）',
       maxOutputTokens: '单次输出上限（Token）',

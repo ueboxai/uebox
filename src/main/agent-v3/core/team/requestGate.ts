@@ -241,12 +241,17 @@ export class AdaptiveLimiter {
 // ── 过载判断 ────────────────────────────────────────────────────────────
 
 const OVERLOAD_STATUS = new Set([408, 429, 500, 502, 503, 504, 529])
+/** 中转没分到线路：有的中转也标成 invalid_request_error，但换条线路就好 */
+const NO_CHANNEL_TEXT = /无可用渠道|no available channel|令牌未覆盖|未覆盖供应商|负载已饱和/i
 const OVERLOAD_TEXT =
   /rate.?limit|too many requests|overload|capacity|concurrency|ERR_CONNECTION_(CLOSED|RESET|ABORTED)|ERR_EMPTY_RESPONSE|ERR_TIMED_OUT|ECONNRESET|ETIMEDOUT|socket hang up|timed? ?out|限流|并发|繁忙|过载/i
 
 /** 这个报错是不是「网关扛不住了」。鉴权、参数、上下文超长这类不算 */
 export function isOverloadError(errorMessage: string): boolean {
-  const { statusCode } = classifyProviderError(errorMessage)
+  const { statusCode, code } = classifyProviderError(errorMessage)
+  // 错误体写明请求本身有误时状态码不作数：中转站会把上游的 400 包成 500 往回传
+  // （真机：「claude-fable-5-2 requires adaptive thinking」被当成网关无响应一直重发）
+  if (code === 'invalid_request_error' && !NO_CHANNEL_TEXT.test(errorMessage)) return false
   if (statusCode !== undefined) return OVERLOAD_STATUS.has(statusCode)
   return OVERLOAD_TEXT.test(errorMessage)
 }

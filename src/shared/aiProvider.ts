@@ -467,6 +467,15 @@ export interface ModelConfig {
    */
   adaptiveThinking?: boolean
   /**
+   * 用户在模型设置里手动指定的思考请求格式，压过 `adaptiveThinking` 和所有自动判断
+   * （目录 → 中转站清单 → 型号版本号）。不写就是「自动」。
+   *
+   * 和 `adaptiveThinking` 分开存，是因为老版本可能把 `adaptiveThinking: false` 写进过盘，
+   * 那一位的 false 一律当「没说」；这里的 `budget` 只可能是用户亲手选的。
+   * 用在中转站把型号改了名、自动判断认不出版本号，或者厂商又换了格式的时候。
+   */
+  thinkingFormat?: 'adaptive' | 'budget'
+  /**
    * 上下文窗口（token）。内置目录里的模型由 models.dev 提供，用户手填/导入的没有。
    *
    * 缺省时不猜大：这个数同时是**自动压缩的触发线**。写大了会一路喂到厂商

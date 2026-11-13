@@ -713,6 +713,26 @@ describe('models.json 解析', () => {
       expect(parse(false)).toBeUndefined()
       expect(parse('true')).toBeUndefined()
     })
+
+    // 用户在模型设置里手选的格式单独一位：认得的两种留住，其余都算「自动」
+    it('手选的思考格式留住，认不得的值归为自动', () => {
+      const format = (thinkingFormat: unknown): unknown =>
+        normalizeSettings({
+          version: 2,
+          providers: [
+            {
+              id: 'a',
+              protocol: 'anthropic-messages',
+              baseUrl: 'https://a',
+              models: [{ id: 'm1', thinkingFormat }]
+            }
+          ]
+        }).providers[0].models[0].thinkingFormat
+      expect(format('adaptive')).toBe('adaptive')
+      expect(format('budget')).toBe('budget')
+      expect(format('auto')).toBeUndefined()
+      expect(format(false)).toBeUndefined()
+    })
   })
 
   it('保留 image 角色的绑定 —— 漏进 MODEL_ROLES 的话它会被静默丢掉', () => {

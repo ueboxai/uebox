@@ -582,6 +582,25 @@ describe('toPiModel', () => {
       }
     })
 
+    /**
+     * 中转站把型号改了名、版本号认不出时，用户在模型设置里手选格式。
+     * 手选的压过目录、清单和版本号推断。
+     */
+    it('用户手选的思考格式压过所有自动判断', () => {
+      const relay = {
+        ...claude([]),
+        id: 'one-api',
+        catalogId: 'one-api',
+        baseUrl: 'https://relay.example.com'
+      }
+      expect(adaptiveOf(toPiModel(relay, { id: 'cc-opus', thinkingFormat: 'adaptive' }))).toBe(true)
+      expect(
+        adaptiveOf(toPiModel(relay, { id: 'claude-fable-5-2', thinkingFormat: 'budget' }))
+      ).toBeUndefined()
+      const direct = claude([{ id: 'claude-sonnet-5-5', thinkingFormat: 'budget' }])
+      expect(adaptiveOf(toPiModel(direct, direct.models[0]))).toBeUndefined()
+    })
+
     // 只有 Anthropic 那条路读得懂这一位，别让它跟着别的协议流出去
     it('非 anthropic-messages 协议不带这一位，哪怕模型上标了', () => {
       const provider: ProviderConfig = {

@@ -218,7 +218,9 @@ describe('isRetryableUnstable（自动断点续传）', () => {
     '503 当前分组 default 下对于模型 claude-opus-5-5 无可用渠道',
     '502 Bad Gateway',
     '429 Too Many Requests',
-    '529 {"type":"error","error":{"type":"overloaded_error"}}'
+    '529 {"type":"error","error":{"type":"overloaded_error"}}',
+    // 没分到线路时有的中转也标成 invalid_request_error，换条线路就好，照样算
+    '503 {"error":{"type":"invalid_request_error","message":"当前分组 default 下对于模型 claude-opus-5-5 无可用渠道"}}'
   ])('中转暂时不行，算：%s', (text) => {
     expect(isRetryableUnstable(text)).toBe(true)
   })
@@ -230,6 +232,9 @@ describe('isRetryableUnstable（自动断点续传）', () => {
     '400 {"error":{"message":"messages.0.content: Field required"}}',
     // 状态码得在开头：报错正文里碰巧出现的数字不算
     '400 max_tokens must be less than 8500',
+    // 中转站把上游的 400 包成 500：错误体写明是请求本身有误，状态码不作数
+    '500 {"error":{"type":"invalid_request_error","message":"claude-fable-5-2 requires adaptive thinking; omit thinking or use thinking.type=adaptive"}}',
+    '502 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0.name: String should match pattern"}}',
     undefined
   ])('重来也一样的，不算：%s', (text) => {
     expect(isRetryableUnstable(text)).toBe(false)
