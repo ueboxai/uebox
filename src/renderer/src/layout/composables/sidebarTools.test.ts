@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RouteRecordRaw } from 'vue-router'
+import { START_LOCATION, type RouteRecordRaw } from 'vue-router'
 import type { MenuItem } from '@renderer/common/routeUtils'
 import { generateMenuFromRoutes } from '@renderer/common/routeUtils'
 
@@ -85,17 +85,20 @@ describe('sidebarTools', () => {
     expect(typeof legacy?.redirect).toBe('function')
     if (typeof legacy?.redirect !== 'function') throw new Error('Missing legacy redirect')
     expect(
-      legacy.redirect({
-        query: { sid: 'ext-2' },
-        path: '/external-teams',
-        fullPath: '/external-teams?sid=ext-2',
-        name: 'ExternalTeams',
-        params: {},
-        hash: '',
-        matched: [],
-        meta: {},
-        redirectedFrom: undefined
-      })
+      legacy.redirect(
+        {
+          query: { sid: 'ext-2' },
+          path: '/external-teams',
+          fullPath: '/external-teams?sid=ext-2',
+          name: 'ExternalTeams',
+          params: {},
+          hash: '',
+          matched: [],
+          meta: {},
+          redirectedFrom: undefined
+        },
+        START_LOCATION
+      )
     ).toEqual({
       name: 'AssistantWelcome',
       query: { sid: 'ext-2' }
