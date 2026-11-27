@@ -202,7 +202,7 @@
     "happy-dom": "^21.0.4",
     "jsdom": "^26.1.0",
     "less": "^4.9.1",
-    "less-loader": "^12.3.0",
+    "less-loader": "^13.1.0",
     "minimatch": "3.1.4",
     "playwright-core": "^1.65.0",
     "prettier": "^3.6.2",
