@@ -200,7 +200,7 @@
     "eslint-plugin-vue": "^10.12.1",
     "gpt-tokenizer": "^4.1.2",
     "happy-dom": "^21.0.4",
-    "jsdom": "^26.1.0",
+    "jsdom": "^31.0.1",
     "less": "^4.9.1",
     "less-loader": "^12.3.0",
     "minimatch": "3.1.4",
